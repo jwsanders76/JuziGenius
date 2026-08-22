@@ -1,0 +1,8 @@
+# JuziGenius Configuration Template
+# Rename this file to config.py and add your API key.
+
+GEMINI_API_KEY = "PASTE_YOUR_API_KEY_HERE"
+
+TUTOR_MODEL = "gemini-1.5-pro"
+BATCH_MODEL = "gemini-1.5-flash"
+APP_NAME = "JuziGenius"
