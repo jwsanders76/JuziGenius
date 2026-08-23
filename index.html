@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JuziGenius (句子Genius)</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Hanzi Writer CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Prompt Zone -->
+        <div id="english-prompt">Initializing session...</div>
+
+        <!-- Assembly Line (Slots) -->
+        <div id="assembly-line"></div>
+
+        <!-- Punctuation Toolbelt -->
+        <div id="punctuation-toolbelt">
+            <button class="punc-btn" data-punc="，">，</button>
+            <button class="punc-btn" data-punc="。">。</button>
+            <button class="punc-btn" data-punc="！">！</button>
+            <button class="punc-btn" data-punc="？">？</button>
+        </div>
+
+        <!-- InkStone Canvas Container -->
+        <div id="tian-zi-ge"></div>
+
+        <!-- Action Sidebar / Buttons -->
+        <div id="action-sidebar">
+            <button id="btn-undo">Undo</button>
+            <button id="btn-hint">Hint</button>
+            <button id="btn-submit">Submit</button>
+            <button id="btn-discuss">Discuss</button>
+        </div>
+    </div>
+
+    <!-- Main Controller Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

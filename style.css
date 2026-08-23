@@ -1,0 +1,105 @@
+/* ==========================================
+   JuziGenius (句子Genius) - Master Stylesheet
+   Optimized for Pixel Tablet & Linux PWA Deployment
+   ========================================== */
+
+:root {
+    --bg-color: #121214;
+    --surface-color: #1e1e24;
+    --card-bg: #262630;
+    --text-primary: #f0f0f5;
+    --text-secondary: #a0a0b0;
+    --accent-gold: #f39c12;
+    --accent-red: #e74c3c;
+    --accent-green: #2ecc71;
+    --border-color: #3f3f50;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+#app-container {
+    width: 100%;
+    max-width: 600px;
+    background-color: var(--surface-color);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* --- Prompt Zone --- */
+#english-prompt {
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+    font-family: Georgia, serif;
+}
+
+/* --- Assembly Line (Slots) --- */
+#assembly-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    min-height: 50px;
+}
+
+.character-slot {
+    width: 45px;
+    height: 45px;
+    background-color: var(--card-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.character-slot.active {
+    border-color: var(--accent-gold);
+    background-color: rgba(243, 156, 18, 0.1);
+    box-shadow: 0 0 10px rgba(243, 156, 18, 0.3);
+}
+
+.character-slot.punctuation-slot {
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+}
+
+/* --- Punctuation Toolbelt --- */
+#punctuation-toolbelt {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.punc-btn {
+    background-color: var(--card-bg);
+    color: var(--text-primary)
