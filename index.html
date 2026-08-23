@@ -16,23 +16,30 @@
         <!-- Assembly Line (Slots) -->
         <div id="assembly-line"></div>
 
-        <!-- Punctuation Toolbelt -->
-        <div id="punctuation-toolbelt">
-            <button class="punc-btn" data-punc="，">，</button>
-            <button class="punc-btn" data-punc="。">。</button>
-            <button class="punc-btn" data-punc="！">！</button>
-            <button class="punc-btn" data-punc="？">？</button>
-        </div>
+        <!-- Main Workspace Area: Left Sidebar Buttons + Central InkStone Canvas -->
+        <div id="workspace-main">
+            <!-- Action Sidebar (Vertical on the left) -->
+            <div id="action-sidebar">
+                <button id="btn-clear" class="action-btn">Clear</button>
+                <button id="btn-hint" class="action-btn">Hint</button>
+                <button id="btn-submit" class="action-btn">Submit</button>
+                <button id="btn-discuss" class="action-btn">Discuss</button>
+            </div>
 
-        <!-- InkStone Canvas Container -->
-        <div id="tian-zi-ge"></div>
+            <!-- InkStone Canvas Container Wrapper -->
+            <div id="canvas-wrapper">
+		<!-- Reserved space for hints to avoid layout shift -->
+                <div id="hint-display-container"></div>
+                <div id="tian-zi-ge"></div>
 
-        <!-- Action Sidebar / Buttons -->
-        <div id="action-sidebar">
-            <button id="btn-undo">Undo</button>
-            <button id="btn-hint">Hint</button>
-            <button id="btn-submit">Submit</button>
-            <button id="btn-discuss">Discuss</button>
+                <!-- Punctuation Toolbelt (Small & Subtle underneath the canvas) -->
+                <div id="punctuation-toolbelt">
+                    <button class="punc-btn" data-punc="，">，</button>
+                    <button class="punc-btn" data-punc="。">。</button>
+                    <button class="punc-btn" data-punc="！">！</button>
+                    <button class="punc-btn" data-punc="？">？</button>
+                </div>
+            </div>
         </div>
     </div>
 

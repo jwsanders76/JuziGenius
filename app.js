@@ -40,7 +40,7 @@ function cacheDomElements() {
     elements.englishPrompt = document.getElementById("english-prompt");
     elements.assemblyLine = document.getElementById("assembly-line");
     elements.canvasContainer = document.getElementById("tian-zi-ge");
-    elements.btnUndo = document.getElementById("btn-undo");
+    elements.btnClear = document.getElementById("btn-clear");
     elements.btnHint = document.getElementById("btn-hint");
     elements.btnSubmit = document.getElementById("btn-submit");
     elements.btnDiscuss = document.getElementById("btn-discuss");
@@ -48,7 +48,7 @@ function cacheDomElements() {
 }
 
 function initEventListeners() {
-    elements.btnUndo.addEventListener("click", handleUndo);
+    elements.btnClear.addEventListener("click", handleClearCanvas);
     elements.btnHint.addEventListener("click", handleHintEscalation);
     elements.btnSubmit.addEventListener("click", handleSentenceSubmit);
     
@@ -147,10 +147,14 @@ function setupCurrentCharacterWriter() {
         return;
     }
 
+
     const targetChar = chineseChars[state.charIndex];
 
     container.innerHTML = "";
 
+    // Clear the hint box text when switching characters (without removing the box itself)
+    const hintContainer = document.getElementById("hint-display-container");
+    if (hintContainer) hintContainer.textContent = "";
     const existingPinyin = document.getElementById("pinyin-push-display");
     if (existingPinyin) existingPinyin.remove();
 
@@ -160,11 +164,13 @@ function setupCurrentCharacterWriter() {
         padding: 10,
         showCharacter: false,
         showOutline: false,   // Blank grid by default (Hardcore mode)
-        strokeAnimationSpeed: 1,
+        strokeAnimationSpeed: 2,
+	delayBetweenStrokes: 150, // Shortened pause between individual strokes in milliseconds
         leniency: 1.0,
         highlightColor: '#e74c3c',
-        drawingColor: '#2c3e50',
-        strokeColor: '#bdc3c7'
+        drawingColor: '#000000',
+        strokeColor: '#333333',
+	outlineColor: '#b0b0b0'
     });
 
     state.writer.quiz({
@@ -237,26 +243,22 @@ function handleHintEscalation() {
 }
 
 function showPinyinPush(char, sentenceObj) {
-    let pinyinDisplay = document.getElementById("pinyin-push-display");
-    if (!pinyinDisplay) {
-        pinyinDisplay = document.createElement("div");
-        pinyinDisplay.id = "pinyin-push-display";
-        pinyinDisplay.style.cssText = "font-size: 1.4rem; font-weight: bold; color: var(--accent-gold); margin-bottom: 8px; text-align: center;";
-        elements.canvasContainer.parentNode.insertBefore(pinyinDisplay, elements.canvasContainer);
-    }
+    const hintContainer = document.getElementById("hint-display-container");
+    if (!hintContainer) return;
 
     const charMeta = sentenceObj.char_metadata && sentenceObj.char_metadata[char];
     const pinyinResult = charMeta ? charMeta.pinyin : "pīn yīn";
     
-    pinyinDisplay.textContent = `Hint (Tier 1 Pinyin): ${pinyinResult}`;
+    hintContainer.textContent = `Hint (Tier 1 Pinyin): ${pinyinResult}`;
 }
-
 /**
- * Handles undo action for the current active stroke canvas.
+ * Clears the active character canvas so the user can retry writing from scratch.
  */
-function handleUndo() {
+function handleClearCanvas() {
     if (state.writer) {
-        state.writer.undoLastStroke();
+        // Cancel current HanziWriter quiz session and reload clean slate
+        state.writer.cancelQuiz();
+        setupCurrentCharacterWriter();
     }
 }
 
