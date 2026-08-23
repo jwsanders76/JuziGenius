@@ -1,0 +1,22 @@
+# --- Security & Personal Data ---
+# Do NOT remove these; they protect your keys and progress
+config.py
+brain.json
+.env
+
+# --- Python Clutter ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# --- Operating System Junk ---
+.DS_Store          # macOS folder attributes
+Thumbs.db          # Windows thumbnail cache
+.swp               # Linux/Vim swap files
+*~                 # Linux backup files
+
+# --- Web/PWA Clutter ---
+node_modules/
+.eslintcache

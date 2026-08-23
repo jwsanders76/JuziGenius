@@ -1,0 +1,6 @@
+def suggest_next_words():
+    # Load your current brain.json
+    # Load top_500_frequency.json
+    # Find the first 5 characters in frequency not in brain.json
+    # Print them for the user to 'unlock'
+    pass

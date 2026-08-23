@@ -3,6 +3,6 @@
 
 GEMINI_API_KEY = "PASTE_YOUR_API_KEY_HERE"
 
-TUTOR_MODEL = "gemini-1.5-pro"
-BATCH_MODEL = "gemini-1.5-flash"
+TUTOR_MODEL = "gemini-2.5-flash"
+BATCH_MODEL = "gemini-2.5-flash"
 APP_NAME = "JuziGenius"
