@@ -1,11 +1,5 @@
 /**
  * JuziGenius (句子Genius) - Main Application Controller
- * Handles Hanzi Writer strict character validation, hint escalation, 
- * punctuation insertion, and dynamic backend session fetching.
- */
-
-/**
- * JuziGenius (句子Genius) - Main Application Controller
  * Using a hardcoded test session for rapid local development.
  */
 
@@ -30,36 +24,17 @@ const state = {
     currentScorePenalty: 0
 };
 
+// Global audio reference to prevent browser garbage collection
+let currentUtterance = null;
+
 // DOM Elements Cache
 const elements = {};
 
 document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
-
-    // BYPASS BACKEND FETCH FOR FAST LOADING:
     loadSession();
 });
-
-// Global App State
-/**const state = {
-    sentences: [],          // Dynamically loaded from Python backend
-    currentIndex: 0,       // Current sentence index
-    charIndex: 0,          // Current character index within the active sentence
-    hintTier: 0,           // 0: None, 1: Pinyin, 2: Ghost Outline, 3: Animated Stroke
-    writer: null,          // Active HanziWriter instance
-    currentScorePenalty: 0 // Tracks SRS penalty based on highest hint tier reached
-};
-
-// DOM Elements Cache
-const elements = {};
-
-document.addEventListener("DOMContentLoaded", () => {
-    cacheDomElements();
-    initEventListeners();
-    fetchNewSession(); // Fetch real-time AI sentences from backend on load
-});
-*/
 
 function cacheDomElements() {
     elements.englishPrompt = document.getElementById("english-prompt");
@@ -77,7 +52,6 @@ function initEventListeners() {
     elements.btnHint.addEventListener("click", handleHintEscalation);
     elements.btnSubmit.addEventListener("click", handleSentenceSubmit);
     
-    // Punctuation Toolbelt Listeners
     elements.puncButtons.forEach(btn => {
         btn.addEventListener("click", (e) => {
             const punc = e.target.getAttribute("data-punc");
@@ -138,7 +112,6 @@ function renderAssemblyLine() {
         slot.className = "character-slot";
         slot.id = `slot-${idx}`;
 
-        // Check if it's punctuation or standard character
         if (isPunctuation(char)) {
             slot.classList.add("punctuation-slot");
             slot.textContent = char;
@@ -158,46 +131,45 @@ function renderAssemblyLine() {
 function setupCurrentCharacterWriter() {
     const currentSentence = state.sentences[state.currentIndex];
     const chineseChars = Array.from(currentSentence.chinese);
-    
-    // Skip punctuation automatically if encountered at the pointer
+
     while (state.charIndex < chineseChars.length && isPunctuation(chineseChars[state.charIndex])) {
         state.charIndex++;
     }
 
+    const container = document.getElementById('tian-zi-ge');
+    if (!container) {
+        console.error("Fatal: #tian-zi-ge container element missing from DOM.");
+        return;
+    }
+
     if (state.charIndex >= chineseChars.length) {
-        // Sentence fully written! Trigger validation readiness.
-        elements.canvasContainer.innerHTML = `<div class="completion-notice">Sentence Complete! Press Submit.</div>`;
+        container.innerHTML = `<div class="completion-notice">Sentence Complete! Press Submit.</div>`;
         return;
     }
 
     const targetChar = chineseChars[state.charIndex];
-    elements.canvasContainer.innerHTML = ""; // Clear canvas container
 
-    // Reset Hint display area if present
+    container.innerHTML = "";
+
     const existingPinyin = document.getElementById("pinyin-push-display");
     if (existingPinyin) existingPinyin.remove();
 
-    // Initialize HanziWriter (Hardcore Configuration: showCharacter: false)
     state.writer = HanziWriter.create('tian-zi-ge', targetChar, {
-        width: 260,
-        height: 260,
+        width: 240,
+        height: 240,
         padding: 10,
-        showCharacter: false, // ZERO PREDICTIVE ASSISTANCE BY DEFAULT
-        showOutline: false,
+        showCharacter: false,
+        showOutline: false,   // Blank grid by default (Hardcore mode)
         strokeAnimationSpeed: 1,
-        leniency: 1.0,        // Strict stroke verification
+        leniency: 1.0,
         highlightColor: '#e74c3c',
         drawingColor: '#2c3e50',
         strokeColor: '#bdc3c7'
     });
 
     state.writer.quiz({
-        onCorrectStroke: (strokeData) => {
-            // Optional micro-feedback on correct stroke
-        },
-        onMistake: (strokeData) => {
-            // Hardcore mode tracking
-        },
+        onCorrectStroke: (strokeData) => {},
+        onMistake: (strokeData) => {},
         onComplete: (summaryData) => {
             handleCharacterSuccess(targetChar);
         }
@@ -216,11 +188,8 @@ function handleCharacterSuccess(char) {
         slot.classList.remove("active");
     }
 
-    // Advance to next character
     state.charIndex++;
-    state.hintTier = 0; // Reset hint tier for the next character
-
-    // Load next character in sequence
+    state.hintTier = 0; 
     setTimeout(setupCurrentCharacterWriter, 300);
 }
 
@@ -252,18 +221,15 @@ function handleHintEscalation() {
     const targetChar = Array.from(currentSentence.chinese)[state.charIndex];
 
     if (state.hintTier === 1) {
-        // Tier 1: Phonetic Push (Pinyin pulled dynamically from database metadata)
         state.currentScorePenalty = Math.max(state.currentScorePenalty, 1);
         showPinyinPush(targetChar, currentSentence);
     } else if (state.hintTier === 2) {
-        // Tier 2: Structural Skeleton (Ghost Outline enabled temporarily)
         state.currentScorePenalty = Math.max(state.currentScorePenalty, 2);
         if (state.writer) {
             state.writer.showOutline();
         }
     } else if (state.hintTier >= 3) {
-        // Tier 3: The Master Class (Animated Stroke Walkthrough)
-        state.currentScorePenalty = 3; // Max penalty / Fail state for SRS
+        state.currentScorePenalty = 3;
         if (state.writer) {
             state.writer.animateCharacter();
         }
@@ -279,7 +245,6 @@ function showPinyinPush(char, sentenceObj) {
         elements.canvasContainer.parentNode.insertBefore(pinyinDisplay, elements.canvasContainer);
     }
 
-    // Pull real database metadata matching this character from the active sentence session
     const charMeta = sentenceObj.char_metadata && sentenceObj.char_metadata[char];
     const pinyinResult = charMeta ? charMeta.pinyin : "pīn yīn";
     
@@ -301,36 +266,45 @@ function handleUndo() {
 function handleSentenceSubmit() {
     const currentSentence = state.sentences[state.currentIndex];
     
-    // Check if user completed all characters
     if (state.charIndex < Array.from(currentSentence.chinese).length) {
         alert("Please finish writing all characters before submitting.");
         return;
     }
 
-    // Trigger Audible Reinforcement (Native Web Speech TTS)
     playNativeTTS(currentSentence.chinese);
-
     alert("Sentence Verified Successfully!");
     
-    // Move to next sentence or fetch new batch if pool is finished
+/** Uncomment this when dev is done. 
     state.currentIndex++;
     if (state.currentIndex >= state.sentences.length) {
         fetchNewSession();
     } else {
         loadSession();
     }
+*/
+    // Loop back to the start of the mock array instead of fetching from Gemini backend
+    state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
+    loadSession();
 }
 
 /**
  * Neural Text-to-Speech playback at native speed (Rate 1.0).
  */
 function playNativeTTS(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1.0; // Full speed native Mandarin
-        window.speechSynthesis.speak(utterance);
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+
+    currentUtterance = new SpeechSynthesisUtterance(text);
+    currentUtterance.lang = 'zh-CN';
+    currentUtterance.rate = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const chineseVoice = voices.find(v => v.lang === 'zh-CN' || v.lang === 'zh');
+    if (chineseVoice) {
+        currentUtterance.voice = chineseVoice;
     }
+
+    window.speechSynthesis.speak(currentUtterance);
 }
 
 function isPunctuation(char) {
