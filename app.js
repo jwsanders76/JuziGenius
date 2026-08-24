@@ -11,8 +11,12 @@ const state = {
     writer: null,
     currentScorePenalty: 0,
     totalUnlockedCount: 0,
-    isCompleted: false
+    isCompleted: false,
+    importMode: "paste",
+    providers: []
 };
+
+const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", ai: "Generate" };
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
@@ -41,6 +45,12 @@ function cacheDomElements() {
     elements.modalBtnCancel = document.getElementById("modal-btn-cancel");
     elements.modalBtnSubmit = document.getElementById("modal-btn-submit");
     elements.importTextarea = document.getElementById("import-textarea");
+    elements.modeTabs = document.querySelectorAll(".mode-tab");
+    elements.modePanels = document.querySelectorAll(".mode-panel");
+    elements.aiProviderSelect = document.getElementById("ai-provider-select");
+    elements.aiApiKeyInput = document.getElementById("ai-api-key-input");
+    elements.aiKeyLabel = document.getElementById("ai-key-label");
+    elements.aiKeyRow = document.getElementById("ai-key-row");
 }
 
 function initEventListeners() {
@@ -59,9 +69,19 @@ function initEventListeners() {
             if (elements.importModal) {
                 elements.importModal.style.display = "flex";
                 elements.importTextarea.value = "";
+                switchImportMode("paste");
                 elements.importTextarea.focus();
+                if (state.providers.length === 0) loadProviders();
             }
         });
+    }
+
+    elements.modeTabs.forEach(tab => {
+        tab.addEventListener("click", () => switchImportMode(tab.dataset.mode));
+    });
+
+    if (elements.aiProviderSelect) {
+        elements.aiProviderSelect.addEventListener("change", updateAiKeyFieldState);
     }
 
     if (elements.modalBtnCancel) {
@@ -71,7 +91,7 @@ function initEventListeners() {
     }
 
     if (elements.modalBtnSubmit) {
-        elements.modalBtnSubmit.addEventListener("click", handleTextImport);
+        elements.modalBtnSubmit.addEventListener("click", handleModalSubmit);
     }
 
     // Keyboard navigation: Press Space or Enter to load Next sentence when completed
@@ -294,47 +314,14 @@ function triggerSentenceCompletion() {
 }
 
 /**
- * Advances to the next sentence in the session. If the user just finished the
- * last sentence in the bank, requests a fresh AI-generated batch so the same
- * sentences don't repeat forever; falls back to looping the existing bank if
- * generation is unavailable (e.g. offline, no API key).
+ * Advances to the next sentence in the session, looping back to the start
+ * once the bank is exhausted. Getting a new batch is a deliberate user
+ * action via the Import modal (Paste / HSK / Generate with AI), not automatic.
  */
-async function nextSentence() {
+function nextSentence() {
     if (!state.sentences || state.sentences.length === 0) return;
-
-    const finishedLastSentence = state.currentIndex === state.sentences.length - 1;
     state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
-
-    if (finishedLastSentence) {
-        const refreshed = await tryRefreshSession();
-        if (refreshed) state.currentIndex = 0;
-    }
-
     loadSession();
-}
-
-/**
- * Requests a brand new sentence batch from the backend, replacing the saved
- * bank. Returns true if new sentences were loaded, false otherwise.
- */
-async function tryRefreshSession() {
-    elements.englishPrompt.textContent = "Generating new sentences...";
-    try {
-        const response = await fetch('/api/session/refresh', { method: 'POST' });
-        if (!response.ok) return false;
-
-        const data = await response.json();
-        if (data && Array.isArray(data.sentences) && data.sentences.length > 0) {
-            state.sentences = data.sentences;
-            state.totalUnlockedCount = data.total_unlocked_count || state.totalUnlockedCount;
-            updateCharacterCounter();
-            return true;
-        }
-        return false;
-    } catch (err) {
-        console.error("Session refresh failed, replaying existing sentence bank.", err);
-        return false;
-    }
 }
 
 /**
@@ -393,6 +380,85 @@ function handleClearCanvas() {
 }
 
 /**
+ * Switches the Import modal between its three modes: paste-your-own-text,
+ * pick from local HSK sentences, or generate new ones with an AI provider.
+ */
+function switchImportMode(mode) {
+    state.importMode = mode;
+
+    elements.modeTabs.forEach(tab => {
+        tab.classList.toggle("active", tab.dataset.mode === mode);
+    });
+    elements.modePanels.forEach(panel => {
+        panel.hidden = panel.dataset.modePanel !== mode;
+    });
+
+    elements.modalBtnSubmit.textContent = SUBMIT_LABELS[mode] || "Submit";
+}
+
+/**
+ * Loads which AI providers exist and whether a server-side key is already
+ * configured for them, then populates the provider dropdown.
+ */
+async function loadProviders() {
+    try {
+        const response = await fetch('/api/providers');
+        if (!response.ok) return;
+        const data = await response.json();
+        state.providers = data.providers || [];
+        renderProviderOptions();
+    } catch (err) {
+        console.error("Could not load AI provider list.", err);
+    }
+}
+
+function renderProviderOptions() {
+    if (!elements.aiProviderSelect) return;
+    elements.aiProviderSelect.innerHTML = "";
+
+    state.providers.forEach(provider => {
+        const option = document.createElement("option");
+        option.value = provider.id;
+        option.textContent = provider.server_configured
+            ? `${provider.label} (server key configured)`
+            : provider.label;
+        elements.aiProviderSelect.appendChild(option);
+    });
+
+    updateAiKeyFieldState();
+}
+
+/**
+ * Prefills the API key field from this browser's localStorage (client-held
+ * only -- never persisted server-side) and labels it optional/required
+ * depending on whether the selected provider has a server-configured key.
+ */
+function updateAiKeyFieldState() {
+    if (!elements.aiProviderSelect || !elements.aiApiKeyInput) return;
+
+    const providerId = elements.aiProviderSelect.value;
+    const provider = state.providers.find(p => p.id === providerId);
+
+    elements.aiApiKeyInput.value = localStorage.getItem(`juzi_api_key_${providerId}`) || "";
+    elements.aiKeyLabel.textContent = provider && provider.server_configured
+        ? "API Key (optional — server key configured)"
+        : "API Key (required)";
+}
+
+/**
+ * Dispatches the modal's Submit button to the handler for the active mode.
+ */
+function handleModalSubmit() {
+    if (state.importMode === "hsk") {
+        handleGenerateSession("hsk");
+    } else if (state.importMode === "ai") {
+        handleGenerateSession("ai");
+    } else {
+        handleTextImport();
+    }
+}
+
+/**
  * Handles processing and unlocking words locally via POST request to python backend.
  */
 async function handleTextImport() {
@@ -415,7 +481,7 @@ async function handleTextImport() {
         if (!response.ok) throw new Error("Import failed on backend server.");
 
         const result = await response.json();
-        
+
         if (result.total_unlocked_count !== undefined) {
             state.totalUnlockedCount = result.total_unlocked_count;
             updateCharacterCounter();
@@ -430,7 +496,56 @@ async function handleTextImport() {
         console.error(err);
         alert("Error connecting to Python server during text import.");
     } finally {
-        elements.modalBtnSubmit.textContent = "Process & Unlock";
+        elements.modalBtnSubmit.textContent = SUBMIT_LABELS[state.importMode] || "Submit";
+        elements.modalBtnSubmit.disabled = false;
+    }
+}
+
+/**
+ * Handles both the HSK (no key) and AI (provider + key) sentence-generation
+ * modes, which share the same backend endpoint and response shape.
+ */
+async function handleGenerateSession(source) {
+    const payload = { source };
+
+    if (source === "ai") {
+        const providerId = elements.aiProviderSelect.value;
+        const apiKey = elements.aiApiKeyInput.value.trim();
+        payload.provider = providerId;
+        if (apiKey) {
+            payload.api_key = apiKey;
+            localStorage.setItem(`juzi_api_key_${providerId}`, apiKey);
+        }
+    }
+
+    elements.modalBtnSubmit.textContent = "Working...";
+    elements.modalBtnSubmit.disabled = true;
+
+    try {
+        const response = await fetch('/api/session/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Sentence generation failed.");
+
+        if (Array.isArray(result.sentences) && result.sentences.length > 0) {
+            state.sentences = result.sentences;
+            state.currentIndex = 0;
+            state.totalUnlockedCount = result.total_unlocked_count ?? state.totalUnlockedCount;
+            updateCharacterCounter();
+            elements.importModal.style.display = "none";
+            loadSession();
+        } else {
+            alert("No matching sentences found. Try unlocking more characters first.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert(err.message || "Error generating sentences.");
+    } finally {
+        elements.modalBtnSubmit.textContent = SUBMIT_LABELS[state.importMode] || "Submit";
         elements.modalBtnSubmit.disabled = false;
     }
 }

@@ -33,13 +33,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 saved_sentences = brain_data.get("sentences", [])
                 total_unlocked = len(unlocked_chars)
 
-                # Bootstrap: generate an initial batch if the bank is empty but characters exist
+                # Bootstrap: populate an initial batch from the local HSK corpus if the
+                # bank is empty but characters exist. Uses the no-key local fallback
+                # rather than AI, so first-run works with zero configuration.
                 if not saved_sentences and total_unlocked > 0:
                     try:
-                        fresh = engine.generate_fresh_session(count=3)
+                        fresh = engine.generate_fresh_session(count=3, source="hsk")
                         saved_sentences = fresh["sentences"]
                     except Exception as gen_err:
-                        print(f"AI session generation fallback notice: {gen_err}")
+                        print(f"Session bootstrap notice: {gen_err}")
 
                 # Ensure existing sentences have char_metadata attached
                 for s in saved_sentences:
@@ -61,6 +63,23 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(response_payload, ensure_ascii=False).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
+        # Reports which AI providers exist and whether a server-side key is
+        # already configured for them, so the frontend knows which providers
+        # still need a client-pasted API key.
+        if path == "/api/providers":
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"providers": engine.list_providers()}, ensure_ascii=False).encode("utf-8"))
                 return
             except Exception as e:
                 self.send_response(500)
@@ -104,18 +123,35 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return
 
-        # Forces generation of a brand new sentence batch, replacing the saved
-        # bank -- called once the user has completed every sentence in it.
-        if path == "/api/session/refresh":
+        # Generates a brand new sentence batch, replacing the saved bank.
+        # Body: { "source": "ai" | "hsk", "provider": "gemini"|"claude"|"openai"|"grok",
+        #         "api_key": "<optional, client-held -- never written to disk>" }
+        if path == "/api/session/generate":
             try:
-                result = engine.generate_fresh_session(count=5)
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length).decode('utf-8') if content_length else "{}"
+                data = json.loads(body) if body else {}
+
+                source = data.get("source", "ai")
+                provider = data.get("provider", "gemini")
+                api_key = data.get("api_key") or None
+
+                result = engine.generate_fresh_session(count=5, source=source, provider=provider, api_key=api_key)
+
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
                 return
+            except ValueError as e:
+                # Missing/invalid API key -- a client error, not a server error
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
             except Exception as e:
-                self.send_response(500)
+                self.send_response(502)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))

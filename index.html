@@ -45,12 +45,42 @@
         </div>
     </div>
 
-    <!-- Bulk Import Modal Overlay -->
+    <!-- Import / Generate Sentences Modal Overlay -->
     <div id="import-modal" class="modal-overlay">
         <div class="modal-card">
-            <h2 class="modal-title">Import Chinese Text</h2>
-            <p class="modal-subtitle">Paste Chinese sentences, stories, or vocabulary below to unlock characters and discover words.</p>
-            <textarea id="import-textarea" placeholder="例如：我喜欢在每天早上喝热茶。"></textarea>
+            <h2 class="modal-title">Add Practice Sentences</h2>
+
+            <div class="mode-tabs">
+                <button type="button" class="mode-tab active" data-mode="paste">Paste Text</button>
+                <button type="button" class="mode-tab" data-mode="hsk">HSK Sentences</button>
+                <button type="button" class="mode-tab" data-mode="ai">Generate with AI</button>
+            </div>
+
+            <!-- Paste Text: unlock characters from your own text -->
+            <div class="mode-panel" data-mode-panel="paste">
+                <p class="modal-subtitle">Paste Chinese sentences, stories, or vocabulary below to unlock characters and discover words.</p>
+                <textarea id="import-textarea" placeholder="例如：我喜欢在每天早上喝热茶。"></textarea>
+            </div>
+
+            <!-- HSK Sentences: local, offline, no AI/key needed -->
+            <div class="mode-panel" data-mode-panel="hsk" hidden>
+                <p class="modal-subtitle">Pulls real example sentences from the local HSK corpus that use only characters you've already unlocked. Works fully offline &mdash; no AI, no API key.</p>
+            </div>
+
+            <!-- Generate with AI: novel sentences from a chosen provider -->
+            <div class="mode-panel" data-mode-panel="ai" hidden>
+                <p class="modal-subtitle">Generates brand-new sentences using ONLY your unlocked characters.</p>
+                <div class="provider-select-row">
+                    <label for="ai-provider-select">Provider</label>
+                    <select id="ai-provider-select"></select>
+                </div>
+                <div id="ai-key-row" class="ai-key-row">
+                    <label for="ai-api-key-input" id="ai-key-label">API Key</label>
+                    <input type="password" id="ai-api-key-input" placeholder="Paste your API key" autocomplete="off" spellcheck="false" />
+                    <p class="ai-key-note">Kept only in this browser's local storage. Sent directly to this app's local server for a single request &mdash; never written to disk there.</p>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button id="modal-btn-cancel" class="modal-btn btn-secondary">Cancel</button>
                 <button id="modal-btn-submit" class="modal-btn btn-primary">Process & Unlock</button>

@@ -1,21 +1,24 @@
+import csv
 import json
 import os
+import random
 import re
-import warnings
-from google import genai
-import config
 
-# Suppress minor SDK warning logs regarding automatic function calling
-warnings.filterwarnings("ignore", category=UserWarning, module="google.genai")
+import ai_providers
+
+try:
+    import config
+except ImportError:
+    config = None
+
+HSK_SOURCE_FILES = ["hsk_level1and2_words_with_sentences.csv", "hsk_level3_words_with_sentences.csv"]
+
 
 class JuziEngine:
     def __init__(self, brain_path="brain.json", words_path="words_freq.json", master_dict_path="master_dictionary.json"):
         self.brain_path = brain_path
         self.words_path = words_path
         self.master_dict_path = master_dict_path
-        # Initialize official GenAI client
-        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
-        self.model_name = getattr(config, "BATCH_MODEL", "gemini-2.5-flash")
 
     def load_unlocked_chars(self) -> str:
         """Loads unlocked characters from brain.json and returns them as a single string pool."""
@@ -144,12 +147,71 @@ class JuziEngine:
             "message": msg
         }
 
-    def generate_session(self, count: int = 5) -> list:
-        """Dynamically generates a fresh list of session sentences using ONLY unlocked characters."""
+    def list_providers(self) -> list:
+        """
+        Reports which AI providers exist and whether a server-side key is
+        configured for them (currently only possible for Gemini, via
+        config.py). Every provider can still be used by supplying a
+        client-held API key per request regardless of this flag.
+        """
+        server_gemini_key = getattr(config, "GEMINI_API_KEY", None) if config else None
+        has_server_gemini_key = bool(server_gemini_key and server_gemini_key != "PASTE_YOUR_API_KEY_HERE")
+
+        providers = []
+        for provider_id, meta in ai_providers.PROVIDER_CONFIG.items():
+            providers.append({
+                "id": provider_id,
+                "label": meta["label"],
+                "server_configured": has_server_gemini_key if provider_id == "gemini" else False
+            })
+        return providers
+
+    def pick_hsk_sentences(self, count: int = 5) -> list:
+        """
+        Picks real example sentences from the local HSK corpora whose characters
+        are entirely within the user's currently unlocked pool. No AI, no
+        network call, no API key required.
+        """
         unlocked = self.load_unlocked_chars()
-        
         if not unlocked:
             return []
+
+        unlocked_set = set(unlocked)
+        allowed_punct = "，。！？、；：“”‘’—…"
+        candidates = []
+        seen_chinese = set()
+
+        for filename in HSK_SOURCE_FILES:
+            if not os.path.exists(filename):
+                continue
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f, delimiter="\t")
+                    for row in reader:
+                        chinese = (row.get("sentence") or "").replace(" ", "").strip()
+                        english = (row.get("sentence_meaning") or "").strip()
+                        if not chinese or not english or chinese in seen_chinese:
+                            continue
+                        if all(c in unlocked_set or c in allowed_punct for c in chinese):
+                            seen_chinese.add(chinese)
+                            candidates.append({"english": english, "chinese": chinese})
+            except Exception as e:
+                print(f"Warning: could not read {filename}: {e}")
+
+        random.shuffle(candidates)
+        return candidates[:count]
+
+    def generate_session(self, count: int = 5, provider: str = "gemini", api_key: str = None) -> list:
+        """Dynamically generates a fresh list of session sentences using ONLY unlocked characters."""
+        unlocked = self.load_unlocked_chars()
+
+        if not unlocked:
+            return []
+
+        if not api_key and provider == "gemini":
+            api_key = getattr(config, "GEMINI_API_KEY", None) if config else None
+        if not api_key:
+            raise ValueError(f"No API key available for provider '{provider}'.")
 
         prompt = (
             f"Generate {count} unique, natural Mandarin Chinese practice sentences using ONLY these characters: {unlocked}. "
@@ -157,12 +219,8 @@ class JuziEngine:
             f"Output strictly one sentence per line formatted as: English | Chinese. No markdown code blocks, no list numbers."
         )
 
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-
-        raw_output = response.text.strip()
+        model_override = getattr(config, "BATCH_MODEL", None) if (config and provider == "gemini") else None
+        raw_output = ai_providers.call_provider(provider, api_key, prompt, model=model_override).strip()
         # Strip markdown fences if present
         raw_output = re.sub(r'```[a-zA-Z]*\n?', '', raw_output).replace('```', '')
 
@@ -189,12 +247,16 @@ class JuziEngine:
 
         return session_sentences
 
-    def generate_fresh_session(self, count: int = 5) -> dict:
+    def generate_fresh_session(self, count: int = 5, source: str = "ai", provider: str = "gemini", api_key: str = None) -> dict:
         """
-        Generates a brand new batch of AI session sentences and replaces the
+        Generates a brand new batch of session sentences and replaces the
         saved sentence bank in brain.json, so a completed session doesn't
-        just replay the same sentences forever. If generation fails (no API
-        key, offline, etc.) the existing saved bank is left untouched.
+        just replay the same sentences forever.
+
+        source="ai" calls the given AI provider (raises if no key is
+        available). source="hsk" picks real example sentences from the local
+        HSK corpora instead -- no AI, no network, no key needed. If no
+        sentences come back, the existing saved bank is left untouched.
         """
         brain_data = {"unlocked_chars": {}, "sentences": []}
         if os.path.exists(self.brain_path):
@@ -205,7 +267,11 @@ class JuziEngine:
                 print(f"Error reading brain database: {e}")
 
         unlocked_chars = brain_data.get("unlocked_chars", {})
-        raw_sentences = self.generate_session(count=count)
+
+        if source == "hsk":
+            raw_sentences = self.pick_hsk_sentences(count=count)
+        else:
+            raw_sentences = self.generate_session(count=count, provider=provider, api_key=api_key)
 
         new_sentences = []
         for item in raw_sentences:
