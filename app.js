@@ -294,12 +294,47 @@ function triggerSentenceCompletion() {
 }
 
 /**
- * Advances to the next sentence in the session.
+ * Advances to the next sentence in the session. If the user just finished the
+ * last sentence in the bank, requests a fresh AI-generated batch so the same
+ * sentences don't repeat forever; falls back to looping the existing bank if
+ * generation is unavailable (e.g. offline, no API key).
  */
-function nextSentence() {
+async function nextSentence() {
     if (!state.sentences || state.sentences.length === 0) return;
+
+    const finishedLastSentence = state.currentIndex === state.sentences.length - 1;
     state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
+
+    if (finishedLastSentence) {
+        const refreshed = await tryRefreshSession();
+        if (refreshed) state.currentIndex = 0;
+    }
+
     loadSession();
+}
+
+/**
+ * Requests a brand new sentence batch from the backend, replacing the saved
+ * bank. Returns true if new sentences were loaded, false otherwise.
+ */
+async function tryRefreshSession() {
+    elements.englishPrompt.textContent = "Generating new sentences...";
+    try {
+        const response = await fetch('/api/session/refresh', { method: 'POST' });
+        if (!response.ok) return false;
+
+        const data = await response.json();
+        if (data && Array.isArray(data.sentences) && data.sentences.length > 0) {
+            state.sentences = data.sentences;
+            state.totalUnlockedCount = data.total_unlocked_count || state.totalUnlockedCount;
+            updateCharacterCounter();
+            return true;
+        }
+        return false;
+    } catch (err) {
+        console.error("Session refresh failed, replaying existing sentence bank.", err);
+        return false;
+    }
 }
 
 /**

@@ -9,9 +9,10 @@ import config
 warnings.filterwarnings("ignore", category=UserWarning, module="google.genai")
 
 class JuziEngine:
-    def __init__(self, brain_path="brain.json", words_path="words_freq.json"):
+    def __init__(self, brain_path="brain.json", words_path="words_freq.json", master_dict_path="master_dictionary.json"):
         self.brain_path = brain_path
         self.words_path = words_path
+        self.master_dict_path = master_dict_path
         # Initialize official GenAI client
         self.client = genai.Client(api_key=config.GEMINI_API_KEY)
         self.model_name = getattr(config, "BATCH_MODEL", "gemini-2.5-flash")
@@ -28,6 +29,17 @@ class JuziEngine:
         except Exception as e:
             print(f"Warning loading unlocked characters: {e}")
             return ""
+
+    def load_master_dictionary(self) -> dict:
+        """Loads the static character -> pinyin/meaning reference dictionary."""
+        if not os.path.exists(self.master_dict_path):
+            return {}
+        try:
+            with open(self.master_dict_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load {self.master_dict_path}: {e}")
+            return {}
 
     def load_word_frequencies(self) -> dict:
         """Loads the separate static word frequency file safely."""
@@ -72,7 +84,7 @@ class JuziEngine:
         chinese_chars = set(re.findall(r'[\u4e00-\u9fa5]', raw_text))
         
         # Load existing brain database
-        brain_data = {"unlocked_chars": {}, "master_dictionary": {}, "sentences": []}
+        brain_data = {"unlocked_chars": {}, "sentences": []}
         if os.path.exists(self.brain_path):
             try:
                 with open(self.brain_path, "r", encoding="utf-8") as f:
@@ -80,8 +92,12 @@ class JuziEngine:
             except Exception as e:
                 print(f"Error reading brain database: {e}")
 
+        # master_dictionary now lives in its own tracked file (master_dictionary.json),
+        # not inside gitignored brain.json -- drop any stale embedded copy on save.
+        brain_data.pop("master_dictionary", None)
+
         unlocked = brain_data.setdefault("unlocked_chars", {})
-        master = brain_data.get("master_dictionary", {})
+        master = self.load_master_dictionary()
 
         if not chinese_chars:
             return {
@@ -172,6 +188,52 @@ class JuziEngine:
                     })
 
         return session_sentences
+
+    def generate_fresh_session(self, count: int = 5) -> dict:
+        """
+        Generates a brand new batch of AI session sentences and replaces the
+        saved sentence bank in brain.json, so a completed session doesn't
+        just replay the same sentences forever. If generation fails (no API
+        key, offline, etc.) the existing saved bank is left untouched.
+        """
+        brain_data = {"unlocked_chars": {}, "sentences": []}
+        if os.path.exists(self.brain_path):
+            try:
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    brain_data = json.load(f)
+            except Exception as e:
+                print(f"Error reading brain database: {e}")
+
+        unlocked_chars = brain_data.get("unlocked_chars", {})
+        raw_sentences = self.generate_session(count=count)
+
+        new_sentences = []
+        for item in raw_sentences:
+            chi_str = item["chinese"]
+            char_metadata = {}
+            for char in chi_str:
+                if char in unlocked_chars:
+                    char_metadata[char] = {
+                        "pinyin": unlocked_chars[char].get("pinyin", ""),
+                        "meaning": unlocked_chars[char].get("meaning", "")
+                    }
+                else:
+                    char_metadata[char] = {"pinyin": "", "meaning": ""}
+            new_sentences.append({
+                "english": item["english"],
+                "chinese": chi_str,
+                "char_metadata": char_metadata
+            })
+
+        if new_sentences:
+            brain_data["sentences"] = new_sentences
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {
+            "sentences": brain_data.get("sentences", []),
+            "total_unlocked_count": len(unlocked_chars)
+        }
 
 if __name__ == "__main__":
     engine = JuziEngine()
