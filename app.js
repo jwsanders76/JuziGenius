@@ -1,30 +1,20 @@
 /**
  * JuziGenius (句子Genius) - Main Application Controller
- * Using a hardcoded test session for rapid local development.
  */
 
-// Global App State with Hardcoded Test Data
+// Global App State
 const state = {
-    sentences: [
-        {
-            english: "I love China.",
-            chinese: "我爱中国。",
-            char_metadata: {
-                "我": { "pinyin": "wǒ", "meaning": "I/me" },
-                "爱": { "pinyin": "ài", "meaning": "to love" },
-                "中": { "pinyin": "zhōng", "meaning": "middle/China" },
-                "国": { "pinyin": "guó", "meaning": "country" }
-            }
-        }
-    ],
+    sentences: [],
     currentIndex: 0,
     charIndex: 0,
     hintTier: 0,
     writer: null,
-    currentScorePenalty: 0
+    currentScorePenalty: 0,
+    totalUnlockedCount: 0,
+    isCompleted: false
 };
 
-// Global audio reference to prevent browser garbage collection
+// Global audio reference to prevent garbage collection
 let currentUtterance = null;
 
 // DOM Elements Cache
@@ -33,7 +23,7 @@ const elements = {};
 document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
-    loadSession();
+    fetchNewSession();
 });
 
 function cacheDomElements() {
@@ -42,40 +32,85 @@ function cacheDomElements() {
     elements.canvasContainer = document.getElementById("tian-zi-ge");
     elements.btnClear = document.getElementById("btn-clear");
     elements.btnHint = document.getElementById("btn-hint");
-    elements.btnSubmit = document.getElementById("btn-submit");
     elements.btnDiscuss = document.getElementById("btn-discuss");
-    elements.puncButtons = document.querySelectorAll(".punc-btn");
+    elements.btnImport = document.getElementById("btn-import");
+    elements.counterValue = document.getElementById("counter-value");
+    
+    // Import Modal Elements
+    elements.importModal = document.getElementById("import-modal");
+    elements.modalBtnCancel = document.getElementById("modal-btn-cancel");
+    elements.modalBtnSubmit = document.getElementById("modal-btn-submit");
+    elements.importTextarea = document.getElementById("import-textarea");
 }
 
 function initEventListeners() {
-    elements.btnClear.addEventListener("click", handleClearCanvas);
-    elements.btnHint.addEventListener("click", handleHintEscalation);
-    elements.btnSubmit.addEventListener("click", handleSentenceSubmit);
+    if (elements.btnClear) elements.btnClear.addEventListener("click", handleClearCanvas);
+    if (elements.btnHint) elements.btnHint.addEventListener("click", handleHintEscalation);
     
-    elements.puncButtons.forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const punc = e.target.getAttribute("data-punc");
-            insertPunctuation(punc);
+    if (elements.btnDiscuss) {
+        elements.btnDiscuss.addEventListener("click", () => {
+            alert("Sentence discussion and grammar breakdown feature coming soon!");
         });
+    }
+
+    // Import Modal Event Listeners
+    if (elements.btnImport) {
+        elements.btnImport.addEventListener("click", () => {
+            if (elements.importModal) {
+                elements.importModal.style.display = "flex";
+                elements.importTextarea.value = "";
+                elements.importTextarea.focus();
+            }
+        });
+    }
+
+    if (elements.modalBtnCancel) {
+        elements.modalBtnCancel.addEventListener("click", () => {
+            if (elements.importModal) elements.importModal.style.display = "none";
+        });
+    }
+
+    if (elements.modalBtnSubmit) {
+        elements.modalBtnSubmit.addEventListener("click", handleTextImport);
+    }
+
+    // Keyboard navigation: Press Space or Enter to load Next sentence when completed
+    window.addEventListener("keydown", (e) => {
+        if (state.isCompleted && (e.code === "Space" || e.code === "Enter")) {
+            e.preventDefault();
+            nextSentence();
+        }
     });
 }
 
 /**
- * Fetches AI-generated sentences and brain.json metadata from the Python local server.
+ * Fetches session sentences and metadata from the Python local server.
  */
 async function fetchNewSession() {
-    elements.englishPrompt.textContent = "Generating dynamic sentences via Gemini AI...";
+    elements.englishPrompt.textContent = "Loading session from offline bank...";
     try {
         const response = await fetch('/api/session');
         if (!response.ok) throw new Error("Failed to fetch session from backend engine.");
         
         const data = await response.json();
-        if (data && data.length > 0) {
+        
+        // Handle server envelope { sentences, total_unlocked_count } or legacy array format
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            state.sentences = data.sentences || [];
+            state.totalUnlockedCount = data.total_unlocked_count || 0;
+        } else if (Array.isArray(data)) {
             state.sentences = data;
+        }
+
+        updateCharacterCounter();
+
+        if (state.sentences.length > 0) {
             state.currentIndex = 0;
             loadSession();
         } else {
-            elements.englishPrompt.textContent = "Error: Unlocked character pool empty or generation failed.";
+            elements.englishPrompt.textContent = "Your unlocked character pool is empty. Click 'Import' to paste Chinese text and begin!";
+            if (elements.canvasContainer) elements.canvasContainer.innerHTML = "";
+            if (elements.assemblyLine) elements.assemblyLine.innerHTML = "";
         }
     } catch (err) {
         console.error(err);
@@ -84,9 +119,12 @@ async function fetchNewSession() {
 }
 
 /**
- * Loads the active session sentence and prepares the first character canvas.
+ * Loads the active session sentence and prepares the character canvas.
  */
 function loadSession() {
+    state.isCompleted = false;
+    toggleSidebarButtons(true);
+
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
 
@@ -95,16 +133,45 @@ function loadSession() {
     state.hintTier = 0;
     state.currentScorePenalty = 0;
 
+    advancePastPunctuation();
     renderAssemblyLine();
     setupCurrentCharacterWriter();
+}
+
+function updateCharacterCounter() {
+    if (elements.counterValue) {
+        elements.counterValue.textContent = state.totalUnlockedCount;
+    }
+}
+
+function toggleSidebarButtons(enabled) {
+    if (elements.btnClear) elements.btnClear.disabled = !enabled;
+    if (elements.btnHint) elements.btnHint.disabled = !enabled;
+}
+
+/**
+ * Auto-completes and skips past any punctuation characters starting from state.charIndex.
+ */
+function advancePastPunctuation() {
+    const currentSentence = state.sentences[state.currentIndex];
+    if (!currentSentence) return;
+    const chineseChars = Array.from(currentSentence.chinese);
+
+    while (state.charIndex < chineseChars.length && isPunctuation(chineseChars[state.charIndex])) {
+        state.charIndex++;
+    }
 }
 
 /**
  * Renders the slot blocks for the current sentence.
  */
 function renderAssemblyLine() {
+    if (!elements.assemblyLine) return;
     elements.assemblyLine.innerHTML = "";
+    
     const currentSentence = state.sentences[state.currentIndex];
+    if (!currentSentence) return;
+
     const chineseChars = Array.from(currentSentence.chinese);
 
     chineseChars.forEach((char, idx) => {
@@ -117,7 +184,7 @@ function renderAssemblyLine() {
             slot.textContent = char;
         } else {
             slot.textContent = idx < state.charIndex ? char : "_";
-            if (idx === state.charIndex) {
+            if (idx === state.charIndex && !state.isCompleted) {
                 slot.classList.add("active");
             }
         }
@@ -130,53 +197,45 @@ function renderAssemblyLine() {
  */
 function setupCurrentCharacterWriter() {
     const currentSentence = state.sentences[state.currentIndex];
+    if (!currentSentence) return;
+
+    advancePastPunctuation();
     const chineseChars = Array.from(currentSentence.chinese);
 
-    while (state.charIndex < chineseChars.length && isPunctuation(chineseChars[state.charIndex])) {
-        state.charIndex++;
-    }
-
     const container = document.getElementById('tian-zi-ge');
-    if (!container) {
-        console.error("Fatal: #tian-zi-ge container element missing from DOM.");
-        return;
-    }
+    if (!container) return;
 
-    if (state.charIndex >= chineseChars.length) {
-        container.innerHTML = `<div class="completion-notice">Sentence Complete! Press Submit.</div>`;
-        return;
-    }
-
-
-    const targetChar = chineseChars[state.charIndex];
-
-    container.innerHTML = "";
-
-    // Clear the hint box text when switching characters (without removing the box itself)
     const hintContainer = document.getElementById("hint-display-container");
     if (hintContainer) hintContainer.textContent = "";
-    const existingPinyin = document.getElementById("pinyin-push-display");
-    if (existingPinyin) existingPinyin.remove();
+
+    // Sentence auto-completion condition
+    if (state.charIndex >= chineseChars.length) {
+        triggerSentenceCompletion();
+        return;
+    }
+
+    const targetChar = chineseChars[state.charIndex];
+    container.innerHTML = "";
 
     state.writer = HanziWriter.create('tian-zi-ge', targetChar, {
         width: 240,
         height: 240,
         padding: 10,
         showCharacter: false,
-        showOutline: false,   // Blank grid by default (Hardcore mode)
+        showOutline: false,   
         strokeAnimationSpeed: 2,
-	delayBetweenStrokes: 150, // Shortened pause between individual strokes in milliseconds
+        delayBetweenStrokes: 150,
         leniency: 1.0,
         highlightColor: '#e74c3c',
         drawingColor: '#000000',
         strokeColor: '#333333',
-	outlineColor: '#b0b0b0'
+        outlineColor: '#b0b0b0'
     });
 
     state.writer.quiz({
-        onCorrectStroke: (strokeData) => {},
-        onMistake: (strokeData) => {},
-        onComplete: (summaryData) => {
+        onCorrectStroke: () => {},
+        onMistake: () => {},
+        onComplete: () => {
             handleCharacterSuccess(targetChar);
         }
     });
@@ -196,35 +255,67 @@ function handleCharacterSuccess(char) {
 
     state.charIndex++;
     state.hintTier = 0; 
-    setTimeout(setupCurrentCharacterWriter, 300);
+    setTimeout(setupCurrentCharacterWriter, 200);
 }
 
 /**
- * Handles free soft-input punctuation insertion.
+ * Celebratory auto-completion routine: green flash, native TTS, and victory card display.
  */
-function insertPunctuation(punc) {
-    const currentSentence = state.sentences[state.currentIndex];
-    const chineseChars = Array.from(currentSentence.chinese);
+function triggerSentenceCompletion() {
+    state.isCompleted = true;
+    toggleSidebarButtons(false);
 
-    if (state.charIndex < chineseChars.length && chineseChars[state.charIndex] === punc) {
-        const slot = document.getElementById(`slot-${state.charIndex}`);
-        if (slot) {
-            slot.textContent = punc;
-            slot.classList.remove("active");
+    const currentSentence = state.sentences[state.currentIndex];
+    if (!currentSentence) return;
+
+    // 1. Flash all slots green
+    const slots = document.querySelectorAll(".character-slot");
+    slots.forEach(s => s.classList.add("success-flash"));
+
+    // 2. Trigger native audio speech playback
+    playNativeTTS(currentSentence.chinese);
+
+    // 3. Render Victory Card with Mascot and Next button inside Tian Zi Ge
+    const container = document.getElementById('tian-zi-ge');
+    if (container) {
+        container.innerHTML = `
+            <div class="victory-card">
+                <img src="mascot.png" alt="Juzi Mascot" class="victory-mascot" />
+                <div class="victory-title">太棒了! Well Done!</div>
+                <button id="btn-next" class="btn-next">Next Sentence →</button>
+            </div>
+        `;
+
+        const btnNext = document.getElementById("btn-next");
+        if (btnNext) {
+            btnNext.addEventListener("click", nextSentence);
         }
-        state.charIndex++;
-        renderAssemblyLine();
-        setupCurrentCharacterWriter();
     }
+}
+
+/**
+ * Advances to the next sentence in the session.
+ */
+function nextSentence() {
+    if (!state.sentences || state.sentences.length === 0) return;
+    state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
+    loadSession();
 }
 
 /**
  * The Hint Staircase Engine: Progressive tiered assistance.
  */
 function handleHintEscalation() {
-    state.hintTier++;
+    if (state.isCompleted) return;
+
     const currentSentence = state.sentences[state.currentIndex];
-    const targetChar = Array.from(currentSentence.chinese)[state.charIndex];
+    if (!currentSentence) return;
+
+    const chineseChars = Array.from(currentSentence.chinese);
+    if (state.charIndex >= chineseChars.length) return;
+
+    state.hintTier++;
+    const targetChar = chineseChars[state.charIndex];
 
     if (state.hintTier === 1) {
         state.currentScorePenalty = Math.max(state.currentScorePenalty, 1);
@@ -237,7 +328,10 @@ function handleHintEscalation() {
     } else if (state.hintTier >= 3) {
         state.currentScorePenalty = 3;
         if (state.writer) {
-            state.writer.animateCharacter();
+            // Tier 3: Master Class fast 4.5x speed stroke walkthrough
+            state.writer.animateCharacter({
+                strokeSpeed: 4.5
+            });
         }
     }
 }
@@ -247,46 +341,63 @@ function showPinyinPush(char, sentenceObj) {
     if (!hintContainer) return;
 
     const charMeta = sentenceObj.char_metadata && sentenceObj.char_metadata[char];
-    const pinyinResult = charMeta ? charMeta.pinyin : "pīn yīn";
+    const pinyinResult = charMeta && charMeta.pinyin ? charMeta.pinyin : "pīn yīn";
     
     hintContainer.textContent = `Hint (Tier 1 Pinyin): ${pinyinResult}`;
 }
+
 /**
  * Clears the active character canvas so the user can retry writing from scratch.
  */
 function handleClearCanvas() {
+    if (state.isCompleted) return;
     if (state.writer) {
-        // Cancel current HanziWriter quiz session and reload clean slate
         state.writer.cancelQuiz();
         setupCurrentCharacterWriter();
     }
 }
 
 /**
- * Final sentence submission and trigger for post-success TTS audio.
+ * Handles processing and unlocking words locally via POST request to python backend.
  */
-function handleSentenceSubmit() {
-    const currentSentence = state.sentences[state.currentIndex];
-    
-    if (state.charIndex < Array.from(currentSentence.chinese).length) {
-        alert("Please finish writing all characters before submitting.");
+async function handleTextImport() {
+    const text = elements.importTextarea.value.trim();
+    if (!text) {
+        alert("Please paste some Chinese text first.");
         return;
     }
 
-    playNativeTTS(currentSentence.chinese);
-    alert("Sentence Verified Successfully!");
-    
-/** Uncomment this when dev is done. 
-    state.currentIndex++;
-    if (state.currentIndex >= state.sentences.length) {
+    elements.modalBtnSubmit.textContent = "Processing...";
+    elements.modalBtnSubmit.disabled = true;
+
+    try {
+        const response = await fetch('/api/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) throw new Error("Import failed on backend server.");
+
+        const result = await response.json();
+        
+        if (result.total_unlocked_count !== undefined) {
+            state.totalUnlockedCount = result.total_unlocked_count;
+            updateCharacterCounter();
+        }
+
+        alert(result.message || "Import completed successfully!");
+
+        elements.importModal.style.display = "none";
         fetchNewSession();
-    } else {
-        loadSession();
+
+    } catch (err) {
+        console.error(err);
+        alert("Error connecting to Python server during text import.");
+    } finally {
+        elements.modalBtnSubmit.textContent = "Process & Unlock";
+        elements.modalBtnSubmit.disabled = false;
     }
-*/
-    // Loop back to the start of the mock array instead of fetching from Gemini backend
-    state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
-    loadSession();
 }
 
 /**
@@ -310,6 +421,6 @@ function playNativeTTS(text) {
 }
 
 function isPunctuation(char) {
-    const allowedPunct = "，。！？、 ；：“”‘’—…";
+    const allowedPunct = "，。！？、 ；：“”‘’—…\t\r\n";
     return allowedPunct.includes(char);
 }

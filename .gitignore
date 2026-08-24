@@ -2,6 +2,8 @@
 # Do NOT remove these; they protect your keys and progress
 config.py
 brain.json
+project_state.md
+goal_prompt
 .env
 
 # --- Python Clutter ---
