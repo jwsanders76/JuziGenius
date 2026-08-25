@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+from datetime import date, timedelta
 
 import ai_providers
 
@@ -71,6 +72,103 @@ class JuziEngine:
         except Exception as e:
             print(f"Warning: Could not load {self.words_path}: {e}")
             return {}
+
+    def get_due_characters(self, unlocked_chars: dict = None) -> set:
+        """
+        Returns the subset of unlocked characters that are due for SM-2
+        review: never reviewed yet (last is None/unparseable) or whose
+        interval has elapsed since their last review. Used to bias which
+        practice sentences get picked/generated toward characters that
+        actually need reinforcement, rather than treating the whole
+        unlocked pool as equally worth practicing.
+        """
+        if unlocked_chars is None:
+            brain_data = {}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
+            unlocked_chars = brain_data.get("unlocked_chars", {})
+
+        today = date.today()
+        due = set()
+        for char, meta in unlocked_chars.items():
+            last = meta.get("last")
+            if not last:
+                due.add(char)
+                continue
+            try:
+                last_date = date.fromisoformat(last)
+            except ValueError:
+                due.add(char)
+                continue
+            interval = meta.get("interval", 0) or 0
+            if last_date + timedelta(days=interval) <= today:
+                due.add(char)
+        return due
+
+    def review_character(self, char: str, quality: int) -> dict:
+        """
+        Grades a single completed character quiz and advances its SM-2
+        scheduling fields (interval, factor, reps, last) in brain.json.
+        quality is 0-5 recall quality (5 = perfect, no hints needed);
+        the frontend derives it from how many hint tiers were used.
+        Per standard SM-2, quality < 3 counts as a failed recall and resets
+        the repetition streak (interval back to 1, reps back to 0) rather
+        than advancing the schedule.
+        """
+        quality = max(0, min(5, int(quality)))
+
+        brain_data = {"unlocked_chars": {}, "sentences": []}
+        if os.path.exists(self.brain_path):
+            try:
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    brain_data = json.load(f)
+            except Exception as e:
+                print(f"Error reading brain database: {e}")
+
+        unlocked_chars = brain_data.setdefault("unlocked_chars", {})
+        entry = unlocked_chars.get(char)
+        if entry is None:
+            raise ValueError(f"Character '{char}' is not in the unlocked pool.")
+
+        reps = entry.get("reps", 0) or 0
+        interval = entry.get("interval", 0) or 0
+        factor = entry.get("factor", 2.5) or 2.5
+
+        if quality < 3:
+            reps = 0
+            interval = 1
+        else:
+            if reps == 0:
+                interval = 1
+            elif reps == 1:
+                interval = 6
+            else:
+                interval = round(interval * factor)
+            reps += 1
+
+        factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+        factor = max(1.3, factor)
+
+        entry["reps"] = reps
+        entry["interval"] = interval
+        entry["factor"] = round(factor, 2)
+        entry["last"] = date.today().isoformat()
+
+        with open(self.brain_path, "w", encoding="utf-8") as f:
+            json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {
+            "char": char,
+            "reps": reps,
+            "interval": interval,
+            "factor": entry["factor"],
+            "last": entry["last"],
+            "due_count": len(self.get_due_characters(unlocked_chars))
+        }
 
     def analyze_text_compounds(self, raw_text: str) -> list:
         """
@@ -293,13 +391,17 @@ class JuziEngine:
         """
         Picks real example sentences from the local HSK corpora whose characters
         are entirely within the user's currently unlocked pool. No AI, no
-        network call, no API key required.
+        network call, no API key required. Sentences that reuse characters
+        currently due for SM-2 review are preferred over ones that don't,
+        so practice naturally reinforces what's due instead of drifting
+        toward whatever the corpus happens to contain.
         """
         unlocked = self.load_unlocked_chars()
         if not unlocked:
             return []
 
         unlocked_set = set(unlocked)
+        due_set = self.get_due_characters()
         allowed_punct = "，。！？、；：“”‘’—…"
         candidates = []
         seen_chinese = set()
@@ -317,11 +419,15 @@ class JuziEngine:
                             continue
                         if all(c in unlocked_set or c in allowed_punct for c in chinese):
                             seen_chinese.add(chinese)
-                            candidates.append({"english": english, "chinese": chinese})
+                            due_hits = sum(1 for c in chinese if c in due_set)
+                            candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits})
             except Exception as e:
                 print(f"Warning: could not read {filename}: {e}")
 
         random.shuffle(candidates)
+        candidates.sort(key=lambda c: c["_due_hits"], reverse=True)
+        for c in candidates:
+            del c["_due_hits"]
         return candidates[:count]
 
     def generate_session(self, count: int = 5, provider: str = "gemini", api_key: str = None) -> list:
@@ -351,10 +457,18 @@ class JuziEngine:
                 f"when a common, everyday word would fit instead."
             )
 
+        due_chars = self.get_due_characters()
+        due_guidance = ""
+        if due_chars:
+            due_guidance = (
+                f" These characters are due for spaced-repetition review, so prioritize reusing them across multiple "
+                f"sentences where natural: {''.join(sorted(due_chars))}."
+            )
+
         prompt = (
             f"Generate {count} unique, natural Mandarin Chinese practice sentences using ONLY these characters: {unlocked}. "
             f"Do not use any Chinese characters outside this set, except standard Chinese punctuation (，。！？、)."
-            f"{word_guidance} "
+            f"{word_guidance}{due_guidance} "
             f"Output strictly one sentence per line formatted as: English | Chinese. No markdown code blocks, no list numbers."
         )
 

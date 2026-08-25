@@ -104,6 +104,12 @@ body {
 }
 
 /* --- Character Progress Counter & Mascot Avatar --- */
+#top-bar-center {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 #character-counter {
     display: flex;
     align-items: center;
@@ -128,6 +134,34 @@ body {
 #counter-value {
     color: var(--accent-gold);
     font-weight: bold;
+}
+
+/* --- Due-for-Review Counter (SM-2) --- */
+#due-counter {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    padding: 4px 12px;
+    border-radius: 20px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#due-counter-value {
+    color: var(--text-secondary);
+    font-weight: bold;
+    transition: color 0.2s ease;
+}
+
+#due-counter.has-due {
+    border-color: var(--accent-red);
+    background-color: rgba(231, 76, 60, 0.15);
+}
+
+#due-counter.has-due #due-counter-value {
+    color: var(--accent-red);
 }
 
 /* --- Prompt Zone --- */
@@ -331,6 +365,38 @@ body {
     font-weight: 800;
     color: #27ae60;
     margin-bottom: 10px;
+}
+
+.victory-audio-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.btn-audio-action {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: #4a3f33;
+    border: 1px solid rgba(61, 47, 36, 0.25);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-audio-action:hover:not(:disabled) {
+    background-color: rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.btn-audio-action:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-audio-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .btn-next {

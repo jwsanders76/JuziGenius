@@ -11,6 +11,8 @@ const state = {
     writer: null,
     currentScorePenalty: 0,
     totalUnlockedCount: 0,
+    totalDueCount: 0,
+    ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
     isCompleted: false,
     importMode: "paste",
     providers: []
@@ -28,6 +30,9 @@ document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
     fetchNewSession();
+    // Chrome loads its voice list asynchronously; kick it off early so it's
+    // ready by the time a sentence completes and the victory card needs it.
+    if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
 });
 
 function cacheDomElements() {
@@ -39,6 +44,8 @@ function cacheDomElements() {
     elements.btnDiscuss = document.getElementById("btn-discuss");
     elements.btnImport = document.getElementById("btn-import");
     elements.counterValue = document.getElementById("counter-value");
+    elements.dueCounter = document.getElementById("due-counter");
+    elements.dueCounterValue = document.getElementById("due-counter-value");
     
     // Import Modal Elements
     elements.importModal = document.getElementById("import-modal");
@@ -119,11 +126,13 @@ async function fetchNewSession() {
         if (data && typeof data === 'object' && !Array.isArray(data)) {
             state.sentences = data.sentences || [];
             state.totalUnlockedCount = data.total_unlocked_count || 0;
+            state.totalDueCount = data.total_due_count || 0;
         } else if (Array.isArray(data)) {
             state.sentences = data;
         }
 
         updateCharacterCounter();
+        updateDueCounter();
 
         if (state.sentences.length > 0) {
             state.currentIndex = 0;
@@ -162,6 +171,21 @@ function loadSession() {
 function updateCharacterCounter() {
     if (elements.counterValue) {
         elements.counterValue.textContent = state.totalUnlockedCount;
+    }
+}
+
+/**
+ * Reflects state.totalDueCount in the top bar: the count of unlocked
+ * characters currently due for SM-2 review (never reviewed, or past their
+ * interval). Highlighted when non-zero so there's a visible cue that
+ * review is waiting, not just silent scheduling in the background.
+ */
+function updateDueCounter() {
+    if (elements.dueCounterValue) {
+        elements.dueCounterValue.textContent = state.totalDueCount;
+    }
+    if (elements.dueCounter) {
+        elements.dueCounter.classList.toggle("has-due", state.totalDueCount > 0);
     }
 }
 
@@ -274,9 +298,36 @@ function handleCharacterSuccess(char) {
         slot.classList.remove("active");
     }
 
+    submitCharacterReview(char, state.hintTier);
+
     state.charIndex++;
-    state.hintTier = 0; 
+    state.hintTier = 0;
     setTimeout(setupCurrentCharacterWriter, 200);
+}
+
+/**
+ * Reports a completed character quiz to the backend so its SM-2 scheduling
+ * fields (interval/factor/reps/last) advance. Recall quality (0-5) is
+ * derived from how many hint tiers were needed before completion: no hints
+ * is a perfect 5, each tier escalation lowers it, floored at 2 (SM-2 treats
+ * anything under 3 as a failed recall and resets the repetition streak).
+ * Fire-and-forget -- a failed request shouldn't block practice.
+ */
+function submitCharacterReview(char, hintTier) {
+    const quality = Math.max(2, 5 - hintTier);
+    fetch('/api/character/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ char, quality })
+    })
+        .then(response => response.ok ? response.json() : null)
+        .then(result => {
+            if (result && result.due_count !== undefined) {
+                state.totalDueCount = result.due_count;
+                updateDueCounter();
+            }
+        })
+        .catch(err => console.error("Could not record character review.", err));
 }
 
 /**
@@ -296,13 +347,17 @@ function triggerSentenceCompletion() {
     // 2. Trigger native audio speech playback
     playNativeTTS(currentSentence.chinese);
 
-    // 3. Render Victory Card with Mascot and Next button inside Tian Zi Ge
+    // 3. Render Victory Card with Mascot, audio controls, and Next button inside Tian Zi Ge
     const container = document.getElementById('tian-zi-ge');
     if (container) {
         container.innerHTML = `
             <div class="victory-card">
                 <img src="mascot.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
+                <div class="victory-audio-controls">
+                    <button id="btn-replay-audio" class="btn-audio-action" title="Replay pronunciation">🔊 Replay</button>
+                    <button id="btn-switch-voice" class="btn-audio-action" title="Switch voice">🔄 Switch Voice</button>
+                </div>
                 <button id="btn-next" class="btn-next">Next Sentence →</button>
             </div>
         `;
@@ -310,6 +365,21 @@ function triggerSentenceCompletion() {
         const btnNext = document.getElementById("btn-next");
         if (btnNext) {
             btnNext.addEventListener("click", nextSentence);
+        }
+
+        const btnReplay = document.getElementById("btn-replay-audio");
+        if (btnReplay) {
+            btnReplay.addEventListener("click", () => playNativeTTS(currentSentence.chinese));
+        }
+
+        const btnSwitchVoice = document.getElementById("btn-switch-voice");
+        if (btnSwitchVoice) {
+            updateSwitchVoiceButton(btnSwitchVoice);
+            btnSwitchVoice.addEventListener("click", () => {
+                switchToNextVoice();
+                updateSwitchVoiceButton(btnSwitchVoice);
+                playNativeTTS(currentSentence.chinese);
+            });
         }
     }
 }
@@ -660,7 +730,8 @@ async function handleGenerateSession(source) {
 }
 
 /**
- * Neural Text-to-Speech playback at native speed (Rate 1.0).
+ * Neural Text-to-Speech playback at native speed (Rate 1.0), using whichever
+ * Mandarin voice is currently selected (see getPreferredChineseVoice).
  */
 function playNativeTTS(text) {
     if (!('speechSynthesis' in window)) return;
@@ -670,13 +741,120 @@ function playNativeTTS(text) {
     currentUtterance.lang = 'zh-CN';
     currentUtterance.rate = 1.0;
 
-    const voices = window.speechSynthesis.getVoices();
-    const chineseVoice = voices.find(v => v.lang === 'zh-CN' || v.lang === 'zh');
-    if (chineseVoice) {
-        currentUtterance.voice = chineseVoice;
+    const voice = getPreferredChineseVoice();
+    if (voice) {
+        currentUtterance.voice = voice;
     }
 
     window.speechSynthesis.speak(currentUtterance);
+}
+
+// Name substrings from known TTS voice packs (Microsoft/Apple/Amazon Mandarin
+// voices) used to guess a voice's gender, since the Web Speech API exposes no
+// real gender field. Voices that don't match either list are "unknown" and
+// still selectable -- they just can't be labeled Male/Female in the UI.
+const FEMALE_VOICE_NAME_HINTS = [
+    "female", "ting-ting", "tingting", "mei-jia", "meijia", "sin-ji", "sinji",
+    "yaoyao", "huihui", "xiaoxiao", "xiaoyi", "xiaomo", "xiaoxuan", "xiaohan", "xiaorui"
+];
+const MALE_VOICE_NAME_HINTS = [
+    "male", "kangkang", "zhiwei", "yunyang", "yunjian", "yunxi", "yunfeng", "li-mu", "limu"
+];
+
+function classifyVoiceGender(voice) {
+    const name = voice.name.toLowerCase();
+    if (FEMALE_VOICE_NAME_HINTS.some(hint => name.includes(hint))) return "female";
+    if (MALE_VOICE_NAME_HINTS.some(hint => name.includes(hint))) return "male";
+    return "unknown";
+}
+
+/**
+ * Mandarin-language codes only. "zh" alone is ambiguous across browsers/OSes
+ * (some report bare "zh" for Mandarin), but zh-HK and yue* are Cantonese --
+ * a different spoken language, not another voice option for Mandarin -- so
+ * they're deliberately excluded here rather than lumped in as "just another
+ * Chinese voice."
+ */
+function isMandarinVoice(voice) {
+    const lang = (voice.lang || "").toLowerCase();
+    return lang === "zh" || lang.startsWith("zh-cn") || lang.startsWith("zh-sg") ||
+        lang.startsWith("zh-tw") || lang.startsWith("cmn");
+}
+
+/**
+ * All installed voices usable for Mandarin playback. Grouped with any
+ * detected female voices first, then male, then ungendered/unknown ones, so
+ * switchToNextVoice() and the initial pick both favor a clean female/male
+ * split when the device actually has both.
+ */
+function getOrderedChineseVoices() {
+    if (!('speechSynthesis' in window)) return [];
+    const voices = window.speechSynthesis.getVoices().filter(isMandarinVoice);
+    const female = voices.filter(v => classifyVoiceGender(v) === "female");
+    const male = voices.filter(v => classifyVoiceGender(v) === "male");
+    const unknown = voices.filter(v => classifyVoiceGender(v) === "unknown");
+    return [...female, ...male, ...unknown];
+}
+
+/**
+ * Returns the voice to speak with: the user's saved choice (state.ttsVoiceURI)
+ * if it's still installed, otherwise the first available Mandarin voice.
+ */
+function getPreferredChineseVoice() {
+    const ordered = getOrderedChineseVoices();
+    if (ordered.length === 0) return null;
+    if (state.ttsVoiceURI) {
+        const saved = ordered.find(v => v.voiceURI === state.ttsVoiceURI);
+        if (saved) return saved;
+    }
+    return ordered.find(v => v.lang === 'zh-CN') || ordered[0];
+}
+
+/**
+ * Advances to the next voice in the ordered list (wrapping around) and
+ * persists the choice in localStorage so it survives a reload. With two
+ * detected genders this reads as "switch to the other gender"; with only
+ * ungendered voices available it still cycles through whatever exists.
+ */
+function switchToNextVoice() {
+    const ordered = getOrderedChineseVoices();
+    if (ordered.length < 2) return;
+    const current = getPreferredChineseVoice();
+    const currentIdx = ordered.findIndex(v => v.voiceURI === current.voiceURI);
+    const next = ordered[(currentIdx + 1) % ordered.length];
+    state.ttsVoiceURI = next.voiceURI;
+    localStorage.setItem("juzi_tts_voice_uri", next.voiceURI);
+}
+
+/**
+ * Labels the Switch Voice button with the gender it would switch TO (so the
+ * button reads as an action), or disables it when there's nothing to switch
+ * to -- either only one Mandarin voice is installed, or the device exposes
+ * several but none can be told apart.
+ */
+function updateSwitchVoiceButton(btn) {
+    const ordered = getOrderedChineseVoices();
+    if (ordered.length < 2) {
+        btn.disabled = true;
+        btn.textContent = "🔊 Only Voice Available";
+        btn.title = "Only one Mandarin voice is installed on this device.";
+        return;
+    }
+
+    const current = getPreferredChineseVoice();
+    const currentIdx = ordered.findIndex(v => v.voiceURI === current.voiceURI);
+    const next = ordered[(currentIdx + 1) % ordered.length];
+    const nextGender = classifyVoiceGender(next);
+
+    btn.disabled = false;
+    if (nextGender === "female") {
+        btn.textContent = "🔄 Switch to Female Voice";
+    } else if (nextGender === "male") {
+        btn.textContent = "🔄 Switch to Male Voice";
+    } else {
+        btn.textContent = "🔄 Switch Voice";
+    }
+    btn.title = `Current voice: ${current.name}`;
 }
 
 function isPunctuation(char) {

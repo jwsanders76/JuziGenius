@@ -19,10 +19,10 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 - Text import with compound-word detection, backed by a 9,900-character dictionary and a 5,000+ word frequency corpus (HSK 1–6)
 - Free, no-AI "HSK Sentences" practice mode using real HSK example sentences
 - Multi-provider AI sentence generation (Gemini / Claude / ChatGPT / Grok), client-held API keys
-- Audible reinforcement via native text-to-speech on sentence completion
+- Audible reinforcement via native text-to-speech on sentence completion, with Replay and Switch Voice controls (cycles through installed Mandarin voices, favoring a male/female split when the device's voices support it)
+- Spaced repetition scheduling (SM-2): each completed character quiz grades recall quality from the hint tier used and updates that character's schedule; practice sentences are biased toward characters currently due for review, and a "Due: N" badge in the top bar tracks it live
 
 ## What's not implemented yet
-- **Spaced repetition scheduling:** each character already carries SM-2 fields, but nothing reads or updates them yet — practice isn't scheduled by "due" characters.
 - **Discuss / grammar breakdown:** placeholder button only.
 - **PWA installability:** runs as a plain page, not an installable/offline app.
 

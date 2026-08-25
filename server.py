@@ -56,7 +56,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
 
                 response_payload = {
                     "sentences": saved_sentences,
-                    "total_unlocked_count": total_unlocked
+                    "total_unlocked_count": total_unlocked,
+                    "total_due_count": len(engine.get_due_characters(unlocked_chars))
                 }
 
                 self.send_response(200)
@@ -189,6 +190,42 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
+        # Grades one completed character quiz and advances its SM-2
+        # scheduling fields (interval/factor/reps/last) in brain.json.
+        # Body: { "char": "我", "quality": 0-5 }
+        if path == "/api/character/review":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length).decode('utf-8') if content_length else "{}"
+                data = json.loads(body) if body else {}
+
+                char = data.get("char", "")
+                quality = data.get("quality")
+
+                if not char or quality is None:
+                    raise ValueError("Both 'char' and 'quality' are required.")
+
+                result = engine.review_character(char, quality)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return
+            except ValueError as e:
+                # Missing field or unknown character -- a client error, not a server error
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return
             except Exception as e:
                 self.send_response(500)
