@@ -794,7 +794,14 @@ async function handleAddSuggestedWords() {
             updateCharacterCounter();
         }
 
-        alert(`Added ${result.added_words.length} word(s), unlocking ${result.added_chars_count} new character(s).`);
+        let summary = `Added ${result.added_words.length} word(s), unlocking ${result.added_chars_count} new character(s).`;
+        // Single characters aren't compound words and aren't stored as such.
+        // Say so, and point at the tab that does handle them, rather than
+        // reporting a bare "Added 0 words" that looks like a failure.
+        if (result.rejected_single_chars && result.rejected_single_chars.length > 0) {
+            summary += `\n\nSkipped ${result.rejected_single_chars.join("、")} — single characters are unlocked for practice via the Paste Text tab, not stored as compound words.`;
+        }
+        alert(summary);
 
         elements.importModal.style.display = "none";
         fetchNewSession();

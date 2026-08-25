@@ -14,6 +14,12 @@ except ImportError:
 
 HSK_SOURCE_FILES = ["hsk_level1and2_words_with_sentences.csv", "hsk_level3_words_with_sentences.csv"]
 
+# How far suggest_new_words demotes a word whose characters are all already
+# unlocked: it teaches vocabulary but unlocks no new handwriting practice.
+# Applied as a multiplier on the frequency rank, so a top-50 word like 你好
+# still surfaces early while a rank-3000 one drops out of reach.
+KNOWN_CHARS_RANK_PENALTY = 3
+
 
 class JuziEngine:
     def __init__(self, brain_path="brain.json", words_path="words_freq.json", master_dict_path="master_dictionary.json"):
@@ -57,7 +63,17 @@ class JuziEngine:
                 return []
             with open(self.brain_path, "r", encoding="utf-8") as f:
                 words = json.load(f).get("unlocked_words", {})
-            return sorted(words.keys(), key=lambda w: words[w].get("rank", 99999))
+            # Filter, not just sort: a brain.json written before the
+            # segmentation fix can hold single-character entries recorded by
+            # the old substring scan. Those would go straight into the AI
+            # prompt as "compound words the user has already studied",
+            # telling the model that 的 and 是 are studied vocabulary. The
+            # stored entries are pruned on the next write (see
+            # prune_single_char_words); this keeps the prompt clean meanwhile.
+            return sorted(
+                (w for w in words if len(w) >= 2),
+                key=lambda w: words[w].get("rank", 99999),
+            )
         except Exception as e:
             print(f"Warning loading unlocked words: {e}")
             return []
@@ -202,24 +218,95 @@ class JuziEngine:
             "due_count": len(self.get_due_characters(unlocked_chars))
         }
 
+    @staticmethod
+    def prune_single_char_words(unlocked_words: dict) -> int:
+        """
+        Drops single-character entries from an unlocked_words map in place,
+        returning how many were removed.
+
+        Before compound detection did real segmentation, a bare substring
+        scan recorded any of the corpus's 704 single-character entries that
+        appeared anywhere in pasted text, so existing installs carry junk
+        like 的/是/我 as "studied compound words". Called on the write paths
+        so the file heals itself the next time it's saved, rather than
+        needing a separate migration script.
+        """
+        stale = [w for w in unlocked_words if len(w) < 2]
+        for word in stale:
+            del unlocked_words[word]
+        return len(stale)
+
+    def segment_compounds(self, raw_text: str, word_db: dict = None) -> list:
+        """
+        Finds the compound words from the frequency corpus that actually occur
+        in raw_text, as a list of unique words.
+
+        This replaces a bare `word in raw_text` substring scan over all 5,007
+        corpus entries, which was wrong in three separate ways:
+
+        * 704 of those entries are *single characters*, so 的/是/我 were
+          reported as "compound words the user has studied" -- and then fed to
+          the AI prompt as exactly that. Words here are length >= 2, always.
+        * Overlapping matches both fired: 早上 and 上 were each reported for
+          the same two characters. Longest-match-wins segmentation consumes
+          the text, so each position is claimed once.
+        * A substring search ignores punctuation, so a "word" could straddle
+          a clause boundary (...喝热茶。他是... spanning the 。). Matching runs
+          of Chinese characters means a match can never cross one.
+
+        Greedy longest-match is not a real statistical segmenter and will
+        mis-split genuinely ambiguous strings. For "which HSK words appear in
+        this pasted text" that tradeoff is fine; it is not jieba.
+        """
+        if word_db is None:
+            word_db = self.load_word_frequencies()
+
+        # Only real corpus words are matchable: "_"-prefixed keys are metadata,
+        # and single characters are what this whole method exists to exclude.
+        vocab = {w for w in word_db if len(w) >= 2 and not w.startswith("_")}
+        if not vocab:
+            return []
+        max_len = max(len(w) for w in vocab)
+
+        found = []
+        seen = set()
+
+        # Runs of Chinese characters, so punctuation, latin text, digits, and
+        # newlines all act as boundaries without having to enumerate them.
+        for run in re.findall(r"[一-龥]+", raw_text):
+            i = 0
+            while i < len(run):
+                # Longest candidate first, stopping at 2 -- range's exclusive
+                # bound of 1 is what keeps single characters unmatchable.
+                for length in range(min(max_len, len(run) - i), 1, -1):
+                    candidate = run[i:i + length]
+                    if candidate in vocab:
+                        if candidate not in seen:
+                            seen.add(candidate)
+                            found.append(candidate)
+                        i += length
+                        break
+                else:
+                    i += 1
+
+        return found
+
     def analyze_text_compounds(self, raw_text: str) -> list:
         """
-        Scans text and cross-references the separate static word frequency database 
+        Scans text and cross-references the separate static word frequency database
         to identify high-frequency compound words present in the input.
         """
         word_db = self.load_word_frequencies()
-        found_words = []
 
-        for word, meta in word_db.items():
-            if word.startswith("_"):
-                continue
-            if word in raw_text:
-                found_words.append({
-                    "word": word,
-                    "pinyin": meta.get("pinyin", ""),
-                    "meaning": meta.get("meaning", ""),
-                    "rank": meta.get("rank", 99999)
-                })
+        found_words = [
+            {
+                "word": word,
+                "pinyin": word_db[word].get("pinyin", ""),
+                "meaning": word_db[word].get("meaning", ""),
+                "rank": word_db[word].get("rank", 99999),
+            }
+            for word in self.segment_compounds(raw_text, word_db)
+        ]
 
         # Sort discovered words by natural corpus usage frequency rank
         found_words.sort(key=lambda x: x["rank"])
@@ -248,6 +335,7 @@ class JuziEngine:
 
         unlocked = brain_data.setdefault("unlocked_chars", {})
         unlocked_words = brain_data.setdefault("unlocked_words", {})
+        pruned_word_count = self.prune_single_char_words(unlocked_words)
         master = self.load_master_dictionary()
 
         if not chinese_chars:
@@ -303,12 +391,15 @@ class JuziEngine:
             msg += f" Found {len(compounds)} high-frequency compound words ({added_word_count} new)."
         if missing_chars:
             msg += f" ({len(missing_chars)} chars missing from master dictionary)."
+        if pruned_word_count:
+            msg += f" (Cleaned up {pruned_word_count} single-character entries wrongly stored as words.)"
 
         return {
             "added_count": added_count,
             "total_unlocked_count": total_unlocked,
             "compounds_detected": compounds,
             "added_word_count": added_word_count,
+            "pruned_word_count": pruned_word_count,
             "message": msg
         }
 
@@ -322,10 +413,13 @@ class JuziEngine:
         word_db = self.load_word_frequencies()
 
         known_words = {}
+        unlocked_chars = {}
         if os.path.exists(self.brain_path):
             try:
                 with open(self.brain_path, "r", encoding="utf-8") as f:
-                    known_words = json.load(f).get("unlocked_words", {})
+                    brain_data = json.load(f)
+                known_words = brain_data.get("unlocked_words", {})
+                unlocked_chars = brain_data.get("unlocked_chars", {})
             except Exception as e:
                 print(f"Error reading brain database: {e}")
 
@@ -335,12 +429,33 @@ class JuziEngine:
                 "pinyin": meta.get("pinyin", ""),
                 "meaning": meta.get("meaning", ""),
                 "rank": meta.get("rank", 99999),
+                # A word every one of whose characters is already unlocked is
+                # still worth learning -- it teaches the compound's meaning and
+                # gives AI generation real vocabulary to build on -- but it
+                # buys no new practice material, so it's demoted rather than
+                # dropped. The demotion is a multiplier on the frequency rank,
+                # not a separate bucket: bucketing sorts *every* word that
+                # unlocks a character above *every* word that doesn't, and
+                # since almost all 5,007 corpus words contain some character
+                # you haven't unlocked, that buries 你好 thousands of entries
+                # deep -- exclusion wearing a different hat. Scaling the rank
+                # keeps very common known-character words near the top while
+                # still letting rarer ones fall behind.
+                "_sort_rank": meta.get("rank", 99999) * (
+                    1 if any(c not in unlocked_chars for c in word) else KNOWN_CHARS_RANK_PENALTY
+                ),
             }
+            # len >= 2 is the same filter segment_compounds applies: 704 of the
+            # corpus's 5,007 entries are single characters, which is why this
+            # tab used to suggest 是/我/的 as "compound words".
             for word, meta in word_db.items()
-            if not word.startswith("_") and word not in known_words
+            if len(word) >= 2 and not word.startswith("_") and word not in known_words
         ]
-        candidates.sort(key=lambda x: x["rank"])
-        return candidates[:count]
+        candidates.sort(key=lambda x: x["_sort_rank"])
+        top = candidates[:count]
+        for c in top:
+            del c["_sort_rank"]
+        return top
 
     def add_words(self, words: list) -> dict:
         """
@@ -362,12 +477,26 @@ class JuziEngine:
 
         unlocked_words = brain_data.setdefault("unlocked_words", {})
         unlocked_chars = brain_data.setdefault("unlocked_chars", {})
+        pruned_word_count = self.prune_single_char_words(unlocked_words)
 
         added_words = []
+        rejected_single_chars = []
         added_chars = 0
 
         for word in words:
             meta = word_db.get(word)
+            # len >= 2 guards the endpoint itself, not just the suggestions
+            # feeding it: /api/suggestions/add takes an arbitrary word list
+            # from the client, and a single character is a character, not a
+            # compound word -- unlocked_chars is where those belong. Reported
+            # back rather than dropped silently: a stale browser tab holding
+            # pre-fix suggestions would otherwise submit them and be told
+            # "Added 0 words" with no reason given. Single-character words are
+            # a real thing (猫, 水, 茶) -- they're learned by pasting them into
+            # the Paste Text tab, which unlocks them for practice directly.
+            if meta and len(word) < 2:
+                rejected_single_chars.append(word)
+                continue
             if not meta or word in unlocked_words:
                 continue
 
@@ -398,6 +527,8 @@ class JuziEngine:
             "added_chars_count": added_chars,
             "total_unlocked_count": len(unlocked_chars),
             "total_words_count": len(unlocked_words),
+            "pruned_word_count": pruned_word_count,
+            "rejected_single_chars": rejected_single_chars,
         }
 
     def list_providers(self) -> list:
