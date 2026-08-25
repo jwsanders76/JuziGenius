@@ -54,6 +54,7 @@
                 <button type="button" class="mode-tab active" data-mode="paste">Paste Text</button>
                 <button type="button" class="mode-tab" data-mode="hsk">HSK Sentences</button>
                 <button type="button" class="mode-tab" data-mode="ai">Generate with AI</button>
+                <button type="button" class="mode-tab" data-mode="suggest">Suggest Words</button>
             </div>
 
             <!-- Paste Text: unlock characters from your own text -->
@@ -79,6 +80,12 @@
                     <input type="password" id="ai-api-key-input" placeholder="Paste your API key" autocomplete="off" spellcheck="false" />
                     <p class="ai-key-note">Kept only in this browser's local storage. Sent directly to this app's local server for a single request &mdash; never written to disk there.</p>
                 </div>
+            </div>
+
+            <!-- Suggest Words: highest-frequency compound words not yet added -->
+            <div class="mode-panel" data-mode-panel="suggest" hidden>
+                <p class="modal-subtitle">The most frequently used compound words you haven't added yet, pulled from the local dictionary. Check the ones you want and add them to your vocabulary.</p>
+                <div id="suggestions-list" class="suggestions-list"></div>
             </div>
 
             <div class="modal-actions">

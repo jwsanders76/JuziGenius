@@ -88,6 +88,23 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return
 
+        # Suggests the highest-frequency compound words not yet added to the
+        # user's vocabulary, for the "Suggest Words" modal tab.
+        if path == "/api/suggestions":
+            try:
+                suggestions = engine.suggest_new_words(count=5)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"suggestions": suggestions}, ensure_ascii=False).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
         # Refuse to serve anything not explicitly whitelisted (blocks config.py,
         # brain.json, .git, hanzi_db.csv, etc. from being fetched over the network)
         if path not in ALLOWED_STATIC_PATHS:
@@ -152,6 +169,29 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return
             except Exception as e:
                 self.send_response(502)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
+        # Adds user-selected words from the "Suggest Words" tab to brain.json.
+        # Body: { "words": ["谢谢", "再见", ...] }
+        if path == "/api/suggestions/add":
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length).decode('utf-8') if content_length else "{}"
+                data = json.loads(body) if body else {}
+                words = data.get("words", [])
+
+                result = engine.add_words(words)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))

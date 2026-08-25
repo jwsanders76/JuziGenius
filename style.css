@@ -534,3 +534,63 @@ body {
     background-color: var(--accent-purple);
     color: white;
 }
+
+/* --- Suggest Words: checkbox list --- */
+.suggestions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.suggestions-empty {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 12px 0;
+    text-align: center;
+}
+
+.suggestion-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr 1.4fr;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.suggestion-row:hover {
+    border-color: var(--accent-gold);
+}
+
+.suggestion-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-purple);
+    cursor: pointer;
+}
+
+.suggestion-word {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.suggestion-pinyin {
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    white-space: nowrap;
+}
+
+.suggestion-meaning {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

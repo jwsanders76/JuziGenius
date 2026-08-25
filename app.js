@@ -16,7 +16,7 @@ const state = {
     providers: []
 };
 
-const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", ai: "Generate" };
+const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", ai: "Generate", suggest: "Add Selected" };
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
@@ -51,6 +51,7 @@ function cacheDomElements() {
     elements.aiApiKeyInput = document.getElementById("ai-api-key-input");
     elements.aiKeyLabel = document.getElementById("ai-key-label");
     elements.aiKeyRow = document.getElementById("ai-key-row");
+    elements.suggestionsList = document.getElementById("suggestions-list");
 }
 
 function initEventListeners() {
@@ -394,6 +395,8 @@ function switchImportMode(mode) {
     });
 
     elements.modalBtnSubmit.textContent = SUBMIT_LABELS[mode] || "Submit";
+
+    if (mode === "suggest") loadSuggestions();
 }
 
 /**
@@ -453,8 +456,114 @@ function handleModalSubmit() {
         handleGenerateSession("hsk");
     } else if (state.importMode === "ai") {
         handleGenerateSession("ai");
+    } else if (state.importMode === "suggest") {
+        handleAddSuggestedWords();
     } else {
         handleTextImport();
+    }
+}
+
+/**
+ * Fetches the highest-frequency compound words the user hasn't added yet
+ * and renders them as a checkbox list in the "Suggest Words" tab.
+ */
+async function loadSuggestions() {
+    if (!elements.suggestionsList) return;
+    elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Loading suggestions...</p>`;
+
+    try {
+        const response = await fetch('/api/suggestions');
+        if (!response.ok) throw new Error("Failed to fetch word suggestions.");
+        const data = await response.json();
+        renderSuggestions(data.suggestions || []);
+    } catch (err) {
+        console.error(err);
+        elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
+    }
+}
+
+function renderSuggestions(suggestions) {
+    if (!elements.suggestionsList) return;
+    elements.suggestionsList.innerHTML = "";
+
+    if (suggestions.length === 0) {
+        elements.suggestionsList.innerHTML = `<p class="suggestions-empty">No new words to suggest &mdash; you've added them all!</p>`;
+        return;
+    }
+
+    suggestions.forEach((item, idx) => {
+        const row = document.createElement("label");
+        row.className = "suggestion-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "suggestion-checkbox";
+        checkbox.dataset.word = item.word;
+        checkbox.id = `suggest-${idx}`;
+
+        const wordSpan = document.createElement("span");
+        wordSpan.className = "suggestion-word";
+        wordSpan.textContent = item.word;
+
+        const pinyinSpan = document.createElement("span");
+        pinyinSpan.className = "suggestion-pinyin";
+        pinyinSpan.textContent = item.pinyin;
+
+        const meaningSpan = document.createElement("span");
+        meaningSpan.className = "suggestion-meaning";
+        meaningSpan.textContent = item.meaning;
+
+        row.append(checkbox, wordSpan, pinyinSpan, meaningSpan);
+        elements.suggestionsList.appendChild(row);
+    });
+}
+
+/**
+ * Adds the checked suggested words to brain.json (unlocking any of their
+ * characters that aren't already unlocked) via POST to the local server.
+ */
+async function handleAddSuggestedWords() {
+    const checked = elements.suggestionsList
+        ? Array.from(elements.suggestionsList.querySelectorAll(".suggestion-checkbox:checked"))
+        : [];
+
+    if (checked.length === 0) {
+        alert("Please select at least one word to add.");
+        return;
+    }
+
+    const words = checked.map(box => box.dataset.word);
+
+    elements.modalBtnSubmit.textContent = "Adding...";
+    elements.modalBtnSubmit.disabled = true;
+
+    try {
+        const response = await fetch('/api/suggestions/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ words })
+        });
+
+        if (!response.ok) throw new Error("Failed to add selected words.");
+
+        const result = await response.json();
+
+        if (result.total_unlocked_count !== undefined) {
+            state.totalUnlockedCount = result.total_unlocked_count;
+            updateCharacterCounter();
+        }
+
+        alert(`Added ${result.added_words.length} word(s), unlocking ${result.added_chars_count} new character(s).`);
+
+        elements.importModal.style.display = "none";
+        fetchNewSession();
+
+    } catch (err) {
+        console.error(err);
+        alert("Error connecting to Python server while adding words.");
+    } finally {
+        elements.modalBtnSubmit.textContent = SUBMIT_LABELS[state.importMode] || "Submit";
+        elements.modalBtnSubmit.disabled = false;
     }
 }
 
