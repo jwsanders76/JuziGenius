@@ -122,13 +122,16 @@ body {
     border-radius: 20px;
 }
 
+/* The avatar art is a self-contained round mascot on a transparent
+   background, so it needs no circular crop or ring -- object-fit: cover plus
+   border-radius: 50% would clip the leaf off the top and draw a gold ring
+   around transparent corners. drop-shadow follows the alpha silhouette, so
+   the warm glow traces the mascot instead of a square box. */
 .mascot-avatar-small {
     width: 26px;
     height: 26px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 1.5px solid var(--accent-gold);
-    box-shadow: 0 0 6px rgba(243, 156, 18, 0.4);
+    object-fit: contain;
+    filter: drop-shadow(0 0 4px rgba(243, 156, 18, 0.5));
 }
 
 #counter-value {
@@ -331,6 +334,58 @@ body {
     background-color: #f7f2e8 !important;
 }
 
+/* --- Stroke Data Failure Card (character can't be practiced offline) --- */
+.stroke-error-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background-color: #fdfaf3;
+    padding: 14px;
+    text-align: center;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.stroke-error-char {
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    line-height: 1;
+    margin-bottom: 8px;
+}
+
+.stroke-error-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #c0392b;
+    margin-bottom: 6px;
+}
+
+.stroke-error-note {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.stroke-error-note code {
+    background-color: rgba(0, 0, 0, 0.06);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 0.7rem;
+}
+
+/* A character stepped past because it couldn't be rendered -- distinct from
+   both an unwritten slot and a correctly written one. */
+.character-slot.skipped-slot {
+    border-style: dashed;
+    border-color: var(--text-secondary);
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
 /* --- Victory Card Display (Inside Canvas upon Completion) --- */
 .victory-card {
     display: flex;
@@ -353,10 +408,8 @@ body {
 .victory-mascot {
     width: 80px;
     height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid var(--accent-gold);
-    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.35);
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(243, 156, 18, 0.45));
     margin-bottom: 8px;
 }
 
@@ -367,16 +420,25 @@ body {
     margin-bottom: 10px;
 }
 
-.victory-audio-controls {
+/* Pronunciation controls, sitting under the assembly line with the sentence
+   they act on. Styled for the dark app surface -- they previously lived on the
+   victory card's parchment background and were coloured for it. */
+#sentence-audio-controls {
     display: flex;
+    justify-content: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-top: -8px;
+    margin-bottom: 16px;
+}
+
+#sentence-audio-controls[hidden] {
+    display: none;
 }
 
 .btn-audio-action {
-    background-color: rgba(0, 0, 0, 0.06);
-    color: #4a3f33;
-    border: 1px solid rgba(61, 47, 36, 0.25);
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -386,7 +448,7 @@ body {
 }
 
 .btn-audio-action:hover:not(:disabled) {
-    background-color: rgba(0, 0, 0, 0.12);
+    background-color: var(--border-color);
     transform: translateY(-1px);
 }
 

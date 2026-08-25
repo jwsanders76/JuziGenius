@@ -12,9 +12,38 @@ PORT = 8000
 # the working directory by path -- which would expose config.py (API key),
 # brain.json (personal SRS data), and other source files to anyone on the
 # network. Everything not explicitly listed here gets a 404.
-ALLOWED_STATIC_PATHS = {"/", "/index.html", "/style.css", "/app.js", "/mascot.png"}
+ALLOWED_STATIC_PATHS = {
+    "/", "/index.html", "/style.css", "/app.js",
+    "/avatar-nobg-128.png", "/avatar-nobg.png",
+    "/vendor/hanzi-writer.min.js",
+}
+
+STROKE_DATA_PATH = "stroke_data.json"
 
 engine = JuziEngine()
+
+# Vendored Hanzi Writer stroke data, loaded once on first use and held in
+# memory. This is what makes handwriting work offline: without it the library
+# fetches every character from cdn.jsdelivr.net as the user is asked to write
+# it. Built by fetch_stroke_data.py; absent until that's been run, in which
+# case /api/strokes 404s and app.js falls back to the CDN.
+_stroke_data = None
+
+
+def load_stroke_data():
+    global _stroke_data
+    if _stroke_data is None:
+        if not os.path.exists(STROKE_DATA_PATH):
+            print(
+                f"Notice: {STROKE_DATA_PATH} not found -- handwriting will fall back to the CDN. "
+                f"Run 'python3 fetch_stroke_data.py' to enable offline stroke data."
+            )
+            _stroke_data = {}
+        else:
+            with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
+                _stroke_data = json.load(f)
+            print(f"Loaded offline stroke data for {len(_stroke_data)} characters.")
+    return _stroke_data
 
 class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -98,6 +127,40 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps({"suggestions": suggestions}, ensure_ascii=False).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
+        # Serves one character's stroke-order data out of the vendored
+        # stroke_data.json, replacing Hanzi Writer's default per-character
+        # fetch to cdn.jsdelivr.net. A 404 here is not an error: app.js reads
+        # it as "not vendored" and falls back to the CDN.
+        if path == "/api/strokes":
+            try:
+                params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                char = (params.get("char") or [""])[0]
+                entry = load_stroke_data().get(char) if char else None
+
+                if entry is None:
+                    self.send_response(404)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "No vendored stroke data."}).encode("utf-8"))
+                    return
+
+                payload = json.dumps(entry, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                # Stroke data for a character never changes; let the browser
+                # keep it so repeat characters don't re-request every time.
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.end_headers()
+                self.wfile.write(payload)
                 return
             except Exception as e:
                 self.send_response(500)

@@ -13,11 +13,19 @@ __pycache__/
 venv/
 env/
 
+# --- Vendored / Derived Data ---
+# Offline stroke-order database (~6.6 MB), rebuilt with fetch_stroke_data.py.
+# vendor/hanzi-writer.min.js IS tracked -- it's 36 KB and pins the library
+# version the app was tested against.
+stroke_data.json
+
 # --- Operating System Junk ---
-.DS_Store          # macOS folder attributes
-Thumbs.db          # Windows thumbnail cache
-.swp               # Linux/Vim swap files
-*~                 # Linux backup files
+# NOTE: gitignore has no trailing-comment syntax, so these previously read as
+# literal patterns ending in "# macOS folder attributes" and matched nothing.
+.DS_Store
+Thumbs.db
+*.swp
+*~
 
 # --- Web/PWA Clutter ---
 node_modules/

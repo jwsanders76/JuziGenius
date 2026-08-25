@@ -9,6 +9,8 @@ const state = {
     charIndex: 0,
     hintTier: 0,
     writer: null,
+    writerToken: 0,
+    skippedIndices: new Set(),
     currentScorePenalty: 0,
     totalUnlockedCount: 0,
     totalDueCount: 0,
@@ -19,6 +21,89 @@ const state = {
 };
 
 const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", ai: "Generate", suggest: "Add Selected" };
+
+// Speed of the tier-3 stroke walkthrough. Set on the writer at creation time
+// rather than passed to animateCharacter(), which ignores per-call speed.
+const HINT_WALKTHROUGH_SPEED = 4.5;
+
+// Upstream stroke data, used only for characters this install didn't vendor
+// (see loadCharacterStrokes). Pinned to the version fetch_stroke_data.py
+// vendored from, so an online fallback can't quietly serve different data.
+const STROKE_DATA_CDN = "https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1";
+
+/**
+ * Supplies Hanzi Writer with a character's stroke-order data.
+ *
+ * Replaces the library's default loader, which fetches every character from
+ * cdn.jsdelivr.net at the moment you're asked to write it -- that quietly made
+ * handwriting, the core of the app, require an internet connection. Stroke
+ * data now comes from the local server (stroke_data.json, built by
+ * fetch_stroke_data.py), so normal play is genuinely offline.
+ *
+ * The vendored set covers the vocabulary corpus, the HSK sentences, and your
+ * unlocked pool, but text import can unlock rarer characters than that. Those
+ * fall back to the CDN when online, and raise onLoadCharDataError when not --
+ * which is the difference between a readable message and a blank canvas.
+ */
+function loadCharacterStrokes(char, onComplete, onError) {
+    fetch(`/api/strokes?char=${encodeURIComponent(char)}`)
+        .then(response => {
+            if (response.ok) return response.json();
+            if (response.status === 404) return null;   // not vendored
+            throw new Error(`Local stroke data request failed (${response.status}).`);
+        })
+        .then(data => {
+            if (data) return onComplete(data);
+            return fetch(`${STROKE_DATA_CDN}/${encodeURIComponent(char)}.json`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`CDN returned ${response.status}.`);
+                    return response.json();
+                })
+                .then(onComplete);
+        })
+        .catch(err => onError(err));
+}
+
+/**
+ * Shown when a character's stroke data can't be loaded at all -- it isn't
+ * vendored and the CDN is unreachable or doesn't have it. Previously this
+ * left an empty canvas with no explanation and no way forward: the quiz could
+ * never complete, and Clear just rebuilt the same broken writer. Offer the
+ * only useful action instead.
+ */
+function showStrokeDataError(char, token) {
+    if (token !== state.writerToken) return;
+
+    const container = document.getElementById('tian-zi-ge');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="stroke-error-card">
+            <div class="stroke-error-char">${char}</div>
+            <div class="stroke-error-title">No stroke data for this character</div>
+            <div class="stroke-error-note">It isn't in the offline set and the character database couldn't be reached. Run <code>python3 fetch_stroke_data.py</code> to widen the offline set.</div>
+            <button id="btn-skip-char" class="btn-next">Skip This Character →</button>
+        </div>
+    `;
+
+    const btnSkip = document.getElementById("btn-skip-char");
+    if (btnSkip) btnSkip.addEventListener("click", () => skipCurrentCharacter());
+}
+
+/**
+ * Steps past a character that can't be practiced. Deliberately records no
+ * SM-2 review: the user never actually wrote it, and grading it either way
+ * would be a lie to the scheduler.
+ */
+function skipCurrentCharacter() {
+    // Recorded in state, not just on the slot element: setupCurrentCharacterWriter
+    // re-renders the whole assembly line, which would otherwise wipe the marker
+    // and leave a skipped character looking exactly like a written one.
+    state.skippedIndices.add(state.charIndex);
+    state.charIndex++;
+    state.hintTier = 0;
+    setupCurrentCharacterWriter();
+}
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
@@ -46,6 +131,11 @@ function cacheDomElements() {
     elements.counterValue = document.getElementById("counter-value");
     elements.dueCounter = document.getElementById("due-counter");
     elements.dueCounterValue = document.getElementById("due-counter-value");
+
+    // Sentence pronunciation controls (beside the assembly line)
+    elements.sentenceAudioControls = document.getElementById("sentence-audio-controls");
+    elements.btnReplayAudio = document.getElementById("btn-replay-audio");
+    elements.btnSwitchVoice = document.getElementById("btn-switch-voice");
     
     // Import Modal Elements
     elements.importModal = document.getElementById("import-modal");
@@ -65,6 +155,18 @@ function initEventListeners() {
     if (elements.btnClear) elements.btnClear.addEventListener("click", handleClearCanvas);
     if (elements.btnHint) elements.btnHint.addEventListener("click", handleHintEscalation);
     
+    if (elements.btnReplayAudio) {
+        elements.btnReplayAudio.addEventListener("click", () => playNativeTTS(currentSentenceText()));
+    }
+
+    if (elements.btnSwitchVoice) {
+        elements.btnSwitchVoice.addEventListener("click", () => {
+            switchToNextVoice();
+            updateSwitchVoiceButton(elements.btnSwitchVoice);
+            playNativeTTS(currentSentenceText());
+        });
+    }
+
     if (elements.btnDiscuss) {
         elements.btnDiscuss.addEventListener("click", () => {
             alert("Sentence discussion and grammar breakdown feature coming soon!");
@@ -138,9 +240,16 @@ async function fetchNewSession() {
             state.currentIndex = 0;
             loadSession();
         } else {
-            elements.englishPrompt.textContent = "Your unlocked character pool is empty. Click 'Import' to paste Chinese text and begin!";
+            // An empty sentence bank has two very different causes, and
+            // reporting the wrong one sends the user off to fix a problem
+            // they don't have: either nothing is unlocked yet, or plenty is
+            // unlocked but no HSK sentence is built entirely from it.
+            elements.englishPrompt.textContent = state.totalUnlockedCount > 0
+                ? `No practice sentences yet. You have ${state.totalUnlockedCount} characters unlocked, but no HSK sentence uses only those characters. Click 'Import' to unlock more characters, or generate sentences with AI.`
+                : "Your unlocked character pool is empty. Click 'Import' to paste Chinese text and begin!";
             if (elements.canvasContainer) elements.canvasContainer.innerHTML = "";
             if (elements.assemblyLine) elements.assemblyLine.innerHTML = "";
+            toggleSentenceAudioControls(false);
         }
     } catch (err) {
         console.error(err);
@@ -154,6 +263,7 @@ async function fetchNewSession() {
 function loadSession() {
     state.isCompleted = false;
     toggleSidebarButtons(true);
+    toggleSentenceAudioControls(false);
 
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
@@ -162,6 +272,7 @@ function loadSession() {
     state.charIndex = 0;
     state.hintTier = 0;
     state.currentScorePenalty = 0;
+    state.skippedIndices = new Set();
 
     advancePastPunctuation();
     renderAssemblyLine();
@@ -229,6 +340,10 @@ function renderAssemblyLine() {
             slot.textContent = char;
         } else {
             slot.textContent = idx < state.charIndex ? char : "_";
+            if (state.skippedIndices.has(idx)) {
+                slot.classList.add("skipped-slot");
+                slot.title = "Skipped — no stroke data available for this character";
+            }
             if (idx === state.charIndex && !state.isCompleted) {
                 slot.classList.add("active");
             }
@@ -262,30 +377,57 @@ function setupCurrentCharacterWriter() {
     const targetChar = chineseChars[state.charIndex];
     container.innerHTML = "";
 
+    // Every writer gets a token. Hanzi Writer callbacks are asynchronous and
+    // can't be unsubscribed, so a walkthrough animation still in flight when
+    // the user hits Clear (or finishes the character) would otherwise fire
+    // against a writer whose canvas has already been torn down and replaced.
+    // Callbacks compare their captured token against the live one and no-op
+    // if they've been superseded.
+    const token = ++state.writerToken;
+
     state.writer = HanziWriter.create('tian-zi-ge', targetChar, {
         width: 240,
         height: 240,
         padding: 10,
         showCharacter: false,
-        showOutline: false,   
-        strokeAnimationSpeed: 2,
+        showOutline: false,
+        // This is what the tier-3 walkthrough actually animates at:
+        // animateCharacter() reads strokeAnimationSpeed from the writer's own
+        // options and ignores anything passed into the call itself, so the
+        // speed has to be set here. It doesn't affect quiz stroke input.
+        strokeAnimationSpeed: HINT_WALKTHROUGH_SPEED,
         delayBetweenStrokes: 150,
         leniency: 1.0,
         highlightColor: '#e74c3c',
         drawingColor: '#000000',
         strokeColor: '#333333',
-        outlineColor: '#b0b0b0'
-    });
-
-    state.writer.quiz({
-        onCorrectStroke: () => {},
-        onMistake: () => {},
-        onComplete: () => {
-            handleCharacterSuccess(targetChar);
+        outlineColor: '#b0b0b0',
+        charDataLoader: loadCharacterStrokes,
+        onLoadCharDataError: (err) => {
+            console.error(`Could not load stroke data for '${targetChar}'.`, err);
+            showStrokeDataError(targetChar, token);
         }
     });
 
+    startQuiz(state.writer, targetChar, token);
+
     renderAssemblyLine();
+}
+
+/**
+ * Arms (or re-arms) the stroke quiz on a writer. Extracted so the tier-3
+ * hint can put the quiz back after animateCharacter() tears it down.
+ */
+function startQuiz(writer, targetChar, token) {
+    if (!writer) return;
+    writer.quiz({
+        onCorrectStroke: () => {},
+        onMistake: () => {},
+        onComplete: () => {
+            if (token !== state.writerToken) return;
+            handleCharacterSuccess(targetChar);
+        }
+    });
 }
 
 /**
@@ -347,17 +489,17 @@ function triggerSentenceCompletion() {
     // 2. Trigger native audio speech playback
     playNativeTTS(currentSentence.chinese);
 
-    // 3. Render Victory Card with Mascot, audio controls, and Next button inside Tian Zi Ge
+    // 3. Reveal the pronunciation controls, which live beside the completed
+    //    Chinese sentence rather than inside the victory card.
+    toggleSentenceAudioControls(true);
+
+    // 4. Render Victory Card with Mascot and Next button inside Tian Zi Ge
     const container = document.getElementById('tian-zi-ge');
     if (container) {
         container.innerHTML = `
             <div class="victory-card">
-                <img src="mascot.png" alt="Juzi Mascot" class="victory-mascot" />
+                <img src="avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
-                <div class="victory-audio-controls">
-                    <button id="btn-replay-audio" class="btn-audio-action" title="Replay pronunciation">🔊 Replay</button>
-                    <button id="btn-switch-voice" class="btn-audio-action" title="Switch voice">🔄 Switch Voice</button>
-                </div>
                 <button id="btn-next" class="btn-next">Next Sentence →</button>
             </div>
         `;
@@ -366,22 +508,30 @@ function triggerSentenceCompletion() {
         if (btnNext) {
             btnNext.addEventListener("click", nextSentence);
         }
-
-        const btnReplay = document.getElementById("btn-replay-audio");
-        if (btnReplay) {
-            btnReplay.addEventListener("click", () => playNativeTTS(currentSentence.chinese));
-        }
-
-        const btnSwitchVoice = document.getElementById("btn-switch-voice");
-        if (btnSwitchVoice) {
-            updateSwitchVoiceButton(btnSwitchVoice);
-            btnSwitchVoice.addEventListener("click", () => {
-                switchToNextVoice();
-                updateSwitchVoiceButton(btnSwitchVoice);
-                playNativeTTS(currentSentence.chinese);
-            });
-        }
     }
+}
+
+/**
+ * Shows or hides the sentence pronunciation controls. They're only meaningful
+ * once the sentence is done -- offering playback mid-practice would just hand
+ * the user the answer they're supposed to be recalling.
+ */
+function toggleSentenceAudioControls(visible) {
+    if (!elements.sentenceAudioControls) return;
+    elements.sentenceAudioControls.hidden = !visible;
+    if (visible && elements.btnSwitchVoice) {
+        updateSwitchVoiceButton(elements.btnSwitchVoice);
+    }
+}
+
+/**
+ * The Chinese text of the sentence currently on screen, or "" if there isn't
+ * one. Read at click time rather than captured in a closure, so the audio
+ * buttons can be wired once at startup instead of on every completion.
+ */
+function currentSentenceText() {
+    const sentence = state.sentences[state.currentIndex];
+    return sentence ? sentence.chinese : "";
 }
 
 /**
@@ -421,9 +571,30 @@ function handleHintEscalation() {
     } else if (state.hintTier >= 3) {
         state.currentScorePenalty = 3;
         if (state.writer) {
-            // Tier 3: Master Class fast 4.5x speed stroke walkthrough
-            state.writer.animateCharacter({
-                strokeSpeed: 4.5
+            // Tier 3: Master Class stroke walkthrough.
+            //
+            // animateCharacter() starts by calling cancelQuiz() internally,
+            // so once the walkthrough finishes the canvas no longer accepts
+            // strokes -- the user watches the demo and then can't write the
+            // character they just watched. Re-arm the quiz on completion so
+            // the staircase ends where it should: shown how, now do it.
+            const writer = state.writer;
+            const token = state.writerToken;
+
+            writer.animateCharacter({
+                onComplete: () => {
+                    // Superseded by Clear, or by advancing to another
+                    // character while the animation was still playing.
+                    if (token !== state.writerToken) return;
+
+                    startQuiz(writer, targetChar, token);
+
+                    // quiz() rebuilds the render state, so re-assert the
+                    // outline tier 2 already earned (tier 3 is only reachable
+                    // through it): the staircase is cumulative, and a higher
+                    // tier should never take away a lower one.
+                    writer.showOutline();
+                }
             });
         }
     }
@@ -836,7 +1007,7 @@ function updateSwitchVoiceButton(btn) {
     const ordered = getOrderedChineseVoices();
     if (ordered.length < 2) {
         btn.disabled = true;
-        btn.textContent = "🔊 Only Voice Available";
+        btn.textContent = "🔄 Only One Voice";
         btn.title = "Only one Mandarin voice is installed on this device.";
         return;
     }

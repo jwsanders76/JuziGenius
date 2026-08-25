@@ -118,6 +118,19 @@ class JuziEngine:
         Per standard SM-2, quality < 3 counts as a failed recall and resets
         the repetition streak (interval back to 1, reps back to 0) rather
         than advancing the schedule.
+
+        SM-2 assumes at most one grading per item per day. This app can
+        easily produce many more: a character often appears twice in one
+        sentence (我爱我的妈妈), and the sentence bank loops forever, so a
+        single sitting can grade the same character six or more times.
+        Advancing on every one of those compounds the interval multiplier
+        against itself (1 -> 6 -> 16 -> 45 -> 130 -> 390 days), scheduling a
+        character the user has barely learned a year out. So a repeat
+        grading on a day the character was already reviewed does not
+        advance the schedule. A *failed* repeat still applies its lapse:
+        forgetting a character later in the same session is real evidence
+        that it isn't known, and ignoring it would let the loop paper over
+        genuine failures.
         """
         quality = max(0, min(5, int(quality)))
 
@@ -134,13 +147,32 @@ class JuziEngine:
         if entry is None:
             raise ValueError(f"Character '{char}' is not in the unlocked pool.")
 
+        today = date.today().isoformat()
+        already_reviewed_today = entry.get("last") == today
+
         reps = entry.get("reps", 0) or 0
         interval = entry.get("interval", 0) or 0
         factor = entry.get("factor", 2.5) or 2.5
 
         if quality < 3:
+            # A lapse always counts, including a same-day repeat.
             reps = 0
             interval = 1
+            factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+            factor = max(1.3, factor)
+        elif already_reviewed_today:
+            # Successful repeat on a day already credited: no schedule
+            # change, and no ease bump either (that would inflate the
+            # multiplier for every later review just as badly).
+            return {
+                "char": char,
+                "reps": reps,
+                "interval": interval,
+                "factor": round(factor, 2),
+                "last": entry.get("last"),
+                "counted": False,
+                "due_count": len(self.get_due_characters(unlocked_chars))
+            }
         else:
             if reps == 0:
                 interval = 1
@@ -149,14 +181,13 @@ class JuziEngine:
             else:
                 interval = round(interval * factor)
             reps += 1
-
-        factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-        factor = max(1.3, factor)
+            factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+            factor = max(1.3, factor)
 
         entry["reps"] = reps
         entry["interval"] = interval
         entry["factor"] = round(factor, 2)
-        entry["last"] = date.today().isoformat()
+        entry["last"] = today
 
         with open(self.brain_path, "w", encoding="utf-8") as f:
             json.dump(brain_data, f, ensure_ascii=False, indent=4)
@@ -167,6 +198,7 @@ class JuziEngine:
             "interval": interval,
             "factor": entry["factor"],
             "last": entry["last"],
+            "counted": True,
             "due_count": len(self.get_due_characters(unlocked_chars))
         }
 

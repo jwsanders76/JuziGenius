@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JuziGenius (句子Genius)</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Hanzi Writer CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    <!-- Hanzi Writer, vendored locally so handwriting works with no network.
+         Stroke data is served from stroke_data.json via /api/strokes -- see
+         charDataLoader in app.js and fetch_stroke_data.py. -->
+    <script src="vendor/hanzi-writer.min.js"></script>
 </head>
 <body>
     <div id="app-container">
@@ -16,7 +18,7 @@
             
             <div id="top-bar-center">
                 <div id="character-counter" title="Total unique characters unlocked in your database">
-                    <img src="mascot.png" alt="Juzi Mascot" class="mascot-avatar-small" />
+                    <img src="avatar-nobg-128.png" alt="Juzi Mascot" class="mascot-avatar-small" />
                     <span>Unlocked: <strong id="counter-value">0</strong></span>
                 </div>
 
@@ -33,6 +35,16 @@
 
         <!-- Assembly Line (Slots) -->
         <div id="assembly-line"></div>
+
+        <!-- Pronunciation controls for the completed sentence. These sit with
+             the Chinese characters they act on, rather than in the victory
+             card next to the writing canvas, where "Replay" read as "redo this
+             character's quiz". Hidden until the sentence is finished: hearing
+             it spoken beforehand would hand over the whole answer. -->
+        <div id="sentence-audio-controls" hidden>
+            <button id="btn-replay-audio" class="btn-audio-action" title="Hear the sentence again">🔊 Listen Again</button>
+            <button id="btn-switch-voice" class="btn-audio-action" title="Switch voice">🔄 Switch Voice</button>
+        </div>
 
         <!-- Main Workspace Area: Sidebar (Clear, Hint) + Central Canvas -->
         <div id="workspace-main">
