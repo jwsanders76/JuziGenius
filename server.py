@@ -154,7 +154,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 provider = data.get("provider", "gemini")
                 api_key = data.get("api_key") or None
 
-                result = engine.generate_fresh_session(count=5, source=source, provider=provider, api_key=api_key)
+                # HSK mode pulls from the small, fixed local corpus -- 3 keeps
+                # each batch focused rather than exhausting due/relevant
+                # sentences in one go. AI mode has no such ceiling.
+                count = 3 if source == "hsk" else 5
+                result = engine.generate_fresh_session(count=count, source=source, provider=provider, api_key=api_key)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
