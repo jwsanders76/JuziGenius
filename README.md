@@ -27,7 +27,5 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 - **Discuss / grammar breakdown:** placeholder button only.
 - **PWA installability:** runs as a plain page, not an installable/offline app.
 
-See `project_state.md` for the full architecture blueprint, file-by-file breakdown, and roadmap.
-
 ## License
 MIT — see `LICENSE`.

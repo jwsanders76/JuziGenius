@@ -1,8 +1,14 @@
 # JuziGenius Configuration Template
 # Rename this file to config.py and add your API key.
+#
+# This file is OPTIONAL. It only provides a server-held Gemini key so you don't
+# have to paste one into the browser each time; Claude/ChatGPT/Grok keys are
+# always entered client-side. Without it, the app still runs fully offline.
 
 GEMINI_API_KEY = "PASTE_YOUR_API_KEY_HERE"
 
-TUTOR_MODEL = "gemini-2.5-flash"
-BATCH_MODEL = "gemini-2.5-flash"
-APP_NAME = "JuziGenius"
+# Optional Gemini model override for sentence generation. Leave this commented
+# out to use the default in ai_providers.py (PROVIDER_CONFIG["gemini"]["model"]),
+# which is where the current model lives -- setting a stale value here silently
+# downgrades generation, since juzi_engine.py prefers BATCH_MODEL when present.
+# BATCH_MODEL = "gemini-3.6-flash"
