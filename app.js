@@ -8,6 +8,7 @@ const state = {
     currentIndex: 0,
     charIndex: 0,
     hintTier: 0,
+    charMistakes: 0,
     writer: null,
     writerToken: 0,
     skippedIndices: new Set(),
@@ -102,6 +103,7 @@ function skipCurrentCharacter() {
     state.skippedIndices.add(state.charIndex);
     state.charIndex++;
     state.hintTier = 0;
+    state.charMistakes = 0;
     setupCurrentCharacterWriter();
 }
 
@@ -204,12 +206,23 @@ function initEventListeners() {
         elements.modalBtnSubmit.addEventListener("click", handleModalSubmit);
     }
 
-    // Keyboard navigation: Press Space or Enter to load Next sentence when completed
+    // Keyboard navigation: Press Space or Enter to load Next sentence when completed.
+    //
+    // Scoped deliberately. This listener is on window and calls
+    // preventDefault(), so without the guards below it swallowed the first
+    // Space or Enter typed into the import textarea -- and, because the
+    // shortcut also fires while the modal covers the screen, silently
+    // advanced the sentence hidden behind it. Typing into a field is never a
+    // request to advance the sentence, and neither is anything typed while a
+    // modal is open.
     window.addEventListener("keydown", (e) => {
-        if (state.isCompleted && (e.code === "Space" || e.code === "Enter")) {
-            e.preventDefault();
-            nextSentence();
-        }
+        if (!state.isCompleted) return;
+        if (e.code !== "Space" && e.code !== "Enter") return;
+        if (isTypingTarget(e.target)) return;
+        if (isModalOpen()) return;
+
+        e.preventDefault();
+        nextSentence();
     });
 }
 
@@ -271,6 +284,7 @@ function loadSession() {
     elements.englishPrompt.textContent = currentSentence.english;
     state.charIndex = 0;
     state.hintTier = 0;
+    state.charMistakes = 0;
     state.currentScorePenalty = 0;
     state.skippedIndices = new Set();
 
@@ -398,6 +412,13 @@ function setupCurrentCharacterWriter() {
         strokeAnimationSpeed: HINT_WALKTHROUGH_SPEED,
         delayBetweenStrokes: 150,
         leniency: 1.0,
+        // Hanzi Writer defaults this to 3: after three wrong strokes it
+        // flashes the correct one, unasked and unrecorded. That is a ghost
+        // handwriting guide arriving on its own, which is precisely what the
+        // Zero-Help philosophy rules out -- and it made the Hint button
+        // optional, since waiting out three mistakes bought the same help
+        // without the score cost. Help here is only ever requested.
+        showHintAfterMisses: false,
         highlightColor: '#e74c3c',
         drawingColor: '#000000',
         strokeColor: '#333333',
@@ -422,7 +443,15 @@ function startQuiz(writer, targetChar, token) {
     if (!writer) return;
     writer.quiz({
         onCorrectStroke: () => {},
-        onMistake: () => {},
+        // Wrong strokes are evidence about recall and now feed the SM-2
+        // grade (see submitCharacterReview). Counted on state rather than
+        // read from the library's own totalMistakes, because the quiz is
+        // rebuilt on Clear and after the tier-3 walkthrough -- which would
+        // reset the library's counter and hand back a clean slate.
+        onMistake: () => {
+            if (token !== state.writerToken) return;
+            state.charMistakes++;
+        },
         onComplete: () => {
             if (token !== state.writerToken) return;
             handleCharacterSuccess(targetChar);
@@ -440,23 +469,45 @@ function handleCharacterSuccess(char) {
         slot.classList.remove("active");
     }
 
-    submitCharacterReview(char, state.hintTier);
+    submitCharacterReview(char, state.hintTier, state.charMistakes);
 
     state.charIndex++;
     state.hintTier = 0;
+    state.charMistakes = 0;
     setTimeout(setupCurrentCharacterWriter, 200);
 }
 
 /**
+ * How much a character's wrong strokes cost it on the 0-5 recall scale.
+ * Bucketed rather than subtracted one for one: the difference between a clean
+ * write and a stumble is real, and between one stumble and several, but past a
+ * handful the extra strokes say nothing new about recall.
+ */
+function mistakePenalty(mistakes) {
+    if (mistakes === 0) return 0;
+    if (mistakes <= 2) return 1;
+    return 2;
+}
+
+/**
  * Reports a completed character quiz to the backend so its SM-2 scheduling
- * fields (interval/factor/reps/last) advance. Recall quality (0-5) is
- * derived from how many hint tiers were needed before completion: no hints
- * is a perfect 5, each tier escalation lowers it, floored at 2 (SM-2 treats
- * anything under 3 as a failed recall and resets the repetition streak).
+ * fields (interval/factor/reps/last) advance.
+ *
+ * Recall quality (0-5) comes from both signals the quiz produces: how many
+ * hint tiers were needed, and how many wrong strokes were made getting there.
+ * Hints alone were not enough -- someone who fumbled twenty strokes but never
+ * pressed Hint scored the same perfect 5 as someone who wrote it cleanly, so
+ * the scheduler could not tell a shaky character from a solid one.
+ *
+ * Floored at 2, matching the previous behaviour for heavy-hint completions:
+ * quality below 3 already registers as a lapse in SM-2 and resets the
+ * repetition streak, and the character *was* eventually written, so a total
+ * blackout score of 0 would overstate it.
+ *
  * Fire-and-forget -- a failed request shouldn't block practice.
  */
-function submitCharacterReview(char, hintTier) {
-    const quality = Math.max(2, 5 - hintTier);
+function submitCharacterReview(char, hintTier, mistakes = 0) {
+    const quality = Math.max(2, 5 - hintTier - mistakePenalty(mistakes));
     fetch('/api/character/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1033,6 +1084,30 @@ function updateSwitchVoiceButton(btn) {
         btn.textContent = "🔄 Switch Voice";
     }
     btn.title = `Current voice: ${current.name}`;
+}
+
+/**
+ * True when the event target is somewhere the user is typing, so global
+ * keyboard shortcuts should keep their hands off the keystroke. Covers
+ * contentEditable as well as form fields -- the modal only has a textarea and
+ * an input today, but a shortcut that eats text is a bug that reappears the
+ * moment another field is added.
+ */
+function isTypingTarget(target) {
+    if (!target || !target.tagName) return false;
+    if (target.isContentEditable) return true;
+    return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
+/**
+ * True while the Add Practice Sentences modal is on screen. Read from the
+ * computed style rather than the inline one, so it's correct before any code
+ * has assigned to style.display (the initial "none" comes from the
+ * .modal-overlay rule in style.css, not from an inline attribute).
+ */
+function isModalOpen() {
+    if (!elements.importModal) return false;
+    return window.getComputedStyle(elements.importModal).display !== "none";
 }
 
 function isPunctuation(char) {
