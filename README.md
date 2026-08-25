@@ -10,7 +10,7 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 ## Setup
 1. Clone the repo. Everything runs on the Python 3 standard library — no `pip install` needed.
 2. Seed a starting vocabulary: `python3 seed_brain.py --size 50` (choose `5`, `50`, or `300`). This creates your personal `brain.json`. Characters are picked for sentence coverage, not raw frequency, so the pool always closes over a set of complete HSK sentences you can practice immediately — a 50-character seed opens 38 of them.
-3. Download the offline stroke-order database: `python3 fetch_stroke_data.py`. This is a one-time ~13 MB download that writes a 6.6 MB `stroke_data.json` covering every character the app can present (~2,600). Skip it and handwriting still works, but each character is fetched from a CDN as you're asked to write it — so practice needs a live connection.
+3. *(Optional)* The offline stroke-order database (`stroke_data.json`, ~2,600 characters) ships with the repo, so handwriting works offline straight from a clone — no build step. Re-run `python3 fetch_stroke_data.py` only if you want to widen the character set (`--all` vendors every character upstream has).
 4. *(Optional)* For AI-generated sentences with a server-held Gemini key instead of pasting one into the browser each time: rename `config.py.example` to `config.py` and add your key. Claude/ChatGPT/Grok keys are always entered client-side (stored in browser `localStorage`, never on disk) — no server config needed for those.
 5. Run the server: `python3 server.py`. It prints `http://localhost:8000` and also binds to your LAN, so you can open that same port from a tablet/phone on the same network.
 

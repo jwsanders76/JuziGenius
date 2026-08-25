@@ -8,6 +8,11 @@ handwriting -- the whole point of this app -- silently require an internet
 connection, on the tablet it was built to run on. This script pulls that data
 down once so normal play really is offline.
 
+The generated stroke_data.json is committed to the repo rather than ignored,
+so a fresh clone is offline-capable with no build step. You only need to run
+this again to widen the character set (see --all below) or to rebuild the
+file from scratch.
+
 It vendors only the characters JuziGenius can actually put in front of you:
 every character in the words_freq.json vocabulary corpus, in the HSK example
 sentences, and in your current brain.json. That's ~2,600 characters (a few MB)

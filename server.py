@@ -25,8 +25,9 @@ engine = JuziEngine()
 # Vendored Hanzi Writer stroke data, loaded once on first use and held in
 # memory. This is what makes handwriting work offline: without it the library
 # fetches every character from cdn.jsdelivr.net as the user is asked to write
-# it. Built by fetch_stroke_data.py; absent until that's been run, in which
-# case /api/strokes 404s and app.js falls back to the CDN.
+# it. Tracked in the repo (built by fetch_stroke_data.py), so a fresh clone
+# has it. If it's ever missing, /api/strokes 404s and app.js falls back to
+# the CDN rather than failing outright.
 _stroke_data = None
 
 

@@ -14,10 +14,11 @@ venv/
 env/
 
 # --- Vendored / Derived Data ---
-# Offline stroke-order database (~6.6 MB), rebuilt with fetch_stroke_data.py.
-# vendor/hanzi-writer.min.js IS tracked -- it's 36 KB and pins the library
-# version the app was tested against.
-stroke_data.json
+# NOTE: stroke_data.json (~6.6 MB) and vendor/hanzi-writer.min.js are both
+# deliberately TRACKED, not ignored. They're what makes handwriting work with
+# no network, so a fresh clone is offline-capable without a build step.
+# Regenerate the stroke data with fetch_stroke_data.py if the character set
+# ever needs widening.
 
 # --- Operating System Junk ---
 # NOTE: gitignore has no trailing-comment syntax, so these previously read as
