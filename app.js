@@ -144,6 +144,7 @@ function cacheDomElements() {
     elements.modalBtnCancel = document.getElementById("modal-btn-cancel");
     elements.modalBtnSubmit = document.getElementById("modal-btn-submit");
     elements.importTextarea = document.getElementById("import-textarea");
+    elements.importTranslationTextarea = document.getElementById("import-translation-textarea");
     elements.modeTabs = document.querySelectorAll(".mode-tab");
     elements.modePanels = document.querySelectorAll(".mode-panel");
     elements.aiProviderSelect = document.getElementById("ai-provider-select");
@@ -181,6 +182,7 @@ function initEventListeners() {
             if (elements.importModal) {
                 elements.importModal.style.display = "flex";
                 elements.importTextarea.value = "";
+                if (elements.importTranslationTextarea) elements.importTranslationTextarea.value = "";
                 switchImportMode("paste");
                 elements.importTextarea.focus();
                 if (state.providers.length === 0) loadProviders();
@@ -871,6 +873,7 @@ async function handleAddSuggestedWords() {
  */
 async function handleTextImport() {
     const text = elements.importTextarea.value.trim();
+    const translation = elements.importTranslationTextarea ? elements.importTranslationTextarea.value.trim() : "";
     if (!text) {
         alert("Please paste some Chinese text first.");
         return;
@@ -883,7 +886,7 @@ async function handleTextImport() {
         const response = await fetch('/api/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text, translation })
         });
 
         if (!response.ok) throw new Error("Import failed on backend server.");

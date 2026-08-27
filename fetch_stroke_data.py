@@ -14,12 +14,14 @@ this again to widen the character set (see --all below) or to rebuild the
 file from scratch.
 
 It vendors only the characters JuziGenius can actually put in front of you:
-every character in the words_freq.json vocabulary corpus, in the HSK example
-sentences, and in your current brain.json. That's ~2,600 characters (a few MB)
-rather than the full ~9,600-character, 31 MB upstream package. Characters
-outside that set -- rare or variant forms you might paste in via text import --
-still fall back to the CDN when you're online, and surface a readable error
-instead of a dead canvas when you aren't (see charDataLoader in app.js).
+every character in the words_freq.json vocabulary corpus, in the local
+sentence corpora (SENTENCE_SOURCE_FILES -- the hand-curated HSK sentences plus
+the larger Tatoeba-derived set), and in your current brain.json. That's a few
+thousand characters (a few MB) rather than the full ~9,600-character, 31 MB
+upstream package. Characters outside that set -- rare or variant forms you
+might paste in via text import -- still fall back to the CDN when you're
+online, and surface a readable error instead of a dead canvas when you aren't
+(see charDataLoader in app.js).
 
 Source: the hanzi-writer-data npm package (MIT). Fetched as a single tarball
 rather than thousands of individual requests.
@@ -36,14 +38,12 @@ import os
 import tarfile
 import urllib.request
 
+from juzi_engine import SENTENCE_SOURCE_FILES
+
 WORDS_PATH = "words_freq.json"
 BRAIN_PATH = "brain.json"
 MASTER_DICT_PATH = "master_dictionary.json"
 OUTPUT_PATH = "stroke_data.json"
-HSK_SOURCE_FILES = [
-    "hsk_level1and2_words_with_sentences.csv",
-    "hsk_level3_words_with_sentences.csv",
-]
 
 PACKAGE = "hanzi-writer-data"
 REGISTRY_URL = f"https://registry.npmjs.org/{PACKAGE}"
@@ -61,7 +61,7 @@ def needed_characters():
                 if not word.startswith("_"):
                     chars.update(c for c in word if CJK(c))
 
-    for filename in HSK_SOURCE_FILES:
+    for filename in SENTENCE_SOURCE_FILES:
         if not os.path.exists(filename):
             continue
         with open(filename, "r", encoding="utf-8") as f:

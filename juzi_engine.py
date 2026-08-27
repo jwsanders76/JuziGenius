@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import threading
 from datetime import date, timedelta
 
 import ai_providers
@@ -13,6 +14,15 @@ except ImportError:
     config = None
 
 HSK_SOURCE_FILES = ["hsk_level1and2_words_with_sentences.csv", "hsk_level3_words_with_sentences.csv"]
+# Real sentences beyond the hand-curated HSK 1-3 set: 16,832 pairs filtered
+# from the Tatoeba project (via manythings.org/anki, CC BY 2.0 France --
+# native-speaker/proofread) down to sentences using only characters in
+# master_dictionary.json. See build_extra_sentences.py for the filter and
+# tatoeba_cmn_eng_source.tsv for the raw, attributed upstream data. Read
+# through the same tab-delimited schema as the HSK files (only `sentence` and
+# `sentence_meaning` are populated), so no reader-side changes were needed.
+EXTRA_SENTENCE_FILES = ["tatoeba_sentences.csv"]
+SENTENCE_SOURCE_FILES = HSK_SOURCE_FILES + EXTRA_SENTENCE_FILES
 
 # How far suggest_new_words demotes a word whose characters are all already
 # unlocked: it teaches vocabulary but unlocks no new handwriting practice.
@@ -26,16 +36,30 @@ class JuziEngine:
         self.brain_path = brain_path
         self.words_path = words_path
         self.master_dict_path = master_dict_path
+        # server.py now runs requests concurrently (ThreadingHTTPServer), so
+        # brain.json's read-modify-write methods (review_character,
+        # import_text_locally, add_words, generate_fresh_session) can race:
+        # two threads each read the same on-disk state, mutate their own copy,
+        # and whichever writes last silently wins -- the other thread's
+        # update (a character's SRS progress, a saved sentence) is lost. An
+        # RLock (not a plain Lock) because these methods call each other and
+        # each other's read-only helpers (e.g. generate_fresh_session ->
+        # pick_hsk_sentences -> load_unlocked_chars), all on the same thread;
+        # a plain Lock would deadlock a thread against itself on the second
+        # acquire. Every method that touches self.brain_path holds this for
+        # its full read-through-write span, not just around each open().
+        self.brain_lock = threading.RLock()
 
     def load_unlocked_chars(self) -> str:
         """Loads unlocked characters from brain.json and returns them as a single string pool."""
         try:
-            if not os.path.exists(self.brain_path):
-                return ""
-            with open(self.brain_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                chars = list(data.get("unlocked_chars", {}).keys())
-                return "".join(chars)
+            with self.brain_lock:
+                if not os.path.exists(self.brain_path):
+                    return ""
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    chars = list(data.get("unlocked_chars", {}).keys())
+                    return "".join(chars)
         except Exception as e:
             print(f"Warning loading unlocked characters: {e}")
             return ""
@@ -59,10 +83,11 @@ class JuziEngine:
         it freely invent obscure compounds from the raw character pool.
         """
         try:
-            if not os.path.exists(self.brain_path):
-                return []
-            with open(self.brain_path, "r", encoding="utf-8") as f:
-                words = json.load(f).get("unlocked_words", {})
+            with self.brain_lock:
+                if not os.path.exists(self.brain_path):
+                    return []
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    words = json.load(f).get("unlocked_words", {})
             # Filter, not just sort: a brain.json written before the
             # segmentation fix can hold single-character entries recorded by
             # the old substring scan. Those would go straight into the AI
@@ -100,12 +125,13 @@ class JuziEngine:
         """
         if unlocked_chars is None:
             brain_data = {}
-            if os.path.exists(self.brain_path):
-                try:
-                    with open(self.brain_path, "r", encoding="utf-8") as f:
-                        brain_data = json.load(f)
-                except Exception as e:
-                    print(f"Error reading brain database: {e}")
+            with self.brain_lock:
+                if os.path.exists(self.brain_path):
+                    try:
+                        with open(self.brain_path, "r", encoding="utf-8") as f:
+                            brain_data = json.load(f)
+                    except Exception as e:
+                        print(f"Error reading brain database: {e}")
             unlocked_chars = brain_data.get("unlocked_chars", {})
 
         today = date.today()
@@ -150,73 +176,74 @@ class JuziEngine:
         """
         quality = max(0, min(5, int(quality)))
 
-        brain_data = {"unlocked_chars": {}, "sentences": []}
-        if os.path.exists(self.brain_path):
-            try:
-                with open(self.brain_path, "r", encoding="utf-8") as f:
-                    brain_data = json.load(f)
-            except Exception as e:
-                print(f"Error reading brain database: {e}")
+        with self.brain_lock:
+            brain_data = {"unlocked_chars": {}, "sentences": []}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
 
-        unlocked_chars = brain_data.setdefault("unlocked_chars", {})
-        entry = unlocked_chars.get(char)
-        if entry is None:
-            raise ValueError(f"Character '{char}' is not in the unlocked pool.")
+            unlocked_chars = brain_data.setdefault("unlocked_chars", {})
+            entry = unlocked_chars.get(char)
+            if entry is None:
+                raise ValueError(f"Character '{char}' is not in the unlocked pool.")
 
-        today = date.today().isoformat()
-        already_reviewed_today = entry.get("last") == today
+            today = date.today().isoformat()
+            already_reviewed_today = entry.get("last") == today
 
-        reps = entry.get("reps", 0) or 0
-        interval = entry.get("interval", 0) or 0
-        factor = entry.get("factor", 2.5) or 2.5
+            reps = entry.get("reps", 0) or 0
+            interval = entry.get("interval", 0) or 0
+            factor = entry.get("factor", 2.5) or 2.5
 
-        if quality < 3:
-            # A lapse always counts, including a same-day repeat.
-            reps = 0
-            interval = 1
-            factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-            factor = max(1.3, factor)
-        elif already_reviewed_today:
-            # Successful repeat on a day already credited: no schedule
-            # change, and no ease bump either (that would inflate the
-            # multiplier for every later review just as badly).
+            if quality < 3:
+                # A lapse always counts, including a same-day repeat.
+                reps = 0
+                interval = 1
+                factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+                factor = max(1.3, factor)
+            elif already_reviewed_today:
+                # Successful repeat on a day already credited: no schedule
+                # change, and no ease bump either (that would inflate the
+                # multiplier for every later review just as badly).
+                return {
+                    "char": char,
+                    "reps": reps,
+                    "interval": interval,
+                    "factor": round(factor, 2),
+                    "last": entry.get("last"),
+                    "counted": False,
+                    "due_count": len(self.get_due_characters(unlocked_chars))
+                }
+            else:
+                if reps == 0:
+                    interval = 1
+                elif reps == 1:
+                    interval = 6
+                else:
+                    interval = round(interval * factor)
+                reps += 1
+                factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+                factor = max(1.3, factor)
+
+            entry["reps"] = reps
+            entry["interval"] = interval
+            entry["factor"] = round(factor, 2)
+            entry["last"] = today
+
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
             return {
                 "char": char,
                 "reps": reps,
                 "interval": interval,
-                "factor": round(factor, 2),
-                "last": entry.get("last"),
-                "counted": False,
+                "factor": entry["factor"],
+                "last": entry["last"],
+                "counted": True,
                 "due_count": len(self.get_due_characters(unlocked_chars))
             }
-        else:
-            if reps == 0:
-                interval = 1
-            elif reps == 1:
-                interval = 6
-            else:
-                interval = round(interval * factor)
-            reps += 1
-            factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-            factor = max(1.3, factor)
-
-        entry["reps"] = reps
-        entry["interval"] = interval
-        entry["factor"] = round(factor, 2)
-        entry["last"] = today
-
-        with open(self.brain_path, "w", encoding="utf-8") as f:
-            json.dump(brain_data, f, ensure_ascii=False, indent=4)
-
-        return {
-            "char": char,
-            "reps": reps,
-            "interval": interval,
-            "factor": entry["factor"],
-            "last": entry["last"],
-            "counted": True,
-            "due_count": len(self.get_due_characters(unlocked_chars))
-        }
 
     @staticmethod
     def prune_single_char_words(unlocked_words: dict) -> int:
@@ -312,79 +339,142 @@ class JuziEngine:
         found_words.sort(key=lambda x: x["rank"])
         return found_words
 
-    def import_text_locally(self, raw_text: str) -> dict:
+    @staticmethod
+    def _split_chinese_sentences(text: str) -> list:
+        """Splits after each sentence-ending punctuation mark, keeping it attached to the sentence before it."""
+        return [s.strip() for s in re.split(r'(?<=[\u3002\uff01\uff1f])', text.strip()) if s.strip()]
+
+    @staticmethod
+    def _split_english_sentences(text: str) -> list:
         """
-        Parses raw text/sentences, extracts unique Chinese characters, pulls their 
+        Splits after '.', '!', or '?' followed by whitespace. A simple heuristic
+        (it will over-split on abbreviations like "Mr.") that only needs to be
+        right often enough to line up 1:1 with _split_chinese_sentences' count --
+        when it doesn't, import_text_locally falls back to saving the whole
+        paste as one sentence rather than mis-pairing.
+        """
+        return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+
+    def import_text_locally(self, raw_text: str, translation_text: str = "") -> dict:
+        """
+        Parses raw text/sentences, extracts unique Chinese characters, pulls their
         pinyin/meanings instantly from the local master_dictionary, and updates brain.json.
         Also scans for compound words via the static word frequency database.
+
+        If translation_text is given, also saves the pasted Chinese as practice
+        sentences paired with it, into brain.json's pasted_sentences -- a
+        persistent personal corpus (unlike the ephemeral `sentences` bank,
+        which generate_fresh_session overwrites wholesale on every new batch)
+        that pick_hsk_sentences draws from alongside the built-in corpora, so
+        a user's own imported material keeps resurfacing in practice. Both
+        texts are split into individual sentences and paired by position; if
+        the counts don't match (imperfect sentence-boundary detection on
+        either side), pairing is ambiguous, so the whole paste is saved as one
+        sentence instead of guessing an alignment.
         """
         chinese_chars = set(re.findall(r'[\u4e00-\u9fa5]', raw_text))
 
-        # Load existing brain database
-        brain_data = {"unlocked_chars": {}, "unlocked_words": {}, "sentences": []}
-        if os.path.exists(self.brain_path):
-            try:
-                with open(self.brain_path, "r", encoding="utf-8") as f:
-                    brain_data = json.load(f)
-            except Exception as e:
-                print(f"Error reading brain database: {e}")
+        with self.brain_lock:
+            # Load existing brain database
+            brain_data = {"unlocked_chars": {}, "unlocked_words": {}, "sentences": []}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
 
-        # master_dictionary now lives in its own tracked file (master_dictionary.json),
-        # not inside gitignored brain.json -- drop any stale embedded copy on save.
-        brain_data.pop("master_dictionary", None)
+            # master_dictionary now lives in its own tracked file (master_dictionary.json),
+            # not inside gitignored brain.json -- drop any stale embedded copy on save.
+            brain_data.pop("master_dictionary", None)
 
-        unlocked = brain_data.setdefault("unlocked_chars", {})
-        unlocked_words = brain_data.setdefault("unlocked_words", {})
-        pruned_word_count = self.prune_single_char_words(unlocked_words)
-        master = self.load_master_dictionary()
+            unlocked = brain_data.setdefault("unlocked_chars", {})
+            unlocked_words = brain_data.setdefault("unlocked_words", {})
+            pruned_word_count = self.prune_single_char_words(unlocked_words)
+            master = self.load_master_dictionary()
 
-        if not chinese_chars:
-            return {
-                "added_count": 0,
-                "total_unlocked_count": len(unlocked),
-                "message": "No Chinese characters found in input text."
-            }
-
-        added_count = 0
-        missing_chars = []
-
-        for char in chinese_chars:
-            if char not in unlocked:
-                if char in master:
-                    unlocked[char] = {
-                        "pinyin": master[char].get("pinyin", ""),
-                        "meaning": master[char].get("meaning", ""),
-                        "interval": 0,
-                        "factor": 2.5,
-                        "reps": 0,
-                        "last": None
-                    }
-                    added_count += 1
-                else:
-                    missing_chars.append(char)
-
-        # Every compound word the frequency database recognizes in the pasted
-        # text is recorded in unlocked_words too, not just its individual
-        # characters -- so it counts as "already studied" and (a) won't be
-        # suggested again by the Suggest Words tab, and (b) is available to
-        # bias AI sentence generation toward real vocabulary.
-        compounds = self.analyze_text_compounds(raw_text)
-        added_word_count = 0
-        for item in compounds:
-            word = item["word"]
-            if word not in unlocked_words:
-                unlocked_words[word] = {
-                    "pinyin": item.get("pinyin", ""),
-                    "meaning": item.get("meaning", ""),
-                    "rank": item.get("rank", 99999),
+            if not chinese_chars:
+                return {
+                    "added_count": 0,
+                    "total_unlocked_count": len(unlocked),
+                    "message": "No Chinese characters found in input text."
                 }
-                added_word_count += 1
 
-        # Save updates back to brain.json
-        with open(self.brain_path, "w", encoding="utf-8") as f:
-            json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            added_count = 0
+            missing_chars = []
 
-        total_unlocked = len(unlocked)
+            for char in chinese_chars:
+                if char not in unlocked:
+                    if char in master:
+                        unlocked[char] = {
+                            "pinyin": master[char].get("pinyin", ""),
+                            "meaning": master[char].get("meaning", ""),
+                            "interval": 0,
+                            "factor": 2.5,
+                            "reps": 0,
+                            "last": None
+                        }
+                        added_count += 1
+                    else:
+                        missing_chars.append(char)
+
+            # Every compound word the frequency database recognizes in the pasted
+            # text is recorded in unlocked_words too, not just its individual
+            # characters -- so it counts as "already studied" and (a) won't be
+            # suggested again by the Suggest Words tab, and (b) is available to
+            # bias AI sentence generation toward real vocabulary.
+            compounds = self.analyze_text_compounds(raw_text)
+            added_word_count = 0
+            for item in compounds:
+                word = item["word"]
+                if word not in unlocked_words:
+                    unlocked_words[word] = {
+                        "pinyin": item.get("pinyin", ""),
+                        "meaning": item.get("meaning", ""),
+                        "rank": item.get("rank", 99999),
+                    }
+                    added_word_count += 1
+
+            # If a translation was pasted alongside the Chinese, save real
+            # sentence pairs from it into the user's persistent pasted_sentences.
+            saved_sentence_count = 0
+            skipped_sentence_count = 0
+            sentence_pairing_matched = None
+            if translation_text and translation_text.strip():
+                chinese_sentences = self._split_chinese_sentences(raw_text)
+                english_sentences = self._split_english_sentences(translation_text)
+                sentence_pairing_matched = bool(chinese_sentences) and len(chinese_sentences) == len(english_sentences)
+
+                if sentence_pairing_matched:
+                    pairs = list(zip(chinese_sentences, english_sentences))
+                else:
+                    pairs = [(raw_text.strip(), translation_text.strip())]
+
+                pasted_sentences = brain_data.setdefault("pasted_sentences", [])
+                existing_chinese = {s.get("chinese") for s in pasted_sentences}
+
+                for chi, eng in pairs:
+                    chi = re.sub(r'\s+', '', chi)
+                    eng = eng.strip()
+                    if not chi or not eng or chi in existing_chinese:
+                        continue
+                    # Every Chinese character in the sentence must already be
+                    # unlockable (present in unlocked, which by now holds every
+                    # character from raw_text that's in master_dictionary) --
+                    # otherwise it can never be shown on the canvas with real
+                    # pinyin/meaning, so the pair isn't worth saving.
+                    if not all(c in unlocked for c in re.findall(r'[一-龥]', chi)):
+                        skipped_sentence_count += 1
+                        continue
+                    pasted_sentences.append({"chinese": chi, "english": eng})
+                    existing_chinese.add(chi)
+                    saved_sentence_count += 1
+
+            # Save updates back to brain.json
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+            total_unlocked = len(unlocked)
 
         msg = f"Instantly unlocked {added_count} characters locally! Total active pool: {total_unlocked}."
         if compounds:
@@ -393,6 +483,12 @@ class JuziEngine:
             msg += f" ({len(missing_chars)} chars missing from master dictionary)."
         if pruned_word_count:
             msg += f" (Cleaned up {pruned_word_count} single-character entries wrongly stored as words.)"
+        if saved_sentence_count:
+            msg += f" Saved {saved_sentence_count} sentence(s) to your personal practice bank."
+        if skipped_sentence_count:
+            msg += f" ({skipped_sentence_count} sentence(s) skipped -- contain characters outside the master dictionary.)"
+        if sentence_pairing_matched is False:
+            msg += " (Couldn't line up sentence boundaries between the two texts, so they were saved as one combined sentence.)"
 
         return {
             "added_count": added_count,
@@ -400,6 +496,8 @@ class JuziEngine:
             "compounds_detected": compounds,
             "added_word_count": added_word_count,
             "pruned_word_count": pruned_word_count,
+            "saved_sentence_count": saved_sentence_count,
+            "skipped_sentence_count": skipped_sentence_count,
             "message": msg
         }
 
@@ -412,16 +510,17 @@ class JuziEngine:
         """
         word_db = self.load_word_frequencies()
 
-        known_words = {}
-        unlocked_chars = {}
-        if os.path.exists(self.brain_path):
-            try:
-                with open(self.brain_path, "r", encoding="utf-8") as f:
-                    brain_data = json.load(f)
-                known_words = brain_data.get("unlocked_words", {})
-                unlocked_chars = brain_data.get("unlocked_chars", {})
-            except Exception as e:
-                print(f"Error reading brain database: {e}")
+        with self.brain_lock:
+            known_words = {}
+            unlocked_chars = {}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                    known_words = brain_data.get("unlocked_words", {})
+                    unlocked_chars = brain_data.get("unlocked_chars", {})
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
 
         candidates = [
             {
@@ -467,60 +566,61 @@ class JuziEngine:
         word_db = self.load_word_frequencies()
         master = self.load_master_dictionary()
 
-        brain_data = {"unlocked_chars": {}, "unlocked_words": {}, "sentences": []}
-        if os.path.exists(self.brain_path):
-            try:
-                with open(self.brain_path, "r", encoding="utf-8") as f:
-                    brain_data = json.load(f)
-            except Exception as e:
-                print(f"Error reading brain database: {e}")
+        with self.brain_lock:
+            brain_data = {"unlocked_chars": {}, "unlocked_words": {}, "sentences": []}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
 
-        unlocked_words = brain_data.setdefault("unlocked_words", {})
-        unlocked_chars = brain_data.setdefault("unlocked_chars", {})
-        pruned_word_count = self.prune_single_char_words(unlocked_words)
+            unlocked_words = brain_data.setdefault("unlocked_words", {})
+            unlocked_chars = brain_data.setdefault("unlocked_chars", {})
+            pruned_word_count = self.prune_single_char_words(unlocked_words)
 
-        added_words = []
-        rejected_single_chars = []
-        added_chars = 0
+            added_words = []
+            rejected_single_chars = []
+            added_chars = 0
 
-        for word in words:
-            meta = word_db.get(word)
-            # len >= 2 guards the endpoint itself, not just the suggestions
-            # feeding it: /api/suggestions/add takes an arbitrary word list
-            # from the client, and a single character is a character, not a
-            # compound word -- unlocked_chars is where those belong. Reported
-            # back rather than dropped silently: a stale browser tab holding
-            # pre-fix suggestions would otherwise submit them and be told
-            # "Added 0 words" with no reason given. Single-character words are
-            # a real thing (猫, 水, 茶) -- they're learned by pasting them into
-            # the Paste Text tab, which unlocks them for practice directly.
-            if meta and len(word) < 2:
-                rejected_single_chars.append(word)
-                continue
-            if not meta or word in unlocked_words:
-                continue
+            for word in words:
+                meta = word_db.get(word)
+                # len >= 2 guards the endpoint itself, not just the suggestions
+                # feeding it: /api/suggestions/add takes an arbitrary word list
+                # from the client, and a single character is a character, not a
+                # compound word -- unlocked_chars is where those belong. Reported
+                # back rather than dropped silently: a stale browser tab holding
+                # pre-fix suggestions would otherwise submit them and be told
+                # "Added 0 words" with no reason given. Single-character words are
+                # a real thing (猫, 水, 茶) -- they're learned by pasting them into
+                # the Paste Text tab, which unlocks them for practice directly.
+                if meta and len(word) < 2:
+                    rejected_single_chars.append(word)
+                    continue
+                if not meta or word in unlocked_words:
+                    continue
 
-            unlocked_words[word] = {
-                "pinyin": meta.get("pinyin", ""),
-                "meaning": meta.get("meaning", ""),
-                "rank": meta.get("rank", 99999),
-            }
-            added_words.append(word)
+                unlocked_words[word] = {
+                    "pinyin": meta.get("pinyin", ""),
+                    "meaning": meta.get("meaning", ""),
+                    "rank": meta.get("rank", 99999),
+                }
+                added_words.append(word)
 
-            for char in word:
-                if char not in unlocked_chars and char in master:
-                    unlocked_chars[char] = {
-                        "pinyin": master[char].get("pinyin", ""),
-                        "meaning": master[char].get("meaning", ""),
-                        "interval": 0,
-                        "factor": 2.5,
-                        "reps": 0,
-                        "last": None,
-                    }
-                    added_chars += 1
+                for char in word:
+                    if char not in unlocked_chars and char in master:
+                        unlocked_chars[char] = {
+                            "pinyin": master[char].get("pinyin", ""),
+                            "meaning": master[char].get("meaning", ""),
+                            "interval": 0,
+                            "factor": 2.5,
+                            "reps": 0,
+                            "last": None,
+                        }
+                        added_chars += 1
 
-        with open(self.brain_path, "w", encoding="utf-8") as f:
-            json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
 
         return {
             "added_words": added_words,
@@ -550,14 +650,36 @@ class JuziEngine:
             })
         return providers
 
+    def load_pasted_sentences(self) -> list:
+        """
+        Loads the user's own sentence pairs saved from the Paste Text tab
+        (brain.json's pasted_sentences) -- real sentences the user pasted
+        alongside a translation, persisted separately from the ephemeral
+        `sentences` practice bank (which generate_fresh_session replaces
+        wholesale on every new batch) so they keep resurfacing in HSK-mode
+        rotation indefinitely, not just for one session.
+        """
+        try:
+            with self.brain_lock:
+                if not os.path.exists(self.brain_path):
+                    return []
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    return json.load(f).get("pasted_sentences", [])
+        except Exception as e:
+            print(f"Warning loading pasted sentences: {e}")
+            return []
+
     def pick_hsk_sentences(self, count: int = 5) -> list:
         """
-        Picks real example sentences from the local HSK corpora whose characters
-        are entirely within the user's currently unlocked pool. No AI, no
-        network call, no API key required. Sentences that reuse characters
-        currently due for SM-2 review are preferred over ones that don't,
-        so practice naturally reinforces what's due instead of drifting
-        toward whatever the corpus happens to contain.
+        Picks real example sentences -- from the hand-curated HSK corpora, the
+        larger Tatoeba-derived corpus, and the user's own saved pasted
+        sentences -- whose characters are entirely within the user's currently
+        unlocked pool. No AI, no network call, no API key required. Among
+        equally-due candidates, the user's own pasted sentences are preferred
+        (real content they chose to study), and sentences that reuse
+        characters currently due for SM-2 review are preferred over ones that
+        don't, so practice naturally reinforces what's due instead of
+        drifting toward whatever the corpus happens to contain.
         """
         unlocked = self.load_unlocked_chars()
         if not unlocked:
@@ -569,7 +691,17 @@ class JuziEngine:
         candidates = []
         seen_chinese = set()
 
-        for filename in HSK_SOURCE_FILES:
+        for item in self.load_pasted_sentences():
+            chinese = (item.get("chinese") or "").strip()
+            english = (item.get("english") or "").strip()
+            if not chinese or not english or chinese in seen_chinese:
+                continue
+            if all(c in unlocked_set or c in allowed_punct for c in chinese):
+                seen_chinese.add(chinese)
+                due_hits = sum(1 for c in chinese if c in due_set)
+                candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits, "_personal": True})
+
+        for filename in SENTENCE_SOURCE_FILES:
             if not os.path.exists(filename):
                 continue
             try:
@@ -583,14 +715,15 @@ class JuziEngine:
                         if all(c in unlocked_set or c in allowed_punct for c in chinese):
                             seen_chinese.add(chinese)
                             due_hits = sum(1 for c in chinese if c in due_set)
-                            candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits})
+                            candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits, "_personal": False})
             except Exception as e:
                 print(f"Warning: could not read {filename}: {e}")
 
         random.shuffle(candidates)
-        candidates.sort(key=lambda c: c["_due_hits"], reverse=True)
+        candidates.sort(key=lambda c: (c["_due_hits"], c["_personal"]), reverse=True)
         for c in candidates:
             del c["_due_hits"]
+            del c["_personal"]
         return candidates[:count]
 
     def generate_session(self, count: int = 5, provider: str = "gemini", api_key: str = None) -> list:
@@ -674,16 +807,24 @@ class JuziEngine:
         HSK corpora instead -- no AI, no network, no key needed. If no
         sentences come back, the existing saved bank is left untouched.
         """
-        brain_data = {"unlocked_chars": {}, "sentences": []}
-        if os.path.exists(self.brain_path):
-            try:
-                with open(self.brain_path, "r", encoding="utf-8") as f:
-                    brain_data = json.load(f)
-            except Exception as e:
-                print(f"Error reading brain database: {e}")
+        with self.brain_lock:
+            brain_data = {"unlocked_chars": {}, "sentences": []}
+            if os.path.exists(self.brain_path):
+                try:
+                    with open(self.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                except Exception as e:
+                    print(f"Error reading brain database: {e}")
+            unlocked_chars = brain_data.get("unlocked_chars", {})
+            existing_sentences = brain_data.get("sentences", [])
 
-        unlocked_chars = brain_data.get("unlocked_chars", {})
-
+        # Sentence picking/generation happens outside the lock. pick_hsk_sentences
+        # is a fast local read (its own helpers reacquire brain_lock briefly,
+        # which is safe -- it's an RLock), but generate_session makes a real
+        # network call to an AI provider that can take many seconds; holding
+        # brain_lock across that would stall every other request (character
+        # reviews, page loads) behind one slow AI call, defeating the point
+        # of running threaded.
         if source == "hsk":
             raw_sentences = self.pick_hsk_sentences(count=count)
         else:
@@ -708,12 +849,26 @@ class JuziEngine:
             })
 
         if new_sentences:
-            brain_data["sentences"] = new_sentences
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            # Re-read fresh rather than reusing the brain_data captured before
+            # the (possibly slow) generation above -- another request could
+            # have changed unlocked_chars/pasted_sentences/etc. while this one
+            # was in flight, and writing back that stale snapshot would
+            # silently discard the concurrent change.
+            with self.brain_lock:
+                brain_data = {"unlocked_chars": {}, "sentences": []}
+                if os.path.exists(self.brain_path):
+                    try:
+                        with open(self.brain_path, "r", encoding="utf-8") as f:
+                            brain_data = json.load(f)
+                    except Exception as e:
+                        print(f"Error reading brain database: {e}")
+                brain_data["sentences"] = new_sentences
+                with open(self.brain_path, "w", encoding="utf-8") as f:
+                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+                existing_sentences = brain_data["sentences"]
 
         return {
-            "sentences": brain_data.get("sentences", []),
+            "sentences": existing_sentences,
             "total_unlocked_count": len(unlocked_chars)
         }
 
