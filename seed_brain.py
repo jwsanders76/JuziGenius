@@ -3,7 +3,7 @@ Seeds a starter brain.json for a new install, and grows it as the user is
 ready for more -- a tiered onboarding path from "a few basic characters" up
 to "ready to jump in" without ever discarding practice progress. JuziGenius
 normally builds brain.json's unlocked_chars entirely from what you unlock via
-text import or AI generation, so a brand new install starts with zero
+text import, so a brand new install starts with zero
 unlocked characters and nothing to practice. This script gives new users a
 starting pool instead, and re-running it with a bigger --size tops that pool
 up rather than replacing it.
@@ -30,9 +30,8 @@ superset of the last:
     Tier 2 -- Elementary        ( 50 chars,   93 sentences) -- basic sessions
     Tier 3 -- Intermediate      (300 chars, 1633 sentences) -- real variety
     Tier 4 -- Ready to Jump In  (500 chars, 3358 sentences) -- a large, varied
-                                  bank; from here, Paste Text / Suggest Words /
-                                  AI generation carry vocabulary growth
-                                  forward.
+                                  bank; from here, Paste Text / Suggest Words
+                                  carry vocabulary growth forward.
 
 Usage:
     python3 seed_brain.py --size 5              # first run: seeds brain.json

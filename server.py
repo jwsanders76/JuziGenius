@@ -19,9 +19,9 @@ MAX_BODY_SIZE = 2 * 1024 * 1024  # 2 MB
 # Only these paths may ever be served as static files. This is a network-facing
 # server (bound to all interfaces so it's reachable from a tablet on the same
 # LAN), and SimpleHTTPRequestHandler's default behavior serves ANY file under
-# the working directory by path -- which would expose config.py (API key),
-# brain.json (personal SRS data), and other source files to anyone on the
-# network. Everything not explicitly listed here gets a 404.
+# the working directory by path -- which would expose brain.json (personal
+# SRS data) and other source files to anyone on the network. Everything not
+# explicitly listed here gets a 404.
 ALLOWED_STATIC_PATHS = {
     "/", "/index.html", "/style.css", "/app.js",
     "/avatar-nobg-128.png", "/avatar-nobg.png",
@@ -83,11 +83,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 total_unlocked = len(unlocked_chars)
 
                 # Bootstrap: populate an initial batch from the local HSK corpus if the
-                # bank is empty but characters exist. Uses the no-key local fallback
-                # rather than AI, so first-run works with zero configuration.
+                # bank is empty but characters exist, so first-run works with zero
+                # configuration.
                 if not saved_sentences and total_unlocked > 0:
                     try:
-                        fresh = engine.generate_fresh_session(count=3, source="hsk")
+                        fresh = engine.generate_fresh_session(count=3)
                         saved_sentences = fresh["sentences"]
                     except Exception as gen_err:
                         print(f"Session bootstrap notice: {gen_err}")
@@ -113,23 +113,6 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(response_payload, ensure_ascii=False).encode("utf-8"))
-                return
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
-
-        # Reports which AI providers exist and whether a server-side key is
-        # already configured for them, so the frontend knows which providers
-        # still need a client-pasted API key.
-        if path == "/api/providers":
-            try:
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"providers": engine.list_providers()}, ensure_ascii=False).encode("utf-8"))
                 return
             except Exception as e:
                 self.send_response(500)
@@ -202,8 +185,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """Rejects cross-origin POSTs. Without this, any page the user has open in
         another tab can silently fetch() one of our write endpoints (CORS-simple
         request, since we don't require a preflight) and it would just work --
-        importing junk text, burning the server-held Gemini key, or corrupting
-        brain.json. Two independent checks:
+        importing junk text or corrupting brain.json. Two independent checks:
         1. Content-Type must be application/json. A plain HTML <form> or a
            fetch() with a "simple" content-type (text/plain, form-urlencoded)
            can be fired cross-origin with no preflight; application/json can't.
@@ -304,37 +286,22 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return
 
-        # Generates a brand new sentence batch, replacing the saved bank.
-        # Body: { "source": "ai" | "hsk", "provider": "gemini"|"claude"|"openai"|"grok",
-        #         "api_key": "<optional, client-held -- never written to disk>" }
+        # Generates a brand new batch of real HSK/Tatoeba example sentences,
+        # replacing the saved bank. No body fields required.
         if path == "/api/session/generate":
             try:
                 body = self._read_json_body_or_reject()
                 if body is None:
                     return
-                data = json.loads(body) if body else {}
 
-                source = data.get("source", "ai")
-                provider = data.get("provider", "gemini")
-                api_key = data.get("api_key") or None
-
-                # HSK mode pulls from the small, fixed local corpus -- 3 keeps
-                # each batch focused rather than exhausting due/relevant
-                # sentences in one go. AI mode has no such ceiling.
-                count = 3 if source == "hsk" else 5
-                result = engine.generate_fresh_session(count=count, source=source, provider=provider, api_key=api_key)
+                # 3 keeps each batch focused rather than exhausting
+                # due/relevant sentences in one go.
+                result = engine.generate_fresh_session(count=3)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return
-            except ValueError as e:
-                # Missing/invalid API key -- a client error, not a server error
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return
             except Exception as e:
                 self.send_response(502)

@@ -559,60 +559,6 @@ body {
     display: none;
 }
 
-.provider-select-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.provider-select-row label,
-.ai-key-row label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-#ai-provider-select {
-    width: 100%;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 10px 12px;
-    font-size: 0.95rem;
-    font-family: inherit;
-}
-
-.ai-key-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 12px;
-}
-
-#ai-api-key-input {
-    width: 100%;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 10px 12px;
-    font-size: 0.9rem;
-    font-family: inherit;
-    outline: none;
-}
-
-#ai-api-key-input:focus {
-    border-color: var(--accent-gold);
-}
-
-.ai-key-note {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
 #import-textarea {
     width: 100%;
     height: 140px;

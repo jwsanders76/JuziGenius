@@ -17,11 +17,10 @@ const state = {
     totalDueCount: 0,
     ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
     isCompleted: false,
-    importMode: "paste",
-    providers: []
+    importMode: "paste"
 };
 
-const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", ai: "Generate", suggest: "Add Selected" };
+const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected" };
 
 // Speed of the tier-3 stroke walkthrough. Set on the writer at creation time
 // rather than passed to animateCharacter(), which ignores per-call speed.
@@ -147,10 +146,6 @@ function cacheDomElements() {
     elements.importTranslationTextarea = document.getElementById("import-translation-textarea");
     elements.modeTabs = document.querySelectorAll(".mode-tab");
     elements.modePanels = document.querySelectorAll(".mode-panel");
-    elements.aiProviderSelect = document.getElementById("ai-provider-select");
-    elements.aiApiKeyInput = document.getElementById("ai-api-key-input");
-    elements.aiKeyLabel = document.getElementById("ai-key-label");
-    elements.aiKeyRow = document.getElementById("ai-key-row");
     elements.suggestionsList = document.getElementById("suggestions-list");
 }
 
@@ -185,7 +180,6 @@ function initEventListeners() {
                 if (elements.importTranslationTextarea) elements.importTranslationTextarea.value = "";
                 switchImportMode("paste");
                 elements.importTextarea.focus();
-                if (state.providers.length === 0) loadProviders();
             }
         });
     }
@@ -193,10 +187,6 @@ function initEventListeners() {
     elements.modeTabs.forEach(tab => {
         tab.addEventListener("click", () => switchImportMode(tab.dataset.mode));
     });
-
-    if (elements.aiProviderSelect) {
-        elements.aiProviderSelect.addEventListener("change", updateAiKeyFieldState);
-    }
 
     if (elements.modalBtnCancel) {
         elements.modalBtnCancel.addEventListener("click", () => {
@@ -260,7 +250,7 @@ async function fetchNewSession() {
             // they don't have: either nothing is unlocked yet, or plenty is
             // unlocked but no HSK sentence is built entirely from it.
             elements.englishPrompt.textContent = state.totalUnlockedCount > 0
-                ? `No practice sentences yet. You have ${state.totalUnlockedCount} characters unlocked, but no HSK sentence uses only those characters. Click 'Import' to unlock more characters, or generate sentences with AI.`
+                ? `No practice sentences yet. You have ${state.totalUnlockedCount} characters unlocked, but no HSK sentence uses only those characters. Click 'Import' to unlock more characters.`
                 : "Your unlocked character pool is empty. Click 'Import' to paste Chinese text and begin!";
             if (elements.canvasContainer) elements.canvasContainer.innerHTML = "";
             if (elements.assemblyLine) elements.assemblyLine.innerHTML = "";
@@ -590,7 +580,7 @@ function currentSentenceText() {
 /**
  * Advances to the next sentence in the session, looping back to the start
  * once the bank is exhausted. Getting a new batch is a deliberate user
- * action via the Import modal (Paste / HSK / Generate with AI), not automatic.
+ * action via the Import modal (Paste / Suggest Words / HSK), not automatic.
  */
 function nextSentence() {
     if (!state.sentences || state.sentences.length === 0) return;
@@ -675,8 +665,8 @@ function handleClearCanvas() {
 }
 
 /**
- * Switches the Import modal between its three modes: paste-your-own-text,
- * pick from local HSK sentences, or generate new ones with an AI provider.
+ * Switches the Import modal between its modes: paste-your-own-text,
+ * suggest new words, or pick from local HSK sentences.
  */
 function switchImportMode(mode) {
     state.importMode = mode;
@@ -694,62 +684,11 @@ function switchImportMode(mode) {
 }
 
 /**
- * Loads which AI providers exist and whether a server-side key is already
- * configured for them, then populates the provider dropdown.
- */
-async function loadProviders() {
-    try {
-        const response = await fetch('/api/providers');
-        if (!response.ok) return;
-        const data = await response.json();
-        state.providers = data.providers || [];
-        renderProviderOptions();
-    } catch (err) {
-        console.error("Could not load AI provider list.", err);
-    }
-}
-
-function renderProviderOptions() {
-    if (!elements.aiProviderSelect) return;
-    elements.aiProviderSelect.innerHTML = "";
-
-    state.providers.forEach(provider => {
-        const option = document.createElement("option");
-        option.value = provider.id;
-        option.textContent = provider.server_configured
-            ? `${provider.label} (server key configured)`
-            : provider.label;
-        elements.aiProviderSelect.appendChild(option);
-    });
-
-    updateAiKeyFieldState();
-}
-
-/**
- * Prefills the API key field from this browser's localStorage (client-held
- * only -- never persisted server-side) and labels it optional/required
- * depending on whether the selected provider has a server-configured key.
- */
-function updateAiKeyFieldState() {
-    if (!elements.aiProviderSelect || !elements.aiApiKeyInput) return;
-
-    const providerId = elements.aiProviderSelect.value;
-    const provider = state.providers.find(p => p.id === providerId);
-
-    elements.aiApiKeyInput.value = localStorage.getItem(`juzi_api_key_${providerId}`) || "";
-    elements.aiKeyLabel.textContent = provider && provider.server_configured
-        ? "API Key (optional — server key configured)"
-        : "API Key (required)";
-}
-
-/**
  * Dispatches the modal's Submit button to the handler for the active mode.
  */
 function handleModalSubmit() {
     if (state.importMode === "hsk") {
-        handleGenerateSession("hsk");
-    } else if (state.importMode === "ai") {
-        handleGenerateSession("ai");
+        handleGenerateSession();
     } else if (state.importMode === "suggest") {
         handleAddSuggestedWords();
     } else {
@@ -913,22 +852,10 @@ async function handleTextImport() {
 }
 
 /**
- * Handles both the HSK (no key) and AI (provider + key) sentence-generation
- * modes, which share the same backend endpoint and response shape.
+ * Fetches a fresh batch of real HSK/Tatoeba example sentences from the local
+ * corpus -- no AI, no network, no key needed.
  */
-async function handleGenerateSession(source) {
-    const payload = { source };
-
-    if (source === "ai") {
-        const providerId = elements.aiProviderSelect.value;
-        const apiKey = elements.aiApiKeyInput.value.trim();
-        payload.provider = providerId;
-        if (apiKey) {
-            payload.api_key = apiKey;
-            localStorage.setItem(`juzi_api_key_${providerId}`, apiKey);
-        }
-    }
-
+async function handleGenerateSession() {
     elements.modalBtnSubmit.textContent = "Working...";
     elements.modalBtnSubmit.disabled = true;
 
@@ -936,7 +863,7 @@ async function handleGenerateSession(source) {
         const response = await fetch('/api/session/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({})
         });
 
         const result = await response.json();
