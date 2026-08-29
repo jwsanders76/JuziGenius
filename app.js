@@ -14,12 +14,13 @@ const state = {
     skippedIndices: new Set(),
     totalUnlockedCount: 0,
     totalDueCount: 0,
+    newBacklog: 0,
     ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
     isCompleted: false,
     importMode: "paste"
 };
 
-const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected" };
+const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected", chars: "Unlock Selected" };
 
 // When the page is served at /u/<slug>/, every API call must carry that
 // same prefix so the server routes it to that friend's own brain.json
@@ -155,6 +156,12 @@ function cacheDomElements() {
     elements.modeTabs = document.querySelectorAll(".mode-tab");
     elements.modePanels = document.querySelectorAll(".mode-panel");
     elements.suggestionsList = document.getElementById("suggestions-list");
+    elements.charSuggestionsList = document.getElementById("char-suggestions-list");
+    elements.backlogNote = document.getElementById("backlog-note");
+    elements.btnProgress = document.getElementById("btn-progress");
+    elements.progressModal = document.getElementById("progress-modal");
+    elements.progressBody = document.getElementById("progress-body");
+    elements.progressBtnClose = document.getElementById("progress-btn-close");
 }
 
 function initEventListeners() {
@@ -170,6 +177,15 @@ function initEventListeners() {
             switchToNextVoice();
             updateSwitchVoiceButton(elements.btnSwitchVoice);
             playNativeTTS(currentSentenceText());
+        });
+    }
+
+    if (elements.btnProgress) {
+        elements.btnProgress.addEventListener("click", openProgressView);
+    }
+    if (elements.progressBtnClose) {
+        elements.progressBtnClose.addEventListener("click", () => {
+            if (elements.progressModal) elements.progressModal.style.display = "none";
         });
     }
 
@@ -242,6 +258,7 @@ async function fetchNewSession() {
             state.sentences = data.sentences || [];
             state.totalUnlockedCount = data.total_unlocked_count || 0;
             state.totalDueCount = data.total_due_count || 0;
+            state.newBacklog = data.new_backlog || 0;
         } else if (Array.isArray(data)) {
             state.sentences = data;
         }
@@ -310,6 +327,15 @@ function updateDueCounter() {
     }
     if (elements.dueCounter) {
         elements.dueCounter.classList.toggle("has-due", state.totalDueCount > 0);
+    }
+    // Characters unlocked but held behind the daily intake cap. Naming them
+    // separately is the point of the cap: "12 due, 60 waiting" is a plan,
+    // where the old undifferentiated "Due: 72" was just a wall.
+    if (elements.backlogNote) {
+        const waiting = state.newBacklog || 0;
+        elements.backlogNote.hidden = waiting === 0;
+        elements.backlogNote.textContent = waiting > 0 ? `+${waiting} waiting` : "";
+        elements.backlogNote.title = `${waiting} unlocked character(s) queued for future days — new characters are introduced a few at a time, most frequent first.`;
     }
 }
 
@@ -532,6 +558,15 @@ function triggerSentenceCompletion() {
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
 
+    // Tell the server this sentence is done, so future batches prefer material
+    // the user hasn't written yet (finding 12). Fire-and-forget: a failed
+    // request must never interrupt the celebration.
+    fetch(`${API_BASE}/api/sentence/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chinese: currentSentence.chinese })
+    }).catch(err => console.error("Could not record sentence completion.", err));
+
     // 1. Flash all slots green
     const slots = document.querySelectorAll(".character-slot");
     slots.forEach(s => s.classList.add("success-flash"));
@@ -724,6 +759,7 @@ function switchImportMode(mode) {
     elements.modalBtnSubmit.textContent = SUBMIT_LABELS[mode] || "Submit";
 
     if (mode === "suggest") loadSuggestions();
+    if (mode === "chars") loadCharacterSuggestions();
 }
 
 /**
@@ -732,6 +768,8 @@ function switchImportMode(mode) {
 function handleModalSubmit() {
     if (state.importMode === "hsk") {
         handleGenerateSession();
+    } else if (state.importMode === "chars") {
+        handleAddSuggestedCharacters();
     } else if (state.importMode === "suggest") {
         handleAddSuggestedWords();
     } else {
@@ -921,6 +959,7 @@ async function handleGenerateSession() {
             // whatever figure the page loaded with -- drifting further from
             // the truth with every review until the next full refresh.
             state.totalDueCount = result.total_due_count ?? state.totalDueCount;
+            state.newBacklog = result.new_backlog ?? state.newBacklog;
             updateCharacterCounter();
             updateDueCounter();
             elements.importModal.style.display = "none";
@@ -1092,4 +1131,331 @@ function isModalOpen() {
 function isPunctuation(char) {
     const allowedPunct = "，。！？、 ；：“”‘’—…\t\r\n";
     return allowedPunct.includes(char);
+}
+
+/* ==========================================================================
+   Suggest Characters
+   ==========================================================================
+   Characters are the practice unit, so "which character should I learn next?"
+   is the most direct question this app can answer -- and until now the only
+   way to unlock one was to paste text containing it or add a word built from
+   it. Frequency alone is not the whole answer: HSK mode only serves a
+   sentence when every character in it is unlocked, so a top-100 character
+   that completes no sentence buys no practice today. Both numbers are shown.
+   ========================================================================== */
+
+async function loadCharacterSuggestions() {
+    if (!elements.charSuggestionsList) return;
+    elements.charSuggestionsList.innerHTML = `<p class="suggestions-empty">Loading suggestions…</p>`;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/characters/suggestions`);
+        if (!response.ok) throw new Error("Failed to fetch character suggestions.");
+        const data = await response.json();
+        renderCharacterSuggestions(data.suggestions || []);
+    } catch (err) {
+        console.error(err);
+        elements.charSuggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
+    }
+}
+
+function renderCharacterSuggestions(suggestions) {
+    if (!elements.charSuggestionsList) return;
+    elements.charSuggestionsList.innerHTML = "";
+
+    if (suggestions.length === 0) {
+        elements.charSuggestionsList.innerHTML =
+            `<p class="suggestions-empty">Nothing left to suggest &mdash; you've unlocked every character in the dictionary!</p>`;
+        return;
+    }
+
+    suggestions.forEach((item, idx) => {
+        const row = document.createElement("label");
+        row.className = "suggestion-row char-suggestion-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "suggestion-checkbox char-suggestion-checkbox";
+        checkbox.dataset.char = item.char;
+        checkbox.id = `suggest-char-${idx}`;
+
+        const charSpan = document.createElement("span");
+        charSpan.className = "suggestion-hanzi";
+        charSpan.textContent = item.char;
+
+        const pinyinSpan = document.createElement("span");
+        pinyinSpan.className = "suggestion-pinyin";
+        pinyinSpan.textContent = item.pinyin;
+
+        const meaningSpan = document.createElement("span");
+        meaningSpan.className = "suggestion-meaning";
+        meaningSpan.textContent = item.meaning;
+
+        const statsSpan = document.createElement("span");
+        statsSpan.className = "suggestion-stats";
+        const bits = [`#${item.freq}`];
+        if (item.strokes) bits.push(`${item.strokes} strokes`);
+        if (item.hsk) bits.push(`HSK ${item.hsk}`);
+        statsSpan.textContent = bits.join(" · ");
+        statsSpan.title = `Frequency rank ${item.freq} of 9,900`;
+
+        const unlocksSpan = document.createElement("span");
+        unlocksSpan.className = "suggestion-unlocks";
+        unlocksSpan.classList.toggle("is-zero", !item.unlocks);
+        unlocksSpan.textContent = item.unlocks
+            ? `unlocks ${item.unlocks}`
+            : "unlocks 0";
+        unlocksSpan.title = item.unlocks
+            ? `${item.unlocks} practice sentence(s) become writable as soon as you add this character.`
+            : "No sentence becomes writable from this character alone — it still needs other characters you haven't unlocked.";
+
+        row.append(checkbox, charSpan, pinyinSpan, meaningSpan, statsSpan, unlocksSpan);
+        elements.charSuggestionsList.appendChild(row);
+    });
+}
+
+async function handleAddSuggestedCharacters() {
+    const checked = elements.charSuggestionsList
+        ? Array.from(elements.charSuggestionsList.querySelectorAll(".char-suggestion-checkbox:checked"))
+        : [];
+
+    if (checked.length === 0) {
+        alert("Please select at least one character to unlock.");
+        return;
+    }
+
+    const chars = checked.map(box => box.dataset.char);
+    elements.modalBtnSubmit.textContent = "Unlocking...";
+    elements.modalBtnSubmit.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/characters/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chars })
+        });
+        if (!response.ok) throw new Error("Failed to unlock the selected characters.");
+        const result = await response.json();
+
+        state.totalUnlockedCount = result.total_unlocked_count ?? state.totalUnlockedCount;
+        state.totalDueCount = result.total_due_count ?? state.totalDueCount;
+        state.newBacklog = result.new_backlog ?? state.newBacklog;
+        updateCharacterCounter();
+        updateDueCounter();
+
+        alert(`Unlocked ${result.added_chars.length} character(s): ${result.added_chars.join("、")}`);
+        elements.importModal.style.display = "none";
+        fetchNewSession();
+    } catch (err) {
+        console.error(err);
+        alert("Error connecting to Python server while unlocking characters.");
+    } finally {
+        elements.modalBtnSubmit.textContent = SUBMIT_LABELS[state.importMode] || "Submit";
+        elements.modalBtnSubmit.disabled = false;
+    }
+}
+
+/* ==========================================================================
+   Progress view
+   ==========================================================================
+   The app accumulated a great deal of state the learner could never see --
+   SM-2 intervals, ease factors, which characters were mature, how far into
+   the frequency list they had got. All of it existed; none of it was
+   visible, so there was no way to answer "am I getting anywhere?", which is
+   the question that keeps someone going on a months-long project.
+
+   Chart forms follow the data's job: coverage and stages are magnitudes and
+   part-of-wholes, which are bars, and bars are plain HTML here (responsive,
+   readable by a screen reader, no coordinate maths). Only the forecast --
+   which needs a shared baseline and a time axis -- is drawn as SVG. No chart
+   library: this app is offline-first and a CDN dependency would break that.
+
+   Every value is directly labelled, so nothing depends on reading a colour
+   or on hovering; `title` carries the secondary detail.
+   ========================================================================== */
+
+// Ordinal ramp for the study stages, new -> mature. One hue stepped by
+// lightness because the stages are an ordered progression, not unrelated
+// categories. Validated against the #262630 card surface: lightness is
+// monotonic, contrast runs 2.78:1 to 11.31:1 (ordinal floor is 2:1), and the
+// worst adjacent colour-vision-deficiency separation is dE 9.5 (target 8).
+const STAGE_STYLE = [
+    { key: "new",      label: "New",      color: "#256abf", note: "Unlocked but never reviewed" },
+    { key: "learning", label: "Learning", color: "#3987e5", note: "Interval under a week" },
+    { key: "young",    label: "Young",    color: "#86b6ef", note: "Interval of one to three weeks" },
+    { key: "mature",   label: "Mature",   color: "#cde2fb", note: "Interval over three weeks" }
+];
+
+const COVERAGE_COLOR = "#f39c12";   // 6.83:1 on the card surface
+const FORECAST_COLOR = "#d95926";   // 3.86:1
+
+async function openProgressView() {
+    if (!elements.progressModal) return;
+    elements.progressModal.style.display = "flex";
+    elements.progressBody.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/progress`);
+        if (!response.ok) throw new Error("Failed to load progress.");
+        renderProgress(await response.json());
+    } catch (err) {
+        console.error(err);
+        elements.progressBody.innerHTML = `<p class="suggestions-empty">Could not load your progress.</p>`;
+    }
+}
+
+function statTile(value, label, title) {
+    return `<div class="stat-tile" title="${escapeAttr(title)}">
+        <div class="stat-value">${value}</div>
+        <div class="stat-label">${escapeHtml(label)}</div>
+    </div>`;
+}
+
+/**
+ * One horizontal coverage bar: a filled track with the count and percentage
+ * labelled directly on the row, so the bar is a quick comparison and the text
+ * is the precise answer. 4px rounded end on the fill, anchored to the track.
+ */
+function coverageRow(label, known, total, title) {
+    const pct = total ? Math.round((known / total) * 100) : 0;
+    return `<div class="cov-row" title="${escapeAttr(title)}">
+        <div class="cov-label">${escapeHtml(label)}</div>
+        <div class="cov-track">
+            <div class="cov-fill" style="width:${pct}%;background:${COVERAGE_COLOR}"></div>
+        </div>
+        <div class="cov-value"><strong>${known}</strong><span class="cov-total">/${total}</span> <span class="cov-pct">${pct}%</span></div>
+    </div>`;
+}
+
+/**
+ * The 14-day review forecast, as SVG columns on a shared baseline. A time
+ * axis with a zero baseline is the one form here that genuinely needs
+ * coordinates; everything else is a bar and stays in HTML.
+ */
+function forecastChart(forecast) {
+    const max = Math.max(1, ...forecast.map(d => d.count));
+    const W = 460, H = 132, PAD_L = 26, PAD_B = 20, PAD_T = 8;
+    const plotW = W - PAD_L - 8, plotH = H - PAD_B - PAD_T;
+    const slot = plotW / forecast.length;
+    const barW = Math.max(6, slot - 6);
+
+    const bars = forecast.map((d, i) => {
+        const h = d.count ? Math.max(2, (d.count / max) * plotH) : 0;
+        const x = PAD_L + i * slot + (slot - barW) / 2;
+        const y = PAD_T + plotH - h;
+        const day = `In ${d.in_days} day${d.in_days === 1 ? "" : "s"}: ${d.count} character${d.count === 1 ? "" : "s"} due`;
+        if (!h) {
+            return `<rect x="${x}" y="${PAD_T + plotH - 2}" width="${barW}" height="2" rx="1"
+                     fill="var(--border-color)"><title>${escapeAttr(day)}</title></rect>`;
+        }
+        return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4"
+                 fill="${FORECAST_COLOR}"><title>${escapeAttr(day)}</title></rect>`;
+    }).join("");
+
+    // Recessive axis: a baseline and a single max gridline, nothing more.
+    const ticks = forecast.map((d, i) =>
+        (d.in_days === 1 || d.in_days === 7 || d.in_days === 14)
+            ? `<text class="axis-text" x="${PAD_L + i * slot + slot / 2}" y="${H - 6}" text-anchor="middle">${d.in_days}d</text>`
+            : "").join("");
+
+    return `<svg class="forecast-svg" viewBox="0 0 ${W} ${H}" role="img"
+                 aria-label="Characters due each day for the next fourteen days">
+        <line class="axis-line" x1="${PAD_L}" y1="${PAD_T}" x2="${W - 8}" y2="${PAD_T}" stroke-dasharray="2 3"/>
+        <text class="axis-text" x="${PAD_L - 6}" y="${PAD_T + 4}" text-anchor="end">${max}</text>
+        <line class="axis-line" x1="${PAD_L}" y1="${PAD_T + plotH}" x2="${W - 8}" y2="${PAD_T + plotH}"/>
+        <text class="axis-text" x="${PAD_L - 6}" y="${PAD_T + plotH + 4}" text-anchor="end">0</text>
+        ${bars}${ticks}
+    </svg>`;
+}
+
+function renderProgress(p) {
+    const totalStages = Object.values(p.stages).reduce((a, b) => a + b, 0);
+
+    // Stacked part-of-whole: one bar, segments separated by a 2px surface gap
+    // so adjacent steps of the same hue stay distinguishable, plus a legend
+    // that carries the numbers -- identity is never colour alone.
+    const segments = STAGE_STYLE
+        .filter(s => p.stages[s.key] > 0)
+        .map(s => {
+            const pct = (p.stages[s.key] / totalStages) * 100;
+            return `<div class="stage-seg" style="width:${pct}%;background:${s.color}"
+                         title="${escapeAttr(`${s.label}: ${p.stages[s.key]} characters — ${s.note}`)}"></div>`;
+        }).join("");
+
+    const legend = STAGE_STYLE.map(s => `
+        <div class="legend-item" title="${escapeAttr(s.note)}">
+            <span class="legend-swatch" style="background:${s.color}"></span>
+            <span class="legend-label">${s.label}</span>
+            <span class="legend-value">${p.stages[s.key]}</span>
+        </div>`).join("");
+
+    const freqRows = p.frequency_bands.map(b =>
+        coverageRow(`Top ${b.band.toLocaleString()}`, b.known, b.total,
+            `You can write ${b.known} of the ${b.total} most frequently used characters in Chinese.`)
+    ).join("");
+
+    const hskRows = p.hsk_levels.map(l =>
+        coverageRow(`HSK ${l.level}`, l.known, l.total,
+            `${l.known} of ${l.total} HSK level ${l.level} characters unlocked.`)
+    ).join("");
+
+    const topBand = p.frequency_bands[0];
+    const headline = topBand
+        ? `You can write <strong>${topBand.known}</strong> of the <strong>${topBand.total}</strong> most common characters in Chinese.`
+        : "";
+
+    elements.progressBody.innerHTML = `
+        <p class="progress-headline">${headline}</p>
+
+        <div class="stat-row">
+            ${statTile(p.unlocked_chars.toLocaleString(), "characters unlocked", "Total characters in your practice pool.")}
+            ${statTile(p.playable_sentences.toLocaleString(), "sentences writable", "Corpus sentences you can currently write every character of.")}
+            ${statTile(p.due_count.toLocaleString(), "due today", "Characters scheduled for review right now.")}
+            ${statTile((p.new_backlog || 0).toLocaleString(), "waiting", `Unlocked characters queued for later days. New characters are introduced at most ${p.daily_new_limit} per day, most frequent first.`)}
+        </div>
+
+        <section class="progress-section">
+            <h3 class="progress-title">Frequency coverage</h3>
+            <p class="progress-note">How far into the most-used characters you've got. This is the measure that matters for writing real Chinese &mdash; a large pool of rare characters is worth less than a small pool of common ones.</p>
+            ${freqRows}
+        </section>
+
+        <section class="progress-section">
+            <h3 class="progress-title">Study stages</h3>
+            <p class="progress-note">Where your unlocked characters sit in the review schedule.</p>
+            <div class="stage-bar">${segments}</div>
+            <div class="legend">${legend}</div>
+            ${p.avg_interval !== null ? `<p class="progress-note">Average review interval <strong>${p.avg_interval} days</strong>, average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
+        </section>
+
+        <section class="progress-section">
+            <h3 class="progress-title">Review forecast</h3>
+            <p class="progress-note">Characters coming due over the next two weeks.</p>
+            ${forecastChart(p.forecast)}
+        </section>
+
+        <section class="progress-section">
+            <h3 class="progress-title">HSK coverage</h3>
+            ${hskRows}
+        </section>
+
+        <section class="progress-section">
+            <h3 class="progress-title">Sentences</h3>
+            <p class="progress-note">
+                <strong>${p.sentences_completed_unique.toLocaleString()}</strong> different sentences written
+                (<strong>${p.sentences_completed_total.toLocaleString()}</strong> completions in total),
+                and <strong>${p.unlocked_words.toLocaleString()}</strong> compound words recorded.
+            </p>
+        </section>
+    `;
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+    ));
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value);
 }

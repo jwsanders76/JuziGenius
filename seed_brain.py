@@ -104,7 +104,15 @@ def select_characters(size, master, start_pool=None):
     tier to tier can't cost the user practice progress on characters they
     already have.
     """
-    rank = {char: i for i, char in enumerate(master)}
+    # Read the frequency rank explicitly rather than inferring it from the
+    # order master_dictionary.json happens to be serialised in. The old
+    # `enumerate(master)` was correct only while that file preserved
+    # hanzi_db.csv's frequency ordering; re-serialising it sorted would have
+    # silently turned every "most frequent" decision here into a codepoint
+    # ordering with no error to notice. `freq` is written by init_vocab_db.py;
+    # the fallback keeps this working against an older dictionary file.
+    rank = {char: meta.get("freq") or (i + 1)
+            for i, (char, meta) in enumerate(master.items())}
     sentences = load_hsk_sentences(master)
     pool = set(start_pool) if start_pool else set()
 
@@ -126,7 +134,7 @@ def select_characters(size, master, start_pool=None):
     # No sentence fits in what's left (or the corpus ran out) -- spend the
     # remainder on the most frequent characters not already unlocked.
     if len(pool) < size:
-        for char in master:
+        for char in sorted(master, key=lambda c: rank[c]):
             if len(pool) >= size:
                 break
             pool.add(char)

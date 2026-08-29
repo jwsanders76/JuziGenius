@@ -25,10 +25,33 @@ def build_master_dictionary(source_csv=SOURCE_CSV):
                 # CSV is ordered by frequency_rank ascending; keep the
                 # first (most frequent) reading if a character repeats.
                 continue
-            dictionary[char] = {
+            entry = {
                 "pinyin": row["pinyin"].strip(),
-                "meaning": row["definition"].strip()
+                "meaning": row["definition"].strip(),
             }
+            # Frequency rank, HSK level and stroke count are carried through
+            # rather than dropped. This app exists to teach the most frequently
+            # used characters, and without the rank at runtime it could not
+            # answer its own central question -- "what is the most useful
+            # character I don't know yet?" -- nor order the queue of newly
+            # unlocked characters by usefulness.
+            #
+            # seed_brain.py previously recovered frequency by enumerating this
+            # file's keys, relying on JSON preserving the insertion order that
+            # happens to match frequency_rank. That held, but nothing asserted
+            # it: re-serialising this file sorted would have silently turned
+            # "frequency order" into codepoint order with no error anywhere.
+            # Storing the rank makes the dependency explicit and checkable.
+            for key, column in (("freq", "frequency_rank"),
+                                ("strokes", "stroke_count"),
+                                ("hsk", "hsk_level")):
+                raw = (row.get(column) or "").strip()
+                if raw:
+                    try:
+                        entry[key] = int(raw)
+                    except ValueError:
+                        pass
+            dictionary[char] = entry
     return dictionary
 
 

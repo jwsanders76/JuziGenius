@@ -702,3 +702,261 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* ==========================================================================
+   Suggest Characters rows
+   ========================================================================== */
+/* Two lines rather than one: on a single row the meaning was squeezed to
+   "indeed…" / "man; p…", which is no use to someone deciding what to learn.
+   The character, its reading and the two numbers that drive the decision stay
+   on the first line; the gloss gets the full width beneath them. */
+.char-suggestion-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    grid-template-areas:
+        "check hanzi pinyin stats unlocks"
+        "check hanzi meaning meaning meaning";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+}
+
+.char-suggestion-row .suggestion-checkbox { grid-area: check; }
+.char-suggestion-row .suggestion-hanzi    { grid-area: hanzi; }
+.char-suggestion-row .suggestion-pinyin   { grid-area: pinyin; }
+.char-suggestion-row .suggestion-stats    { grid-area: stats; }
+.char-suggestion-row .suggestion-unlocks  { grid-area: unlocks; }
+
+.char-suggestion-row .suggestion-meaning {
+    grid-area: meaning;
+    white-space: normal;
+    overflow: visible;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    /* Two lines at most -- some dictionary glosses run to a paragraph. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.suggestion-hanzi {
+    font-size: 1.7rem;
+    line-height: 1;
+    color: var(--text-primary);
+    font-family: "Noto Serif SC", serif;
+}
+
+.suggestion-stats {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* How many sentences this character immediately makes writable. Given its own
+   emphasis because it is the number that decides whether unlocking a frequent
+   character buys practice today or only later. */
+.suggestion-unlocks {
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: #f39c12;
+    background: rgba(243, 156, 18, 0.12);
+    border: 1px solid rgba(243, 156, 18, 0.3);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.suggestion-unlocks.is-zero {
+    color: var(--text-secondary);
+    background: transparent;
+    border-color: var(--border-color);
+}
+
+/* The "+N waiting" note beside the due badge. */
+.backlog-note {
+    margin-left: 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Progress view
+   ========================================================================== */
+.progress-card {
+    max-width: 620px;
+    width: min(620px, 94vw);
+}
+
+.progress-body {
+    max-height: 68vh;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.progress-headline {
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin: 0 0 18px;
+}
+
+.progress-headline strong { color: #f39c12; }
+
+.stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+    margin-bottom: 26px;
+}
+
+.stat-tile {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.progress-section { margin-bottom: 26px; }
+
+.progress-title {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin: 0 0 4px;
+}
+
+.progress-note {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 12px;
+}
+
+.progress-note strong { color: var(--text-primary); }
+
+/* Coverage bars: label, track, directly-labelled value. Nothing here depends
+   on reading the colour or on hovering. */
+.cov-row {
+    display: grid;
+    grid-template-columns: 76px 1fr 108px;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+}
+
+.cov-label {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.cov-track {
+    height: 10px;
+    background: var(--surface-color);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.cov-fill {
+    height: 100%;
+    border-radius: 5px;
+    min-width: 2px;
+    transition: width 0.35s ease;
+}
+
+.cov-value {
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.cov-total { color: var(--text-secondary); }
+
+.cov-pct {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    margin-left: 2px;
+}
+
+/* Stacked part-of-whole. The 2px gap between segments is what keeps adjacent
+   steps of one hue readable as separate quantities. */
+.stage-bar {
+    display: flex;
+    gap: 2px;
+    height: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-color);
+    margin-bottom: 12px;
+}
+
+.stage-seg { height: 100%; }
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-bottom: 10px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+}
+
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-value {
+    color: var(--text-primary);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.forecast-svg { width: 100%; height: auto; display: block; }
+
+.forecast-svg .axis-line { stroke: var(--border-color); stroke-width: 1; }
+
+.forecast-svg .axis-text {
+    fill: var(--text-secondary);
+    font-size: 9px;
+    font-family: inherit;
+}
+
+@media (max-width: 520px) {
+    .char-suggestion-row {
+        grid-template-columns: auto auto 1fr auto;
+        grid-template-areas:
+            "check hanzi pinyin unlocks"
+            "check hanzi stats  stats"
+            "check meaning meaning meaning";
+    }
+    .cov-row { grid-template-columns: 62px 1fr 92px; }
+}

@@ -24,9 +24,14 @@
 
                 <div id="due-counter" title="Characters due for spaced-repetition review right now">
                     <span>Due: <strong id="due-counter-value">0</strong></span>
+                    <!-- Characters unlocked but held behind the daily intake cap.
+                         Shown beside the due count so a big import reads as a
+                         queue with a plan rather than an alarming "Due: 400". -->
+                    <span id="backlog-note" class="backlog-note" hidden></span>
                 </div>
             </div>
 
+            <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
             <button id="btn-discuss" class="top-btn" title="Discuss & Grammar Breakdown">Discuss</button>
         </header>
 
@@ -70,6 +75,7 @@
 
             <div class="mode-tabs">
                 <button type="button" class="mode-tab active" data-mode="paste">Paste Text</button>
+                <button type="button" class="mode-tab" data-mode="chars">Suggest Characters</button>
                 <button type="button" class="mode-tab" data-mode="suggest">Suggest Words</button>
                 <button type="button" class="mode-tab" data-mode="hsk">HSK Sentences</button>
             </div>
@@ -81,6 +87,14 @@
                 <label class="import-translation-label" for="import-translation-textarea">English translation (optional)</label>
                 <textarea id="import-translation-textarea" class="import-translation-textarea" placeholder="e.g. I like to drink hot tea every morning."></textarea>
                 <p class="import-translation-note">Add the matching translation to save these as practice sentences you can revisit later &mdash; fully offline, no AI needed.</p>
+            </div>
+
+            <!-- Suggest Characters: the most frequent characters not yet unlocked.
+                 Characters are the practice unit, so this is the most direct
+                 answer to "what should I learn next?" the app can give. -->
+            <div class="mode-panel" data-mode-panel="chars" hidden>
+                <p class="modal-subtitle">The most frequently used characters you haven't unlocked yet. <strong>Unlocks</strong> counts how many practice sentences each one immediately makes writable &mdash; a common character that completes no sentence buys you no practice today.</p>
+                <div id="char-suggestions-list" class="suggestions-list"></div>
             </div>
 
             <!-- Suggest Words: highest-frequency compound words not yet added -->
@@ -97,6 +111,19 @@
             <div class="modal-actions">
                 <button id="modal-btn-cancel" class="modal-btn btn-secondary">Cancel</button>
                 <button id="modal-btn-submit" class="modal-btn btn-primary">Process & Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Overlay -->
+    <div id="progress-modal" class="modal-overlay">
+        <div class="modal-card progress-card">
+            <h2 class="modal-title">Your Progress</h2>
+            <div id="progress-body" class="progress-body">
+                <p class="suggestions-empty">Loading…</p>
+            </div>
+            <div class="modal-actions">
+                <button id="progress-btn-close" class="modal-btn btn-primary">Close</button>
             </div>
         </div>
     </div>

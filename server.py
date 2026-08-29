@@ -174,6 +174,33 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
 
         return super().do_GET()
 
+    def end_headers(self):
+        """
+        Makes the browser revalidate the app's own files instead of trusting a
+        heuristic freshness guess.
+
+        Without a Cache-Control header, Chrome caches app.js and style.css
+        based on Last-Modified alone and will happily keep serving a stale copy
+        after an update -- which presents as new code simply not running, with
+        no error anywhere to explain it. `no-cache` still allows the cache, it
+        just requires a revalidation first, so the usual response is a cheap
+        304 rather than a re-download. /api/strokes sets its own long immutable
+        caching (stroke data for a character never changes) and is left alone.
+        """
+        if "Cache-Control" not in self._headers_buffer_names():
+            path = urllib.parse.urlparse(self.path).path
+            if not path.startswith("/api/"):
+                self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
+    def _headers_buffer_names(self):
+        """Header names already queued for this response, lowercased."""
+        return {
+            line.split(b":", 1)[0].strip().lower().decode("latin-1")
+            for line in getattr(self, "_headers_buffer", []) or []
+            if b":" in line
+        }
+
     def _handle_api_get(self, path, engine):
         """
         Handles the API GET routes against a resolved `engine` -- either the
@@ -221,7 +248,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 response_payload = {
                     "sentences": saved_sentences,
                     "total_unlocked_count": total_unlocked,
-                    "total_due_count": len(engine.get_due_characters(unlocked_chars))
+                    "total_due_count": len(engine.get_due_characters(unlocked_chars)),
+                    # Characters unlocked but held behind the daily intake cap
+                    # (finding 13), so the badge can say "12 due, 60 waiting"
+                    # rather than presenting the whole backlog as today's work.
+                    "new_backlog": engine.new_character_backlog(unlocked_chars),
                 }
 
                 self.send_response(200)
@@ -251,6 +282,36 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return True
+
+        # The most useful characters not yet unlocked, for the "Suggest
+        # Characters" modal tab. The words equivalent has existed for a while;
+        # this answers the same question for the actual practice unit, which
+        # is what the app is built to teach.
+        if path == "/api/characters/suggestions":
+            try:
+                suggestions = engine.suggest_new_characters(count=8)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"suggestions": suggestions},
+                                            ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
+        # Everything the progress view needs, in one request.
+        if path == "/api/progress":
+            try:
+                payload = engine.progress_summary()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
                 return True
 
         # Serves one character's stroke-order data out of the vendored
@@ -402,6 +463,46 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         (a response has already been sent), False otherwise so the caller
         can 404.
         """
+        # Unlocks characters chosen in the Suggest Characters tab.
+        # Body: { "chars": ["\u662f", "\u4eba", ...] }
+        if path == "/api/characters/add":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                chars = json.loads(body).get("chars", [])
+                if not isinstance(chars, list):
+                    self._send_json_error(400, "'chars' must be a list.")
+                    return True
+                result = engine.add_characters(chars)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
+        # Records that a sentence was written all the way through, so batches
+        # stop re-serving what was just practiced (finding 12).
+        # Body: { "chinese": "..." }
+        if path == "/api/sentence/complete":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                chinese = json.loads(body).get("chinese", "")
+                result = engine.record_sentence_completion(chinese)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
         # Intercept POST requests for importing raw text/sentences locally.
         # Body: { "text": "<chinese>", "translation": "<optional english>" }
         # When translation is given, matching sentences are also saved to

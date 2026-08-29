@@ -38,6 +38,24 @@ PINYIN_READINGS_FILE = "pinyin_readings.json"
 _readings_cache = None
 _readings_lock = threading.Lock()
 
+# master_dictionary.json is now ~1.1 MB (it carries frequency_rank, hsk_level
+# and stroke_count per character since August 29, 2026) and is read on paths
+# that run per request, so it is cached per file path rather than reparsed
+# every call. Keyed by path because each hosted account constructs its own
+# engine, though in practice they all share the one dictionary.
+_master_dict_cache = {}
+_master_dict_lock = threading.Lock()
+
+# How many never-before-reviewed characters may enter the due queue on any one
+# day. Finding 13: every character unlocked by pasting text or adding a word
+# starts with last=None, which get_due_characters counted as due immediately --
+# paste a short story and "Due: 400" appears at once, unordered and uncapped,
+# which is not a study plan but a wall. A cap turns the backlog into a queue;
+# the characters admitted are the most frequent ones, so the wait is spent on
+# the most useful characters first. Overridable per account via brain.json's
+# settings.daily_new_limit, which until now was a dormant key.
+DEFAULT_DAILY_NEW_LIMIT = 15
+
 # Combining marks that NFD leaves on a toned pinyin vowel, in tone order.
 # Reading the mark is more robust than a table of precomposed vowels, which
 # has to enumerate ā á ǎ à ē é ě è ī í ǐ ì ō ó ǒ ò ū ú ǔ ù ǖ ǘ ǚ ǜ and the
@@ -65,6 +83,24 @@ def _due_ratio(chinese: str, due_set: set) -> float:
     if not hanzi:
         return 0.0
     return sum(1 for c in hanzi if c in due_set) / len(hanzi)
+
+
+def _freshness(chinese: str, completed: dict, today: str) -> int:
+    """
+    How new a sentence is to this learner: 2 = never completed, 1 = completed
+    before but not today, 0 = already completed today.
+
+    Ranked above due density deliberately. A sentence finished minutes ago
+    teaches almost nothing on a second pass -- the learner is recalling the
+    last attempt, not the characters -- whereas an unseen sentence exercises
+    the same due characters in a new context, which is the thing that actually
+    generalises. Coarse tiers rather than a timestamp ordering, so that within
+    "unseen" the existing due-density and shuffle behaviour still decides.
+    """
+    entry = completed.get(chinese)
+    if not entry:
+        return 2
+    return 0 if entry.get("last") == today else 1
 
 
 class JuziEngine:
@@ -101,15 +137,64 @@ class JuziEngine:
             return ""
 
     def load_master_dictionary(self) -> dict:
-        """Loads the static character -> pinyin/meaning reference dictionary."""
-        if not os.path.exists(self.master_dict_path):
-            return {}
+        """
+        The static character reference: pinyin, meaning, and (since the
+        frequency data was carried through from hanzi_db.csv) `freq`,
+        `strokes` and `hsk`. Cached per path -- the file is ~1.1 MB and this
+        runs on per-request paths.
+
+        Treat the returned dict as read-only; every caller shares it.
+        """
+        cached = _master_dict_cache.get(self.master_dict_path)
+        if cached is not None:
+            return cached
+        with _master_dict_lock:
+            cached = _master_dict_cache.get(self.master_dict_path)
+            if cached is not None:
+                return cached
+            data = {}
+            if os.path.exists(self.master_dict_path):
+                try:
+                    with open(self.master_dict_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception as e:
+                    print(f"Warning: Could not load {self.master_dict_path}: {e}")
+            _master_dict_cache[self.master_dict_path] = data
+            return data
+
+    def char_frequency_rank(self, char: str) -> int:
+        """
+        A character's frequency rank (1 = most common), or a large sentinel if
+        it isn't in the dictionary, so it sorts last without special-casing.
+        """
+        meta = self.load_master_dictionary().get(char)
+        if not meta:
+            return 10 ** 9
+        return meta.get("freq") or 10 ** 9
+
+    def daily_new_limit(self, brain_data: dict = None) -> int:
+        """How many new characters this account will take on per day."""
+        if brain_data is None:
+            brain_data = self._read_brain()
+        settings = brain_data.get("settings") or {}
+        raw = settings.get("daily_new_limit", DEFAULT_DAILY_NEW_LIMIT)
         try:
-            with open(self.master_dict_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Warning: Could not load {self.master_dict_path}: {e}")
-            return {}
+            value = int(raw)
+        except (TypeError, ValueError):
+            return DEFAULT_DAILY_NEW_LIMIT
+        return max(0, value)
+
+    def _read_brain(self) -> dict:
+        """Reads brain.json, returning {} rather than raising if it can't."""
+        with self.brain_lock:
+            if not os.path.exists(self.brain_path):
+                return {}
+            try:
+                with open(self.brain_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error reading brain database: {e}")
+                return {}
 
     def load_word_frequencies(self) -> dict:
         """Loads the separate static word frequency file safely."""
@@ -320,42 +405,81 @@ class JuziEngine:
         single = self.load_master_dictionary().get(char, {}).get("pinyin", "")
         return [single] if single else []
 
-    def get_due_characters(self, unlocked_chars: dict = None) -> set:
+    def get_due_characters(self, unlocked_chars: dict = None,
+                           new_limit: int = None) -> set:
         """
-        Returns the subset of unlocked characters that are due for SM-2
-        review: never reviewed yet (last is None/unparseable) or whose
-        interval has elapsed since their last review. Used to bias which
-        practice sentences get picked/generated toward characters that
-        actually need reinforcement, rather than treating the whole
-        unlocked pool as equally worth practicing.
+        The unlocked characters due for practice right now: every reviewed
+        character whose interval has elapsed, plus a *capped* intake of
+        characters never reviewed before. Used to bias which practice
+        sentences get picked, rather than treating the whole unlocked pool as
+        equally worth practicing.
+
+        The cap is finding 13. Every character unlocked by pasting text or
+        adding a word starts with last=None, and all of them counted as due at
+        once -- pasting a short story produced "Due: 400" instantly, with no
+        ordering and no ceiling. That is not a study plan; it is a wall, and
+        the number is demoralising rather than informative. At most
+        daily_new_limit characters are now introduced per day, and because
+        they are admitted in frequency order the wait is always spent on the
+        most useful characters first, which is the whole point of the app.
+
+        Characters already introduced today (see review_character, which
+        stamps `introduced` on a character's first grading) count against the
+        day's allowance, so finishing today's new characters does not
+        immediately conjure a fresh batch.
         """
+        brain_data = None
         if unlocked_chars is None:
-            brain_data = {}
-            with self.brain_lock:
-                if os.path.exists(self.brain_path):
-                    try:
-                        with open(self.brain_path, "r", encoding="utf-8") as f:
-                            brain_data = json.load(f)
-                    except Exception as e:
-                        print(f"Error reading brain database: {e}")
+            brain_data = self._read_brain()
             unlocked_chars = brain_data.get("unlocked_chars", {})
+        if new_limit is None:
+            new_limit = self.daily_new_limit(brain_data)
 
         today = date.today()
+        today_iso = today.isoformat()
         due = set()
+        never_reviewed = []
+        introduced_today = 0
+
         for char, meta in unlocked_chars.items():
+            if meta.get("introduced") == today_iso:
+                introduced_today += 1
+
             last = meta.get("last")
             if not last:
-                due.add(char)
+                never_reviewed.append(char)
                 continue
             try:
                 last_date = date.fromisoformat(last)
             except ValueError:
+                # An unparseable date means the schedule for this character is
+                # meaningless, so treat it as needing review now. It is not a
+                # *new* character though -- it has been seen -- so it bypasses
+                # the intake cap rather than consuming a day's allowance.
                 due.add(char)
                 continue
             interval = meta.get("interval", 0) or 0
             if last_date + timedelta(days=interval) <= today:
                 due.add(char)
+
+        allowance = max(0, new_limit - introduced_today)
+        if allowance and never_reviewed:
+            never_reviewed.sort(key=self.char_frequency_rank)
+            due.update(never_reviewed[:allowance])
         return due
+
+    def new_character_backlog(self, unlocked_chars: dict = None) -> int:
+        """
+        How many unlocked characters have never been reviewed and are waiting
+        behind the daily intake cap. Reported separately from the due count so
+        the UI can say "12 due, 388 waiting" instead of the flat, discouraging
+        "Due: 400" that finding 13 was about.
+        """
+        if unlocked_chars is None:
+            unlocked_chars = self._read_brain().get("unlocked_chars", {})
+        waiting = [c for c, m in unlocked_chars.items() if not m.get("last")]
+        due_new = [c for c in self.get_due_characters(unlocked_chars) if c in set(waiting)]
+        return max(0, len(waiting) - len(due_new))
 
     def review_character(self, char: str, quality: int) -> dict:
         """
@@ -398,6 +522,13 @@ class JuziEngine:
 
             today = date.today().isoformat()
             already_reviewed_today = entry.get("last") == today
+
+            # First time this character has ever been graded: record the day it
+            # entered study. get_due_characters counts these against the daily
+            # new-character allowance (finding 13), so working through today's
+            # intake doesn't immediately pull the next batch forward.
+            if not entry.get("introduced"):
+                entry["introduced"] = today
 
             reps = entry.get("reps", 0) or 0
             interval = entry.get("interval", 0) or 0
@@ -785,6 +916,139 @@ class JuziEngine:
             del c["_sort_rank"]
         return top
 
+    def sentences_unlocked_by(self, unlocked_set: set) -> dict:
+        """
+        For every character NOT yet unlocked, how many corpus sentences would
+        become playable if it alone were added -- i.e. sentences whose only
+        missing character is that one.
+
+        HSK mode only serves a sentence when *every* character in it is
+        unlocked, so an isolated character can be perfectly frequent and still
+        buy no practice at all. This is the same insight seed_brain.py uses to
+        pick a starter pool (raw frequency yields all function words and zero
+        playable sentences); this exposes it in the running app so the Suggest
+        Characters tab can say what a character is actually worth right now.
+
+        One pass over the corpus rather than a scan per candidate: each
+        sentence with exactly one missing character credits that character.
+        """
+        allowed_punct = "，。！？、；：“”‘’—…"
+        credit = {}
+        for filename in SENTENCE_SOURCE_FILES:
+            if not os.path.exists(filename):
+                continue
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f, delimiter="\t"):
+                        chinese = (row.get("sentence") or "").replace(" ", "").strip()
+                        if not chinese or not (row.get("sentence_meaning") or "").strip():
+                            continue
+                        missing = set()
+                        for char in chinese:
+                            if char in unlocked_set or char in allowed_punct:
+                                continue
+                            missing.add(char)
+                            if len(missing) > 1:
+                                break
+                        if len(missing) == 1:
+                            char = missing.pop()
+                            credit[char] = credit.get(char, 0) + 1
+            except Exception as e:
+                print(f"Warning: could not read {filename}: {e}")
+        return credit
+
+    def suggest_new_characters(self, count: int = 8) -> list:
+        """
+        The most useful characters the user hasn't unlocked yet.
+
+        The app's whole premise is learning to write the most frequently used
+        characters, but until now the only way in was pasting text or adding a
+        compound word -- there was no way to ask the direct question, "what is
+        the most useful character I don't know yet?". Suggest Words answers it
+        for vocabulary; this answers it for the actual practice unit.
+
+        Ranked by frequency, but reported alongside `unlocks`, the number of
+        corpus sentences that become playable the moment this character is
+        added (see sentences_unlocked_by). Both numbers matter and they
+        disagree often: a top-100 character that completes no sentence buys no
+        practice today, while a rarer one that completes forty is immediately
+        useful. Showing both lets the learner choose rather than hiding the
+        trade-off behind a single opaque score.
+        """
+        master = self.load_master_dictionary()
+        brain_data = self._read_brain()
+        unlocked = brain_data.get("unlocked_chars", {})
+        unlocked_set = set(unlocked)
+
+        credit = self.sentences_unlocked_by(unlocked_set)
+
+        candidates = []
+        for char, meta in master.items():
+            if char in unlocked_set:
+                continue
+            rank = meta.get("freq")
+            if not rank:
+                continue
+            candidates.append({
+                "char": char,
+                "pinyin": meta.get("pinyin", ""),
+                "meaning": meta.get("meaning", ""),
+                "freq": rank,
+                "strokes": meta.get("strokes"),
+                "hsk": meta.get("hsk"),
+                "unlocks": credit.get(char, 0),
+            })
+
+        # Frequency order, but a character that immediately opens up practice
+        # sentences is surfaced ahead of an equally-ranked one that doesn't.
+        candidates.sort(key=lambda c: (c["unlocks"] == 0, c["freq"]))
+        return candidates[:count]
+
+    def add_characters(self, chars: list) -> dict:
+        """
+        Unlocks the given characters directly, without needing a compound word
+        or a paste to carry them in. Skips anything already unlocked or absent
+        from master_dictionary.json (there would be no pinyin or meaning to
+        show, and no way to grade it).
+        """
+        master = self.load_master_dictionary()
+
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            unlocked = brain_data.setdefault("unlocked_chars", {})
+            brain_data.setdefault("unlocked_words", {})
+
+            added, skipped = [], []
+            for char in chars:
+                if not isinstance(char, str) or len(char) != 1:
+                    skipped.append(char)
+                    continue
+                if char in unlocked:
+                    continue
+                if char not in master:
+                    skipped.append(char)
+                    continue
+                unlocked[char] = {
+                    "pinyin": master[char].get("pinyin", ""),
+                    "meaning": master[char].get("meaning", ""),
+                    "interval": 0,
+                    "factor": 2.5,
+                    "reps": 0,
+                    "last": None,
+                }
+                added.append(char)
+
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+            return {
+                "added_chars": added,
+                "skipped": skipped,
+                "total_unlocked_count": len(unlocked),
+                "total_due_count": len(self.get_due_characters(unlocked)),
+                "new_backlog": self.new_character_backlog(unlocked),
+            }
+
     def add_words(self, words: list) -> dict:
         """
         Adds the given compound words to brain.json's unlocked_words (so
@@ -860,6 +1124,162 @@ class JuziEngine:
             "rejected_single_chars": rejected_single_chars,
         }
 
+    # Frequency bands the progress view reports coverage against. The point of
+    # the app is the most-used characters, so "how far into the frequency list
+    # am I" is the single most meaningful measure of progress it can offer --
+    # far more than a raw unlocked count, which says nothing about whether
+    # those characters are the useful ones.
+    FREQUENCY_BANDS = [100, 500, 1000, 2000, 3000, 5000]
+
+    def progress_summary(self) -> dict:
+        """
+        Everything the progress view needs, in one request.
+
+        The app accumulated a lot of state a learner could never see: SM-2
+        intervals, ease factors, which characters were mature, how much of the
+        frequency list was covered. All of it existed and none of it was
+        visible, so there was no way to answer "am I getting anywhere?" -- the
+        main thing that keeps someone going on a months-long project.
+        """
+        brain_data = self._read_brain()
+        unlocked = brain_data.get("unlocked_chars", {})
+        words = brain_data.get("unlocked_words", {})
+        completed = brain_data.get("completed_sentences", {}) or {}
+        master = self.load_master_dictionary()
+
+        today = date.today()
+        due = self.get_due_characters(unlocked)
+
+        # Study stages. Thresholds follow the usual spaced-repetition reading:
+        # under a week is still being learned, under three weeks is holding but
+        # not proven, beyond that is genuinely retained.
+        stages = {"new": 0, "learning": 0, "young": 0, "mature": 0}
+        factors, intervals = [], []
+        forecast = {}
+        for char, meta in unlocked.items():
+            last = meta.get("last")
+            interval = meta.get("interval", 0) or 0
+            if not last:
+                stages["new"] += 1
+                continue
+            factors.append(meta.get("factor", 2.5) or 2.5)
+            intervals.append(interval)
+            if interval < 7:
+                stages["learning"] += 1
+            elif interval < 21:
+                stages["young"] += 1
+            else:
+                stages["mature"] += 1
+            try:
+                next_due = date.fromisoformat(last) + timedelta(days=interval)
+            except ValueError:
+                continue
+            offset = (next_due - today).days
+            if 0 < offset <= 14:
+                forecast[offset] = forecast.get(offset, 0) + 1
+
+        # Coverage of the frequency list: the headline number for this app.
+        ranked = [(meta.get("freq"), char) for char, meta in master.items()
+                  if meta.get("freq")]
+        frequency_bands = []
+        for band in self.FREQUENCY_BANDS:
+            in_band = [c for rank, c in ranked if rank <= band]
+            known = sum(1 for c in in_band if c in unlocked)
+            frequency_bands.append({"band": band, "known": known,
+                                    "total": len(in_band)})
+
+        hsk_levels = {}
+        for char, meta in master.items():
+            level = meta.get("hsk")
+            if not level:
+                continue
+            bucket = hsk_levels.setdefault(level, {"level": level, "known": 0, "total": 0})
+            bucket["total"] += 1
+            if char in unlocked:
+                bucket["known"] += 1
+
+        return {
+            "unlocked_chars": len(unlocked),
+            "unlocked_words": len(words),
+            "due_count": len(due),
+            "new_backlog": self.new_character_backlog(unlocked),
+            "daily_new_limit": self.daily_new_limit(brain_data),
+            "stages": stages,
+            "avg_factor": round(sum(factors) / len(factors), 2) if factors else None,
+            "avg_interval": round(sum(intervals) / len(intervals), 1) if intervals else None,
+            "frequency_bands": frequency_bands,
+            "hsk_levels": [hsk_levels[k] for k in sorted(hsk_levels)],
+            "sentences_completed_unique": len(completed),
+            "sentences_completed_total": sum(
+                (e.get("count", 0) or 0) for e in completed.values()),
+            "playable_sentences": self.count_playable_sentences(set(unlocked)),
+            "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
+                         for d in range(1, 15)],
+        }
+
+    def count_playable_sentences(self, unlocked_set: set) -> int:
+        """
+        How many corpus sentences are fully writable with the current pool.
+        The practical ceiling on how much practice material exists right now,
+        which is what makes the frequency-coverage numbers concrete.
+        """
+        allowed_punct = "，。！？、；：“”‘’—…"
+        total = 0
+        for filename in SENTENCE_SOURCE_FILES:
+            if not os.path.exists(filename):
+                continue
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f, delimiter="\t"):
+                        chinese = (row.get("sentence") or "").replace(" ", "").strip()
+                        if not chinese or not (row.get("sentence_meaning") or "").strip():
+                            continue
+                        if all(c in unlocked_set or c in allowed_punct for c in chinese):
+                            total += 1
+            except Exception as e:
+                print(f"Warning: could not read {filename}: {e}")
+        return total
+
+    def record_sentence_completion(self, chinese: str) -> dict:
+        """
+        Records that a sentence was written all the way through.
+
+        Finding 12: nothing remembered what had been practiced, so batches
+        re-served sentences the user had just finished, and `nextSentence`
+        loops the bank forever. With a 17,000-sentence corpus the pool is
+        rarely exhausted, but that was never the real complaint -- the
+        complaint is that a sentence you completed a minute ago is exactly as
+        likely to come back as one you have never seen.
+
+        Stored as a count and a date per sentence, keyed by the Chinese text
+        itself, so it survives the sentence bank being replaced wholesale on
+        every new batch. pick_hsk_sentences reads it to prefer unseen material
+        (see its freshness tier).
+        """
+        chinese = (chinese or "").strip()
+        if not chinese:
+            return {"recorded": False}
+
+        today = date.today().isoformat()
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            completed = brain_data.setdefault("completed_sentences", {})
+            entry = completed.get(chinese) or {}
+            entry["count"] = (entry.get("count", 0) or 0) + 1
+            entry["last"] = today
+            completed[chinese] = entry
+
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {"recorded": True, "chinese": chinese,
+                "count": entry["count"], "last": entry["last"],
+                "total_completed": len(completed)}
+
+    def load_completed_sentences(self) -> dict:
+        """The user's sentence-completion history (see record_sentence_completion)."""
+        return self._read_brain().get("completed_sentences", {}) or {}
+
     def load_pasted_sentences(self) -> list:
         """
         Loads the user's own sentence pairs saved from the Paste Text tab
@@ -911,6 +1331,8 @@ class JuziEngine:
 
         unlocked_set = set(unlocked)
         due_set = self.get_due_characters()
+        completed = self.load_completed_sentences()
+        today_iso = date.today().isoformat()
         allowed_punct = "，。！？、；：“”‘’—…"
         candidates = []
         seen_chinese = set()
@@ -923,6 +1345,7 @@ class JuziEngine:
             if all(c in unlocked_set or c in allowed_punct for c in chinese):
                 seen_chinese.add(chinese)
                 candidates.append({"english": english, "chinese": chinese,
+                                   "_fresh": _freshness(chinese, completed, today_iso),
                                    "_due_ratio": _due_ratio(chinese, due_set),
                                    "_personal": True})
 
@@ -940,6 +1363,7 @@ class JuziEngine:
                         if all(c in unlocked_set or c in allowed_punct for c in chinese):
                             seen_chinese.add(chinese)
                             candidates.append({"english": english, "chinese": chinese,
+                                               "_fresh": _freshness(chinese, completed, today_iso),
                                                "_due_ratio": _due_ratio(chinese, due_set),
                                                "_personal": False})
             except Exception as e:
@@ -948,10 +1372,12 @@ class JuziEngine:
         # Shuffle first so that sentences tying on the sort key come back in a
         # different order each time rather than in corpus order.
         random.shuffle(candidates)
-        candidates.sort(key=lambda c: (c["_personal"], c["_due_ratio"]), reverse=True)
+        candidates.sort(key=lambda c: (c["_personal"], c["_fresh"], c["_due_ratio"]),
+                        reverse=True)
         for c in candidates:
             del c["_due_ratio"]
             del c["_personal"]
+            del c["_fresh"]
         return candidates[:count]
 
     def generate_fresh_session(self, count: int = 5) -> dict:
