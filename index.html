@@ -131,6 +131,22 @@
         </div>
     </div>
 
+    <!-- Onboarding Overlay: shown instead of a session on a brand new
+         /u/<slug>/ account (create_user.py) that hasn't picked a starting
+         tier yet. No Cancel button -- there's nothing to fall back to until
+         a tier is chosen, so this is not dismissible. -->
+    <div id="onboarding-modal" class="modal-overlay">
+        <div class="modal-card onboarding-card">
+            <img src="/avatar-nobg-128.png" alt="Juzi the mascot" class="onboarding-avatar">
+            <h2 class="modal-title">你好! Let's pick your starting pool.</h2>
+            <p class="modal-subtitle">Every tier below is a real, playable set of characters and sentences &mdash; pick how much you want to start with. You can always grow from here with Import.</p>
+            <div id="onboarding-tiers" class="onboarding-tiers">
+                <p class="suggestions-empty">Loading tiers…</p>
+            </div>
+            <p id="onboarding-status" class="onboarding-status" hidden></p>
+        </div>
+    </div>
+
     <!-- Progress Overlay -->
     <div id="progress-modal" class="modal-overlay">
         <div class="modal-card progress-card">

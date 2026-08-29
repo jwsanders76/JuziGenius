@@ -52,12 +52,36 @@ from juzi_engine import SENTENCE_SOURCE_FILES
 MASTER_DICT_PATH = "master_dictionary.json"
 BRAIN_PATH = "brain.json"
 SIZE_CHOICES = (5, 50, 300, 500)
-TIER_NAMES = {
-    5: "First Characters",
-    50: "Elementary",
-    300: "Intermediate",
-    500: "Ready to Jump In",
+
+# Single source of truth for tier presentation -- read by seed_brain.py's own
+# CLI, create_user.py, reset_user.py, and server.py's onboarding endpoint (the
+# tier picker a friend sees on their own /u/<slug>/ link the first time they
+# open it). Sentence counts are the figures measured against the full
+# SENTENCE_SOURCE_FILES corpus (see this module's docstring); they're
+# descriptive copy for the picker, not recomputed at runtime.
+TIER_INFO = {
+    5: {
+        "name": "First Peel",
+        "sentences": 7,
+        "blurb": "A first taste -- five characters to get your hand moving.",
+    },
+    50: {
+        "name": "Sun-Ripened",
+        "sentences": 93,
+        "blurb": "Basic sessions with enough variety to feel like real practice.",
+    },
+    300: {
+        "name": "Full Zest",
+        "sentences": 1633,
+        "blurb": "A serious starting vocabulary and real sentence variety.",
+    },
+    500: {
+        "name": "Mandarin Orange",
+        "sentences": 3358,
+        "blurb": "A large, varied bank -- jump straight into real practice.",
+    },
 }
+TIER_NAMES = {size: info["name"] for size, info in TIER_INFO.items()}
 
 # Punctuation the practice modes render as auto-filled slots rather than
 # characters to write, so it costs nothing to "unlock". Kept in sync with
@@ -159,7 +183,15 @@ def _fresh_char_entry(char, master):
     }
 
 
-def build_brain(size, master):
+def build_brain(size, master, onboarded=True):
+    """
+    `onboarded=False` marks the brain as still awaiting its owner's own tier
+    choice -- used by create_user.py, which no longer picks a size on a
+    friend's behalf (see server.py's /api/onboarding/seed, which calls this
+    same function once they pick one from the tier picker on their first
+    visit). Every other caller (this module's own CLI, reset_user.py) wants
+    the default: a brain that's immediately playable, no picker shown.
+    """
     chars = select_characters(size, master)
     unlocked_chars = {char: _fresh_char_entry(char, master) for char in chars}
 
@@ -168,6 +200,7 @@ def build_brain(size, master):
         "unlocked_words": {},
         "settings": {"daily_goal": 10, "strict_mode": True},
         "sentences": [],
+        "onboarded": onboarded,
     }
 
 

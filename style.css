@@ -632,6 +632,90 @@ body {
     color: white;
 }
 
+/* --- Onboarding: first-run tier picker --- */
+.onboarding-card {
+    text-align: center;
+    align-items: center;
+}
+
+.onboarding-avatar {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.onboarding-tiers {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+    width: 100%;
+}
+
+.onboarding-tier {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: border-color 0.2s, transform 0.1s;
+}
+
+.onboarding-tier:hover {
+    border-color: var(--accent-gold);
+}
+
+.onboarding-tier:active {
+    transform: scale(0.98);
+}
+
+.onboarding-tier:disabled {
+    opacity: 0.5;
+    cursor: default;
+    transform: none;
+}
+
+.onboarding-tier-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.onboarding-tier-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+.onboarding-tier-meta {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.onboarding-tier-blurb {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.onboarding-tier-arrow {
+    color: var(--accent-purple);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.onboarding-status {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
 /* --- Suggest Words: checkbox list --- */
 .suggestions-list {
     display: flex;

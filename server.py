@@ -5,6 +5,8 @@ import re
 import threading
 import urllib.parse
 from juzi_engine import JuziEngine
+from seed_brain import SIZE_CHOICES, TIER_INFO
+from seed_brain import build_brain as seed_build_brain
 
 PORT = 8000
 
@@ -306,6 +308,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     # (finding 13), so the badge can say "12 due, 60 waiting"
                     # rather than presenting the whole backlog as today's work.
                     "new_backlog": engine.new_character_backlog(unlocked_chars),
+                    # False only for a brand-new create_user.py account that
+                    # hasn't picked a starting tier yet -- app.js shows the
+                    # tier picker instead of the normal session in that case.
+                    # Missing key (every brain predating the picker) defaults
+                    # True so existing installs are never re-prompted.
+                    "onboarded": bool(brain_data.get("onboarded", True)),
                 }
 
                 self.send_response(200)
@@ -362,6 +370,25 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
+        # The starting-tier catalog shown to a friend who hasn't onboarded yet
+        # (see /api/onboarding/seed below and TIER_INFO in seed_brain.py).
+        # Static, shared reference data -- `engine` is unused here, same as
+        # /api/strokes below.
+        if path == "/api/onboarding/tiers":
+            try:
+                tiers = [
+                    {"size": size, **TIER_INFO[size]}
+                    for size in SIZE_CHOICES
+                ]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"tiers": tiers}, ensure_ascii=False).encode("utf-8"))
                 return True
             except Exception as e:
                 self._send_json_error(500, str(e))
@@ -525,6 +552,54 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         (a response has already been sent), False otherwise so the caller
         can 404.
         """
+        # First-run tier choice: a friend picks their own starting pool from
+        # the tier picker app.js shows instead of the operator choosing a
+        # --size for them at create_user.py time. Body: { "size": 50 }.
+        # Only works once -- an account with characters already unlocked, or
+        # already marked onboarded, is left untouched (409), so this can't be
+        # replayed to wipe out real progress later. Deliberately reads/writes
+        # brain.json directly rather than through a JuziEngine method, same
+        # as /api/session's GET handler above.
+        if path == "/api/onboarding/seed":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                size = json.loads(body).get("size")
+                if size not in SIZE_CHOICES:
+                    self._send_json_error(400, f"'size' must be one of {list(SIZE_CHOICES)}.")
+                    return True
+
+                with engine.brain_lock:
+                    brain_data = {}
+                    if os.path.exists(engine.brain_path):
+                        with open(engine.brain_path, "r", encoding="utf-8") as f:
+                            brain_data = json.load(f)
+
+                    already_onboarded = brain_data.get("onboarded", True)
+                    has_chars = bool(brain_data.get("unlocked_chars"))
+                    if already_onboarded or has_chars:
+                        self._send_json_error(409, "This account has already been set up.")
+                        return True
+
+                    master = engine.load_master_dictionary()
+                    new_brain = seed_build_brain(size, master)
+                    with open(engine.brain_path, "w", encoding="utf-8") as f:
+                        json.dump(new_brain, f, ensure_ascii=False, indent=4)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "size": size,
+                    "name": TIER_INFO[size]["name"],
+                    "total_unlocked_count": len(new_brain["unlocked_chars"]),
+                }, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
         # Unlocks characters chosen in the Suggest Characters tab.
         # Body: { "chars": ["\u662f", "\u4eba", ...] }
         if path == "/api/characters/add":

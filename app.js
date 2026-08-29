@@ -191,6 +191,10 @@ function cacheDomElements() {
     elements.progressModal = document.getElementById("progress-modal");
     elements.progressBody = document.getElementById("progress-body");
     elements.progressBtnClose = document.getElementById("progress-btn-close");
+
+    elements.onboardingModal = document.getElementById("onboarding-modal");
+    elements.onboardingTiersList = document.getElementById("onboarding-tiers");
+    elements.onboardingStatus = document.getElementById("onboarding-status");
 }
 
 function initEventListeners() {
@@ -282,10 +286,20 @@ async function fetchNewSession() {
             state.totalUnlockedCount = data.total_unlocked_count || 0;
             state.totalDueCount = data.total_due_count || 0;
             state.newBacklog = data.new_backlog || 0;
+
+            // A brand new create_user.py account that hasn't picked a
+            // starting tier yet -- show the picker instead of the normal
+            // "pool is empty" messaging, which would send them to Import for
+            // a problem they don't actually have.
+            if (data.onboarded === false) {
+                showOnboarding();
+                return;
+            }
         } else if (Array.isArray(data)) {
             state.sentences = data;
         }
 
+        if (elements.onboardingModal) elements.onboardingModal.style.display = "none";
         updateCharacterCounter();
         updateDueCounter();
 
@@ -315,6 +329,93 @@ async function fetchNewSession() {
         elements.englishPrompt.textContent = navigator.onLine
             ? "Can't reach JuziGenius right now. Please try again in a moment."
             : "You appear to be offline. JuziGenius needs a connection — your practice data lives on the server.";
+    }
+}
+
+/**
+ * Shows the first-run tier picker for a brand new account (create_user.py)
+ * that hasn't chosen a starting pool yet, and loads the tier catalog to
+ * populate it. Not dismissible -- there is no session to fall back to until
+ * a tier is picked, so the modal has no Cancel button.
+ */
+async function showOnboarding() {
+    if (elements.canvasContainer) elements.canvasContainer.innerHTML = "";
+    if (elements.assemblyLine) elements.assemblyLine.innerHTML = "";
+    elements.englishPrompt.textContent = "";
+    toggleSentenceAudioControls(false);
+    toggleSidebarButtons(false);
+
+    if (!elements.onboardingModal) return;
+    elements.onboardingModal.style.display = "flex";
+    if (elements.onboardingStatus) elements.onboardingStatus.hidden = true;
+    if (elements.onboardingTiersList) {
+        elements.onboardingTiersList.innerHTML = '<p class="suggestions-empty">Loading tiers…</p>';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/onboarding/tiers`);
+        if (!response.ok) throw new Error(`Failed to load tiers (${response.status}).`);
+        const data = await response.json();
+        renderOnboardingTiers(data.tiers || []);
+    } catch (err) {
+        console.error(err);
+        if (elements.onboardingTiersList) {
+            elements.onboardingTiersList.innerHTML = '<p class="suggestions-empty">Couldn\'t load starting tiers. Please try again in a moment.</p>';
+        }
+    }
+}
+
+function renderOnboardingTiers(tiers) {
+    if (!elements.onboardingTiersList) return;
+    elements.onboardingTiersList.innerHTML = "";
+    tiers.forEach(tier => elements.onboardingTiersList.appendChild(renderOnboardingTierButton(tier)));
+}
+
+function renderOnboardingTierButton(tier) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "onboarding-tier";
+    btn.dataset.size = tier.size;
+    btn.innerHTML = `
+        <div class="onboarding-tier-info">
+            <div class="onboarding-tier-name">${tier.name}</div>
+            <div class="onboarding-tier-meta">${tier.size} characters &middot; ${tier.sentences.toLocaleString()} sentences</div>
+            <div class="onboarding-tier-blurb">${tier.blurb}</div>
+        </div>
+        <span class="onboarding-tier-arrow">→</span>
+    `;
+    btn.addEventListener("click", () => chooseOnboardingTier(tier.size));
+    return btn;
+}
+
+/**
+ * Posts the chosen starting tier and, on success, reloads the session --
+ * which now finds a real, seeded brain.json and proceeds normally.
+ */
+async function chooseOnboardingTier(size) {
+    const buttons = elements.onboardingTiersList
+        ? elements.onboardingTiersList.querySelectorAll("button")
+        : [];
+    buttons.forEach(b => (b.disabled = true));
+    if (elements.onboardingStatus) {
+        elements.onboardingStatus.hidden = false;
+        elements.onboardingStatus.textContent = "Setting up your pool…";
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/onboarding/seed`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ size })
+        });
+        if (!response.ok) throw new Error(`Onboarding seed failed (${response.status}).`);
+        fetchNewSession();
+    } catch (err) {
+        console.error(err);
+        if (elements.onboardingStatus) {
+            elements.onboardingStatus.textContent = "Something went wrong setting up your pool. Please try again.";
+        }
+        buttons.forEach(b => (b.disabled = false));
     }
 }
 
@@ -1149,14 +1250,16 @@ function isTypingTarget(target) {
 }
 
 /**
- * True while the Add Practice Sentences modal is on screen. Read from the
- * computed style rather than the inline one, so it's correct before any code
- * has assigned to style.display (the initial "none" comes from the
- * .modal-overlay rule in style.css, not from an inline attribute).
+ * True while the Add Practice Sentences modal or the onboarding tier picker
+ * is on screen. Read from the computed style rather than the inline one, so
+ * it's correct before any code has assigned to style.display (the initial
+ * "none" comes from the .modal-overlay rule in style.css, not from an inline
+ * attribute).
  */
 function isModalOpen() {
-    if (!elements.importModal) return false;
-    return window.getComputedStyle(elements.importModal).display !== "none";
+    return [elements.importModal, elements.onboardingModal].some(
+        modal => modal && window.getComputedStyle(modal).display !== "none"
+    );
 }
 
 function isPunctuation(char) {
