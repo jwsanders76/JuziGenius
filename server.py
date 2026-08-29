@@ -79,19 +79,23 @@ def build_manifest(start_url="/"):
         ],
     }
 
-# When true, the bare domain (no /u/<slug>/ prefix) serves nothing but the
-# shared static assets -- no default single-user account, no API. Set via
-# JUZI_REQUIRE_SLUG=1 on a public deployment so that anyone who visits the
-# apex URL directly doesn't land on -- and get to read/write -- whoever's
-# data happens to live in the top-level brain.json. Off by default so a
-# local/LAN single-user install (the original use case, no /u/<slug>/ link
-# involved at all) keeps working with no config.
-REQUIRE_SLUG = os.environ.get("JUZI_REQUIRE_SLUG", "") == "1"
+# JuziGenius is a hosted service. The bare domain is a landing page (and will
+# become the login screen when real accounts land); practice happens behind a
+# /u/<slug>/ link, against that account's own brain.json. There is no
+# single-user mode reachable over HTTP any more: previously the apex URL
+# served a default account straight from the top-level brain.json, so anyone
+# who found the domain landed on -- and could read and write -- whoever's data
+# happened to be there.
+#
+# On by default, and the escape hatch is deliberately awkward to reach by
+# accident: JUZI_ALLOW_DEFAULT_ACCOUNT=1 restores the old behaviour for local
+# development against the root brain.json. Do not set it on a public host.
+REQUIRE_SLUG = os.environ.get("JUZI_ALLOW_DEFAULT_ACCOUNT", "") != "1"
 
-# The engine you get when you hit the server with no /u/<slug>/ prefix --
-# your own single-user local instance, unchanged from before multi-user
-# hosting existed. Unreachable over the web when REQUIRE_SLUG is set (see
-# do_GET/do_POST); still used for local/LAN single-user runs.
+# The engine for a request with no /u/<slug>/ prefix. Unreachable over HTTP
+# unless JUZI_ALLOW_DEFAULT_ACCOUNT=1 (see REQUIRE_SLUG above); it exists so
+# local development, seed_brain.py and create_user.py still have something to
+# operate on.
 default_engine = JuziEngine()
 
 # Per-friend engines, one per provisioned /u/<slug>/ account, cached across
@@ -191,11 +195,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if REQUIRE_SLUG:
-            # No default-account fallback on a public deployment: the app
-            # itself and its API only work behind a real /u/<slug>/ link.
-            # The bare domain gets a static landing page instead of the app,
-            # so a stranger who wanders in learns nothing more than "ask
-            # around" -- no login form, no hint at how accounts are made.
+            # No default-account fallback: the app and its API only work
+            # behind a real /u/<slug>/ link. The bare domain is a landing
+            # page -- deliberately still navigable, and the place a real
+            # login screen will go once accounts exist -- so a stranger who
+            # wanders in gets a front door rather than someone's practice
+            # data.
             # Shared static assets below (CSS/JS/images) still serve --
             # every /u/<slug>/ page references them by the same absolute
             # path, and they carry no personal data.
@@ -676,12 +681,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         return False
 
 if __name__ == "__main__":
-    # Empty string (default) binds all interfaces, same as always -- what
-    # LAN-tablet/phone use needs. When this server sits behind Caddy (see
-    # the Caddyfile) on a publicly reachable host, set JUZI_BIND_HOST=127.0.0.1
-    # so plain-HTTP port 8000 is reachable only from Caddy's reverse proxy on
-    # the same machine, not directly from the internet in parallel with it.
-    bind_host = os.environ.get("JUZI_BIND_HOST", "")
+    # Loopback by default, because the deployment this serves sits behind
+    # Caddy (see the Caddyfile) on a public host: binding only 127.0.0.1 means
+    # plain-HTTP port 8000 is reachable from the reverse proxy on the same
+    # machine and from nowhere else, rather than being exposed to the internet
+    # in parallel with the HTTPS Caddy serves. This used to default to all
+    # interfaces for LAN tablet access over plain HTTP, which is exactly the
+    # arrangement a hosted deployment should not have. Set JUZI_BIND_HOST=""
+    # explicitly to go back to all interfaces.
+    bind_host = os.environ.get("JUZI_BIND_HOST", "127.0.0.1")
     server_address = (bind_host, PORT)
     # ThreadingHTTPServer, not HTTPServer: the plain version handles one
     # connection at a time on its single main thread, so one slow or

@@ -140,10 +140,14 @@ document.addEventListener("DOMContentLoaded", () => {
  * root one over the same shell assets. The account a page belongs to is
  * decided by API_BASE, not by the worker.
  *
- * Requires a secure context -- HTTPS or localhost. Opening the app over plain
- * http:// on a LAN IP (the tablet setup in the README) will skip this and run
- * as an ordinary page, which is why the failure is logged rather than shown:
- * it is expected there, and the app works fine without it.
+ * The worker is network-only and caches nothing: JuziGenius is a hosted
+ * service, so an app that loaded without reaching the server could only show
+ * an empty shell anyway. Its sole job is to satisfy the browser's install
+ * criteria. See sw.js.
+ *
+ * Requires a secure context -- HTTPS or localhost. Registration is skipped
+ * over plain http:// on a bare IP, which is why the failure is logged rather
+ * than shown: the app is fully functional without it.
  */
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
@@ -309,8 +313,8 @@ async function fetchNewSession() {
         // backend engine" is the wrong thing to tell someone in that moment:
         // it reads as a fault when the app is working exactly as designed.
         elements.englishPrompt.textContent = navigator.onLine
-            ? "Can't reach the JuziGenius server. Is it still running?"
-            : "You're offline. JuziGenius keeps your practice data on your own machine, so start the server and reconnect to continue.";
+            ? "Can't reach JuziGenius right now. Please try again in a moment."
+            : "You appear to be offline. JuziGenius needs a connection — your practice data lives on the server.";
     }
 }
 

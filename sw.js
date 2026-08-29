@@ -1,110 +1,45 @@
 /**
- * JuziGenius service worker.
+ * JuziGenius service worker — deliberately network-only.
  *
- * Two jobs, and it is deliberately conservative about both.
+ * It exists for exactly one reason: a registered worker with a fetch handler
+ * is part of the browser's criteria for offering "Install app", which is what
+ * gives JuziGenius a home-screen icon and its own window instead of a browser
+ * tab.
  *
- * 1. Make the app shell available with no network at all, so JuziGenius can be
- *    installed to a tablet home screen and opened on a train. The app was
- *    already offline-capable in the sense that it makes no external calls --
- *    but it still needed its own server reachable to load at all, which is a
- *    different thing from being installable.
+ * It caches nothing, ever. JuziGenius is a hosted service — practice data
+ * lives in the account's brain.json on the server, so an app that "worked"
+ * without reaching the server could only ever show a shell with no sentences
+ * in it, and would additionally risk serving stale code after a deploy. An
+ * earlier version of this file precached the app shell; that offline
+ * capability was removed on purpose. If you are reintroducing caching here,
+ * that is a product decision, not a performance tweak.
  *
- * 2. Keep stroke data close at hand. /api/strokes is immutable per character
- *    (a character's strokes never change) and is the one request on the
- *    critical path of actually writing, so it is cached forever, cache-first.
- *
- * The shell is network-FIRST, not cache-first. This is a self-hosted app the
- * user updates by pulling and restarting; a cache-first shell would keep
- * serving yesterday's app.js after an update with nothing to explain why --
- * the same failure mode as the stale-cache problem the no-cache header fixed
- * on the server side. Network-first costs one conditional request per load on
- * a working connection and still works completely offline.
- *
- * Everything else -- the writable API (session, import, review, progress) --
- * is never cached. Those are per-account state; a stale answer would be worse
- * than an honest failure.
+ * Every request goes straight to the network and any failure propagates
+ * untouched, so the page's own error handling reports it.
  */
 
-const VERSION = "juzi-v1";
-const SHELL_CACHE = `${VERSION}-shell`;
-const STROKE_CACHE = `${VERSION}-strokes`;
+const VERSION = "juzi-v2-network-only";
 
-// Kept in step with server.py's ALLOWED_STATIC_PATHS.
-const SHELL_ASSETS = [
-    "/",
-    "/index.html",
-    "/style.css",
-    "/app.js",
-    "/vendor/hanzi-writer.min.js",
-    "/avatar-nobg-128.png",
-    "/avatar-nobg.png",
-    "/icon-192.png",
-    "/icon-512.png",
-];
-
-self.addEventListener("install", (event) => {
-    event.waitUntil(
-        caches.open(SHELL_CACHE)
-            // addAll fails the whole install if any single asset 404s, which
-            // would leave the app with no offline shell at all. Adding them
-            // individually means one missing file costs only that file.
-            .then(cache => Promise.all(
-                SHELL_ASSETS.map(url => cache.add(url).catch(err => {
-                    console.warn(`[sw] could not precache ${url}`, err);
-                }))
-            ))
-            .then(() => self.skipWaiting())
-    );
+self.addEventListener("install", () => {
+    // Nothing to precache. Take over immediately so a previously installed
+    // caching worker is replaced on the next load rather than lingering.
+    self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
     event.waitUntil(
+        // Delete every cache this origin holds, including the shell and stroke
+        // caches written by the previous version of this worker. Without this,
+        // anyone who loaded the app while that version was live would keep a
+        // working offline copy indefinitely.
         caches.keys()
-            .then(keys => Promise.all(
-                keys.filter(k => !k.startsWith(VERSION)).map(k => caches.delete(k))
-            ))
+            .then(keys => Promise.all(keys.map(key => caches.delete(key))))
             .then(() => self.clients.claim())
     );
 });
 
+// A fetch handler is required for installability. This one adds no behaviour:
+// it is the browser's own default, spelled out.
 self.addEventListener("fetch", (event) => {
-    const request = event.request;
-    if (request.method !== "GET") return;
-
-    const url = new URL(request.url);
-    if (url.origin !== self.location.origin) return;   // never touch the CDN fallback
-
-    // Stroke data: immutable per character, and the one request standing
-    // between the user and writing. Cache-first, kept indefinitely.
-    if (url.pathname.endsWith("/api/strokes")) {
-        event.respondWith(
-            caches.open(STROKE_CACHE).then(cache =>
-                cache.match(request).then(hit => hit || fetch(request).then(response => {
-                    if (response.ok) cache.put(request, response.clone());
-                    return response;
-                }))
-            )
-        );
-        return;
-    }
-
-    // Per-account state. Never cached: a stale session or progress reading
-    // would be worse than a visible failure.
-    if (url.pathname.includes("/api/")) return;
-
-    // The shell: network-first so an update is picked up as soon as the server
-    // is reachable, cache as the offline fallback.
-    event.respondWith(
-        fetch(request)
-            .then(response => {
-                if (response.ok) {
-                    const copy = response.clone();
-                    caches.open(SHELL_CACHE).then(cache => cache.put(request, copy));
-                }
-                return response;
-            })
-            .catch(() => caches.match(request).then(
-                hit => hit || caches.match("/index.html")
-            ))
-    );
+    event.respondWith(fetch(event.request));
 });
