@@ -727,7 +727,7 @@ function triggerSentenceCompletion() {
             <div class="victory-card">
                 <img src="/avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
-                <button id="btn-next" class="btn-next">Next Sentence →</button>
+                <button id="btn-next" class="btn-next">${currentSentence.chinese.length === 1 ? "Next" : "Next Sentence"} →</button>
             </div>
         `;
 

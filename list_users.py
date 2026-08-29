@@ -5,23 +5,18 @@ account's own brain.json for a quick sense of where they've gotten to.
 
 Usage:
     python3 list_users.py
-    python3 list_users.py --base-url https://juzigenius.example.com
 """
-import argparse
 import json
 import os
 
 from user_registry import USERS_DIR, load_registry
 
+# Every account link points at the one live domain -- see create_user.py's
+# BASE_URL for the same constant.
+BASE_URL = "https://juzigenius.com"
+
 
 def main():
-    parser = argparse.ArgumentParser(description="List registered multi-user accounts.")
-    parser.add_argument(
-        "--base-url", default="http://localhost:8000",
-        help="Scheme+host to print links against (default: http://localhost:8000).",
-    )
-    args = parser.parse_args()
-
     registry = load_registry()
     if not registry:
         print("No accounts recorded in users/registry.json yet -- create one with create_user.py.")
@@ -45,7 +40,7 @@ def main():
                 status = f"{chars} characters unlocked"
 
         print(f"{entry.get('name', '(unnamed)')}")
-        print(f"  link:    {args.base_url.rstrip('/')}/u/{slug}/")
+        print(f"  link:    {BASE_URL}/u/{slug}/")
         print(f"  slug:    {slug}")
         print(f"  created: {entry.get('created', '?')}")
         print(f"  status:  {status}")

@@ -26,10 +26,8 @@ import os
 from seed_brain import MASTER_DICT_PATH, SIZE_CHOICES, TIER_NAMES, build_brain
 from user_registry import USERS_DIR, find_by_name, load_registry
 
-# Unlike create_user.py's --base-url (which defaults to localhost, useful
-# for local testing before an account is ever sent to anyone), this script
-# only ever runs against the live droplet, so the production domain is
-# hardcoded rather than an argument nobody would want to override.
+# Every account link points at the one live domain -- see create_user.py's
+# BASE_URL for the same constant.
 BASE_URL = "https://juzigenius.com"
 
 

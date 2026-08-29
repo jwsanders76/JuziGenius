@@ -28,7 +28,6 @@ reset_user.py -- both read this same file.
 
 Usage:
     python3 create_user.py --name Alice
-    python3 create_user.py --name Bob --base-url https://juzigenius.example.com
 """
 import argparse
 import datetime
@@ -37,6 +36,8 @@ import os
 import secrets
 
 from user_registry import USERS_DIR, load_registry, save_registry
+
+BASE_URL = "https://juzigenius.com"
 
 
 def create_user():
@@ -71,11 +72,6 @@ def main():
              "users/registry.json so you can tell accounts apart later -- "
              "see list_users.py and reset_user.py.",
     )
-    parser.add_argument(
-        "--base-url", default="http://localhost:8000",
-        help="Scheme+host to print the link against, e.g. https://your-domain.com "
-             "(default: http://localhost:8000).",
-    )
     args = parser.parse_args()
 
     os.makedirs(USERS_DIR, exist_ok=True)
@@ -90,7 +86,7 @@ def main():
 
     print(f"Created account for {args.name} -- no starting tier chosen yet.")
     print("Private link -- this IS the login, so send it privately and treat it like a password:")
-    print(f"  {args.base_url.rstrip('/')}/u/{slug}/")
+    print(f"  {BASE_URL}/u/{slug}/")
     print("They'll see a tier picker (First Peel / Sun-Ripened / Full Zest / Mandarin Orange) the first time they open it.")
 
 
