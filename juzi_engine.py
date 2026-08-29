@@ -103,6 +103,19 @@ def _freshness(chinese: str, completed: dict, today: str) -> int:
     return 0 if entry.get("last") == today else 1
 
 
+# Caps how much a single Paste Text import can contain -- a few paragraphs'
+# worth, which is what the feature is actually for (unlocking characters and
+# saving a handful of practice sentences). server.py's MAX_BODY_SIZE (2 MB)
+# is a network-abuse guard, not a usability one: it would still let through
+# text far too long to be a "sentence" worth practicing, bloating brain.json
+# and tying up this account's brain_lock while segment_compounds scans it.
+# Counted in characters (not bytes) so it reads the same regardless of
+# encoding. English text naturally runs longer per idea than Chinese, hence
+# the larger translation allowance.
+MAX_IMPORT_CHINESE_CHARS = 2000
+MAX_IMPORT_TRANSLATION_CHARS = 6000
+
+
 class JuziEngine:
     def __init__(self, brain_path="brain.json", words_path="words_freq.json", master_dict_path="master_dictionary.json"):
         self.brain_path = brain_path
@@ -750,6 +763,21 @@ class JuziEngine:
 
             unlocked = brain_data.setdefault("unlocked_chars", {})
             unlocked_words = brain_data.setdefault("unlocked_words", {})
+
+            # Rejected before pruning/compound-scanning (the expensive, input-
+            # length-proportional work below) so an oversized paste costs
+            # only this cheap length check, not a scan of the whole thing.
+            if len(raw_text) > MAX_IMPORT_CHINESE_CHARS or len(translation_text) > MAX_IMPORT_TRANSLATION_CHARS:
+                return {
+                    "added_count": 0,
+                    "total_unlocked_count": len(unlocked),
+                    "message": (
+                        f"That's too much to paste at once (max {MAX_IMPORT_CHINESE_CHARS} Chinese "
+                        f"characters / {MAX_IMPORT_TRANSLATION_CHARS} translation characters). "
+                        "Try a few paragraphs at a time instead."
+                    ),
+                }
+
             pruned_word_count = self.prune_single_char_words(unlocked_words)
             master = self.load_master_dictionary()
 
