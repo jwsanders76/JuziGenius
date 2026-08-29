@@ -18,6 +18,17 @@ HSK_SOURCE_FILES = ["hsk_level1and2_words_with_sentences.csv", "hsk_level3_words
 EXTRA_SENTENCE_FILES = ["tatoeba_sentences.csv"]
 SENTENCE_SOURCE_FILES = HSK_SOURCE_FILES + EXTRA_SENTENCE_FILES
 
+# Below this many unlocked characters, practice serves individual characters
+# instead of sentences (see JuziEngine.pick_hsk_sentences) -- a deliberate
+# beginner phase paired with seed_brain.py's Tier 1 ("First Peel"), which
+# now picks characters for simplicity rather than sentence coverage and so
+# usually unlocks zero playable sentences on purpose. Once a learner has
+# enough characters that real sentences become possible regardless of how
+# they got there (seeding, Paste Text, Suggest Characters), practice
+# transitions to sentences automatically -- this is a running character
+# count, not a one-time tier choice.
+CHARACTER_ONLY_UNLOCK_THRESHOLD = 20
+
 # How far suggest_new_words demotes a word whose characters are all already
 # unlocked: it teaches vocabulary but unlocks no new handwriting practice.
 # Applied as a multiplier on the frequency rank, so a top-50 word like 你好
@@ -1347,6 +1358,35 @@ class JuziEngine:
             print(f"Warning loading pasted sentences: {e}")
             return []
 
+    def _pick_beginner_characters(self, unlocked: dict, due_set: set,
+                                   completed: dict, today_iso: str,
+                                   count: int) -> list:
+        """
+        Character-only practice: each unlocked character served as its own
+        one-character "sentence", English meaning as the prompt. Reuses the
+        exact sentence shape pick_hsk_sentences returns (chinese/english),
+        so everything downstream -- attach_char_data, the assembly-line
+        canvas, SM-2 review, completed_sentences tracking -- works unchanged;
+        a "sentence" here is just a chinese string of length one.
+
+        Ranked the same way as real sentences: never-completed characters
+        first, then due-for-review ones, so this phase still reinforces SM-2
+        scheduling rather than cycling the pool in a fixed order.
+        """
+        candidates = [{
+            "english": meta.get("meaning", ""),
+            "chinese": char,
+            "_fresh": _freshness(char, completed, today_iso),
+            "_due_ratio": _due_ratio(char, due_set),
+        } for char, meta in unlocked.items()]
+
+        random.shuffle(candidates)
+        candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
+        for c in candidates:
+            del c["_due_ratio"]
+            del c["_fresh"]
+        return candidates[:count]
+
     def pick_hsk_sentences(self, count: int = 5) -> list:
         """
         Picks real example sentences -- from the hand-curated HSK corpora, the
@@ -1372,15 +1412,27 @@ class JuziEngine:
         pick sat at or near the 12-character maximum. That is exactly
         backwards for a beginner, who has the smallest unlocked pool and the
         least business being handed the longest sentences in it.
+
+        Below CHARACTER_ONLY_UNLOCK_THRESHOLD unlocked characters, this
+        instead serves individual characters -- see
+        _pick_beginner_characters. seed_brain.py's Tier 1 seeds characters
+        for simplicity rather than sentence coverage, so it deliberately
+        unlocks zero playable sentences; without this branch, a Tier 1
+        account's very first session would come back empty.
         """
         unlocked = self.load_unlocked_chars()
         if not unlocked:
             return []
 
-        unlocked_set = set(unlocked)
         due_set = self.get_due_characters()
         completed = self.load_completed_sentences()
         today_iso = date.today().isoformat()
+
+        if len(unlocked) < CHARACTER_ONLY_UNLOCK_THRESHOLD:
+            unlocked_chars = self._read_brain().get("unlocked_chars", {})
+            return self._pick_beginner_characters(unlocked_chars, due_set, completed, today_iso, count)
+
+        unlocked_set = set(unlocked)
         allowed_punct = "，。！？、；：“”‘’—…"
         candidates = []
         seen_chinese = set()

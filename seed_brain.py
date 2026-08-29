@@ -26,7 +26,7 @@ Four tiers span the full local sentence corpus -- the hand-curated HSK 1-3
 sentences plus the larger Tatoeba-derived corpus (see SENTENCE_SOURCE_FILES in
 juzi_engine.py): 17,426 sentences, 2,879 distinct characters. Each tier is a
 superset of the last:
-    Tier 1 -- First Characters  (  5 chars,    7 sentences) -- a first taste
+    Tier 1 -- First Characters  (  5 chars,    6 sentences) -- a first taste
     Tier 2 -- Elementary        ( 50 chars,   93 sentences) -- basic sessions
     Tier 3 -- Intermediate      (300 chars, 1633 sentences) -- real variety
     Tier 4 -- Ready to Jump In  (500 chars, 3358 sentences) -- a large, varied
@@ -51,7 +51,22 @@ from juzi_engine import SENTENCE_SOURCE_FILES
 
 MASTER_DICT_PATH = "master_dictionary.json"
 BRAIN_PATH = "brain.json"
+STROKE_DATA_PATH = "stroke_data.json"
 SIZE_CHOICES = (5, 50, 300, 500)
+
+# Stand-in stroke count for a character missing from stroke_data.json (a
+# handful of rare ones are -- see fetch_stroke_data.py). Set above the
+# median of real stroke counts so an unmeasured character reads as
+# moderately complex rather than winning ties by default as if it were
+# trivially simple.
+FALLBACK_STROKE_COUNT = 15
+
+# How common a character has to be (by frequency rank) to be eligible for
+# Tier 1's simplicity-first selection. Loose enough to cover everyday
+# vocabulary, tight enough that an obscure-but-simple character (plenty of
+# rare characters are only 2-3 strokes) can't outrank a common one just for
+# being easy to draw.
+BEGINNER_RANK_CUTOFF = 1500
 
 # Single source of truth for tier presentation -- read by seed_brain.py's own
 # CLI, create_user.py, reset_user.py, and server.py's onboarding endpoint (the
@@ -62,8 +77,19 @@ SIZE_CHOICES = (5, 50, 300, 500)
 TIER_INFO = {
     5: {
         "name": "First Peel",
-        "sentences": 7,
-        "blurb": "A first taste -- five characters to get your hand moving.",
+        "sentences": 0,
+        # Shown in place of the usual "N sentences" line -- see
+        # app.js's renderOnboardingTierButton, which prefers this field
+        # when present. Tier 1 has no sentences by design (see
+        # select_beginner_characters and JuziEngine's character-only
+        # practice threshold), so "0 sentences" would read as broken.
+        "meta": "5 characters — character practice",
+        "blurb": (
+            "Five simple, common characters to get your hand moving -- no "
+            "sentences yet. You'll practice characters one at a time until "
+            "you've unlocked about 20, then sentence practice opens up "
+            "automatically."
+        ),
     },
     50: {
         "name": "Sun-Ripened",
@@ -115,6 +141,62 @@ def load_hsk_sentences(master):
     return sentences
 
 
+def load_stroke_counts():
+    """
+    Maps character -> stroke count, from the same vendored stroke_data.json
+    that drives offline handwriting (see fetch_stroke_data.py). Used by
+    select_beginner_characters as the primary measure of how physically
+    complex a character is to write. Missing entries fall back to
+    FALLBACK_STROKE_COUNT.
+    """
+    if not os.path.exists(STROKE_DATA_PATH):
+        return {}
+    with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {char: len(entry.get("strokes", [])) for char, entry in data.items()}
+
+
+def select_beginner_characters(size, master, start_pool=None):
+    """
+    Picks individual characters for the very first tier by simplicity, not
+    sentence coverage: lowest stroke count first, among characters common
+    enough to be worth learning at all (BEGINNER_RANK_CUTOFF by frequency,
+    so a rare-but-simple character like 乜 doesn't outrank a common one).
+
+    This is deliberately unconnected to whether any sentence becomes
+    playable -- Tier 1 is a character-only practice phase (see
+    JuziEngine.pick_hsk_sentences' character-only threshold), so unlike
+    select_characters there is nothing to "cover" yet. That's what let the
+    previous sentence-coverage approach hand a first-time user something
+    like 真 (10 strokes) or 想 (13): both are common enough and useful for
+    completing a cheap sentence, but neither is simple to write, and
+    simplicity is the only thing that matters until sentence practice
+    starts.
+
+    `start_pool`, if given, is kept and topped up rather than replaced --
+    same contract as select_characters, so a returning user's characters
+    are never removed.
+    """
+    rank = {char: meta.get("freq") or (i + 1)
+            for i, (char, meta) in enumerate(master.items())}
+    strokes = load_stroke_counts()
+    pool = set(start_pool) if start_pool else set()
+
+    candidates = [
+        char for char, meta in master.items()
+        if char not in pool and meta.get("pinyin") and meta.get("meaning")
+        and rank[char] <= BEGINNER_RANK_CUTOFF
+    ]
+    candidates.sort(key=lambda c: (strokes.get(c, FALLBACK_STROKE_COUNT), rank[c]))
+
+    for char in candidates:
+        if len(pool) >= size:
+            break
+        pool.add(char)
+
+    return pool
+
+
 def select_characters(size, master, start_pool=None):
     """
     Greedily grows a character pool that covers as many complete HSK
@@ -126,7 +208,8 @@ def select_characters(size, master, start_pool=None):
     what makes tiering up additive: the algorithm only ever adds characters
     on top of what's already there, it never removes any, so growing from
     tier to tier can't cost the user practice progress on characters they
-    already have.
+    already have. Used for every tier except the first -- see
+    select_beginner_characters for Tier 1's simplicity-first approach.
     """
     # Read the frequency rank explicitly rather than inferring it from the
     # order master_dictionary.json happens to be serialised in. The old
@@ -192,7 +275,8 @@ def build_brain(size, master, onboarded=True):
     visit). Every other caller (this module's own CLI, reset_user.py) wants
     the default: a brain that's immediately playable, no picker shown.
     """
-    chars = select_characters(size, master)
+    chars = (select_beginner_characters(size, master) if size == SIZE_CHOICES[0]
+              else select_characters(size, master))
     unlocked_chars = {char: _fresh_char_entry(char, master) for char in chars}
 
     return {

@@ -382,10 +382,14 @@ function renderOnboardingTierButton(tier) {
     btn.type = "button";
     btn.className = "onboarding-tier";
     btn.dataset.size = tier.size;
+    // `meta` overrides the usual "N characters · N sentences" line -- used
+    // by Tier 1, which has no sentences by design (character-only practice
+    // until ~20 characters are unlocked; see seed_brain.TIER_INFO).
+    const meta = tier.meta || `${tier.size} characters &middot; ${tier.sentences.toLocaleString()} sentences`;
     btn.innerHTML = `
         <div class="onboarding-tier-info">
             <div class="onboarding-tier-name">${tier.name}</div>
-            <div class="onboarding-tier-meta">${tier.size} characters &middot; ${tier.sentences.toLocaleString()} sentences</div>
+            <div class="onboarding-tier-meta">${meta}</div>
             <div class="onboarding-tier-blurb">${tier.blurb}</div>
         </div>
         <span class="onboarding-tier-arrow">→</span>
