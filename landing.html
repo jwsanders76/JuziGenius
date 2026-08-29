@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JuziGenius (句子Genius)</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --surface-color: #1e1e24;
+            --card-bg: #262630;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --accent-gold: #f39c12;
+            --accent-orange: #e67e22;
+            --border-color: #3f3f50;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 24px;
+        }
+        .card {
+            max-width: 420px;
+            width: 100%;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px 32px;
+            text-align: center;
+        }
+        .avatar {
+            width: 128px;
+            height: 128px;
+            object-fit: contain;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: var(--accent-gold);
+            margin-bottom: 12px;
+        }
+        p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .hanzi {
+            font-size: 2rem;
+            color: var(--accent-orange);
+            margin: 18px 0;
+            letter-spacing: 0.15em;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img class="avatar" src="/avatar-nobg-128.png" alt="Juzi the mascot">
+        <h1>你好! I'm Juzi.</h1>
+        <div class="hanzi">句子</div>
+        <p>This corner of the internet is invite-only &mdash; every learner here practices on their own private link.</p>
+        <p>Want in? Ask the person who told you about this site. They'll know exactly what you mean.</p>
+    </div>
+</body>
+</html>

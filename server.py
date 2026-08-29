@@ -149,10 +149,16 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if REQUIRE_SLUG:
             # No default-account fallback on a public deployment: the app
             # itself and its API only work behind a real /u/<slug>/ link.
+            # The bare domain gets a static landing page instead of the app,
+            # so a stranger who wanders in learns nothing more than "ask
+            # around" -- no login form, no hint at how accounts are made.
             # Shared static assets below (CSS/JS/images) still serve --
             # every /u/<slug>/ page references them by the same absolute
             # path, and they carry no personal data.
-            if path in ("/", "/index.html") or path.startswith("/api/"):
+            if path in ("/", "/index.html"):
+                self.path = "/landing.html"
+                return super().do_GET()
+            if path.startswith("/api/"):
                 self.send_response(404)
                 self.end_headers()
                 return
