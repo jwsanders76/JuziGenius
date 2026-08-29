@@ -59,7 +59,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 爬山	to hike	pá shān	我们 去 爬山 吧	wǒmen qù páshān ba.	let's go hiking.
 树	tree	shù	我 花园 里 的 树 很 大	wǒ huāyuán lǐ de shù hěn dà	The tree in my garden is very big.
 刮风	windy	guā fēng	今天 晚上 刮风	jīntiān wǎnshàng guāfēng	It is windy this evening.
-地方	area	dì fang	这 个 地方 有 很多 树	zhège dìfāng yǒu hěnduō shù dìfāng	This place has a lot of trees.
+地方	area	dì fang	这 个 地方 有 很多 树	zhège dìfāng yǒu hěnduō shù	This place has a lot of trees.
 世界	world	shì jiè	这 里 是 世界 上 最 冷 的 地方	zhèlǐ  shì shìjiè shàng zuì lěng dì dìfāng	This is the coldest place in the world.
 云	cloud	yún	今天多云	jīntiān duōyún	It is cloudy today.
 太阳	sun	tài yáng	今天 非常 多云 多云 ， 我 看 不到 太阳	jīntiān fēicháng duōyún duōyún, wǒ kàn bù dào tàiyáng	it's very cloudy today, I can't see the sun.
@@ -189,7 +189,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 声音	voice	shēng yīn	公园 里 非常 安静 ， 只有 鸟儿 的 声音	gōngyuán lǐ fēi cháng ānjìng, zhǐ yǒu niǎoér de shēngyīn	The park is very quiet, with only the voice of birds.
 聚会	get together	jùhuì	他 今晚 有 个 生日 聚会	tā jīn wǎn yǒu gè shēngrì jùhuì	He has a birthday party tonight.
 参加	to participate	cān jiā	你 今晚 会 来 参加 我 的 生日 聚会 吗	nǐ jīn wǎn huì lái cānjiā wǒ de shēngrì jùhuì ma?	Are you coming to my birthday party tonight?
-机会	opportunity	jī huì	如果 我 有 机会 ， 我 会 参加 你 的 生日	聚会 rúguǒ wǒ yǒu jīhuì, wǒ huì cānjiā nǐ de shēngrì jùhuì	If I have the opportunity, I will attend your birthday party.
+机会	opportunity	jī huì	如果 我 有 机会 ， 我 会 参加 你 的 生日 聚会	rúguǒ wǒ yǒu jīhuì, wǒ huì cānjiā nǐ de shēngrì jùhuì	If I have the opportunity, I will attend your birthday party.
 表示	to express	biǎo shì	他 表示 会 来 参加 我 的 生日 聚会	tā biǎoshì huì lái cānjiā wǒ de shēngrì jùhuì	He said he would come to my birthday party.
 春节	spring festival	chūn jié 	今年 春节 是 1 月 28 号	Jīnnián chūnjié shì 1 yuè 28 hào	This year's Spring Festival is on January 28th.
 节日	holiday	jié rì	春节 是 我 最 喜欢 的 节日	chūnjié shì wǒ zuì xǐhuān de jiérì	The Spring Festival is my favorite holiday.
@@ -261,7 +261,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 银行	bank	yín háng	银行 什么 时候 开门	yínháng shénme shíhòu kāimén	When does the bank open?
 马上	at once	mǎ shàng	我 马上 要 去 银行	wǒ mǎshàng yào qù yínháng	I must go to the bank at once.
 方便	convenient	fāng biàn	上网 银行 比 去 银行 方便 多 了	shàngwǎng yínháng bǐ qù yínháng fāngbiàn duōle	Online banking is much more convenient than going to the bank.
-角	10 cents	jiǎo	我 少了 一角 钱	wǒ huì xiě zhège juésè, nǐ ne?	I'm short ten cents.
+角	10 cents	jiǎo	我 少了 一角 钱	wǒ shǎole yījiǎo qián	I'm short ten cents.
 万	ten thousand	wàn	银行借给他一万元	yínháng jiè gěi tā yī wàn yuán	The bank lent him 10,000 yuan.
 一共	altogether	yī gòng	我 从 银行 拿出 一共 两 万 零 三 百 元	wǒ cóng yínháng náchū yīgòng liǎng wàn líng sān bǎi yuán	I took out 20,300 yuan altogether from the bank.
 先	first	xiān	我 先 去 商店, 然后 去 银行	wǒ xiān qù shāngdiàn, ránhòu qù yínháng	I'll go to the store first, then go to the bank.

@@ -11,7 +11,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 叫	to be called	jiào	我 叫 李伟	wǒ jiào lǐ wěi	My name is Li Wei. / I am called Li Wei.
 吗	(question tag)	ma	他 叫 李伟 吗	tā jiào lǐwěi ma	Is his name Li Wei?
 名字	name	míng zi	他 叫 什么 名字	tā jiào shénme míngzì	What's his name?
-什么	what	shén me	你 叫 什么 名	nǐ jiào shénme míngzì	What is your name?
+什么	what	shén me	你 叫 什么 名字	nǐ jiào shénme míngzì	What is your name?
 谁	who	shéi	你 是 谁	Nǐ shì shéi	Who are you?
 她	she	tā	她 叫 什么 名字	tā jiào shénme míngzì	What's her name?
 这	this	zhè	这 是 李伟	zhè shì lǐ wěi	This is Li Wei.
@@ -165,7 +165,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 服务员	waiter	fú wù yuán	服务员 ， 给 我 一 杯 咖啡	fúwùyuán, gěi wǒ yībēi kāfēi	Waiter, give me one cup of coffee.
 鸡蛋	egg	jī dàn	我们 都 喜欢 吃 鸡蛋 和 喝 牛奶	wǒmen dōu xǐhuān chī jīdàn hé hē niúnǎi	We all like to eat eggs and drink milk.
 正在	currently	zhèng zài	他 正在 吃 鸡蛋	tā zhèngzài chī jīdàn	He is eating eggs.
-西瓜	watermelon	xī guā	她 吃 西瓜	tā zhèngzài chī xīguā	She is eating watermelon.
+西瓜	watermelon	xī guā	她 吃 西瓜	tā chī xīguā	She is eating watermelon.
 公斤	kilogram	gōng jīn	这个 西瓜 很 大 ， 有 十八 公斤	zhège xīguā hěn dà, yǒu shíbā gōngjīn	this watermelon is very big, it is eighteen kilograms.
 羊肉	mutton	yáng ròu	他 不 喜欢 吃 羊肉	tā bù xǐhuān chī yángròu	He doesn't like to eat mutton.
 鱼	fish	yú	我 喜欢 吃 鱼	wǒ xǐhuān chī yú	I like to eat fish.
@@ -195,12 +195,12 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 开始	to begin	kāi shǐ	每天 九 点 开始 上课	měitiān jiǔ diǎn kāishǐ shàngkè	Class begins at nine o'clock every day.
 课	class	kè	我们 今天 有 课 吗 ?	wǒmen jīntiān yǒu kè ma?	Do we have class today?
 来	to come	lái	他 今天 来 学校 吗	tā jīntiān lái xuéxiào ma	Is he coming to school today?
-好	good	hǎo	他 是个 好 学生	他是个好学生	He is a good student.
+好	good	hǎo	他 是个 好 学生	tā shìgè hǎo xuéshēng	He is a good student.
 老师	teacher	lǎo shī	老师 早上 好	lǎoshī zǎoshang hǎo	Good morning, teacher.
 告诉	to tell	gào su	告诉 老师 我 今天 不 来 上课	gàosù lǎoshī wǒ jīntiān bù lái shàngkè	Tell the teacher I'm not coming to class today.
 教室	classroom	jiào shì	老师 现在 不在 教室	lǎoshī xiànzài bùzài jiàoshì	The teacher is not in the classroom right now.
 同学	classmate	tóng xué	我 的 同学 在 教室	wǒ de tóngxué zài jiàoshì	My classmates are in the classroom.
-一起	in the same place	yī qǐ	学生们 在 教室 里 一起 学习	zuéshēngmen zài jiàoshì lǐ yīqǐ xuéxí	The students are studying together in the classroom.
+一起	in the same place	yī qǐ	学生们 在 教室 里 一起 学习	xuéshēngmen zài jiàoshì lǐ yīqǐ xuéxí	The students are studying together in the classroom.
 笑	laugh	xiào	学生们 一起 笑	xuéshēngmen yīqǐ xiào	The students laughed together.
 多	many	duō	我 今天 有 很 多 课	wǒ jīntiān yǒu hěnduō kè	I have a lot of classes today.
 考试	to take an exam	kǎo shì	今天 有 考试	jīntiān yǒu kǎoshì	There is an exam today.
