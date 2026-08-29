@@ -38,9 +38,19 @@ ALLOWED_STATIC_PATHS = {
 
 STROKE_DATA_PATH = "stroke_data.json"
 
+# When true, the bare domain (no /u/<slug>/ prefix) serves nothing but the
+# shared static assets -- no default single-user account, no API. Set via
+# JUZI_REQUIRE_SLUG=1 on a public deployment so that anyone who visits the
+# apex URL directly doesn't land on -- and get to read/write -- whoever's
+# data happens to live in the top-level brain.json. Off by default so a
+# local/LAN single-user install (the original use case, no /u/<slug>/ link
+# involved at all) keeps working with no config.
+REQUIRE_SLUG = os.environ.get("JUZI_REQUIRE_SLUG", "") == "1"
+
 # The engine you get when you hit the server with no /u/<slug>/ prefix --
 # your own single-user local instance, unchanged from before multi-user
-# hosting existed.
+# hosting existed. Unreachable over the web when REQUIRE_SLUG is set (see
+# do_GET/do_POST); still used for local/LAN single-user runs.
 default_engine = JuziEngine()
 
 # Per-friend engines, one per provisioned /u/<slug>/ account, cached across
@@ -136,7 +146,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             return
 
-        if self._handle_api_get(path, default_engine):
+        if REQUIRE_SLUG:
+            # No default-account fallback on a public deployment: the app
+            # itself and its API only work behind a real /u/<slug>/ link.
+            # Shared static assets below (CSS/JS/images) still serve --
+            # every /u/<slug>/ page references them by the same absolute
+            # path, and they carry no personal data.
+            if path in ("/", "/index.html") or path.startswith("/api/"):
+                self.send_response(404)
+                self.end_headers()
+                return
+        elif self._handle_api_get(path, default_engine):
             return
 
         # Refuse to serve anything not explicitly whitelisted (blocks config.py,
@@ -351,6 +371,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             sub_path = user_match.group(2) or "/"
             if self._handle_api_post(sub_path, engine):
                 return
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        if REQUIRE_SLUG:
+            # Same reasoning as do_GET: no default-account fallback publicly.
             self.send_response(404)
             self.end_headers()
             return

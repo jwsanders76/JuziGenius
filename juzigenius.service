@@ -12,6 +12,12 @@
 #
 # JUZI_BIND_HOST=127.0.0.1 keeps plain-HTTP port 8000 reachable only from
 # Caddy on this same machine -- see the note on that variable in server.py.
+#
+# JUZI_REQUIRE_SLUG=1 disables the default single-user account at the bare
+# domain, so a visitor to the apex URL can't read/write whoever's data lives
+# in the top-level brain.json -- see the note on that variable in server.py.
+# Create your own /u/<slug>/ account (create_user.py) rather than relying on
+# the bare domain once this is set.
 
 [Unit]
 Description=JuziGenius backend (server.py)
@@ -22,6 +28,7 @@ Type=simple
 User=deploy
 WorkingDirectory=/home/deploy/JuziGenius
 Environment=JUZI_BIND_HOST=127.0.0.1
+Environment=JUZI_REQUIRE_SLUG=1
 ExecStart=/usr/bin/python3 server.py
 Restart=on-failure
 RestartSec=5
