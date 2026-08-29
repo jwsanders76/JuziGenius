@@ -26,6 +26,12 @@ import os
 from seed_brain import MASTER_DICT_PATH, SIZE_CHOICES, TIER_NAMES, build_brain
 from user_registry import USERS_DIR, find_by_name, load_registry
 
+# Unlike create_user.py's --base-url (which defaults to localhost, useful
+# for local testing before an account is ever sent to anyone), this script
+# only ever runs against the live droplet, so the production domain is
+# hardcoded rather than an argument nobody would want to override.
+BASE_URL = "https://juzigenius.com"
+
 
 def _empty_brain():
     """Same shape create_user.py's create_user() writes for a brand new account."""
@@ -76,6 +82,7 @@ def main():
         parser.error(f"users/registry.json points at {user_dir}, but that directory doesn't exist.")
 
     name = registry.get(slug, {}).get("name", "(unnamed)")
+    link = f"{BASE_URL}/u/{slug}/"
 
     if args.size is None:
         brain = _empty_brain()
@@ -84,8 +91,9 @@ def main():
         print(
             f"Reset {name}'s account ({slug}) to an empty, unonboarded state. "
             "All prior progress on this account was discarded. "
-            "They'll see the tier picker again the next time they open their link."
+            "They'll see the tier picker again the next time they open their link:"
         )
+        print(f"  {link}")
         return
 
     with open(MASTER_DICT_PATH, "r", encoding="utf-8") as f:
@@ -100,6 +108,7 @@ def main():
         f"Reset {name}'s account ({slug}) to Tier {SIZE_CHOICES.index(args.size) + 1} "
         f"({tier_name}, {args.size} characters). All prior progress on this account was discarded."
     )
+    print(f"  {link}")
 
 
 if __name__ == "__main__":
