@@ -702,20 +702,17 @@ class JuziEngine:
         return found_words
 
     @staticmethod
-    def _split_chinese_sentences(text: str) -> list:
-        """Splits after each sentence-ending punctuation mark, keeping it attached to the sentence before it."""
-        return [s.strip() for s in re.split(r'(?<=[\u3002\uff01\uff1f])', text.strip()) if s.strip()]
-
-    @staticmethod
-    def _split_english_sentences(text: str) -> list:
+    def _split_lines(text: str) -> list:
         """
-        Splits after '.', '!', or '?' followed by whitespace. A simple heuristic
-        (it will over-split on abbreviations like "Mr.") that only needs to be
-        right often enough to line up 1:1 with _split_chinese_sentences' count --
-        when it doesn't, import_text_locally falls back to saving the whole
-        paste as one sentence rather than mis-pairing.
+        Splits into non-empty, stripped lines. A paste with no newline is a
+        single paragraph and stays one entry (this returns a 1-item list);
+        a paste with one sentence per line is a list, and each line becomes
+        its own entry. This intentionally ignores sentence-ending punctuation
+        (\u3002\uff01\uff1f.!?) as a split point -- a paragraph like "\u6211\u559d\u8336\u3002\u7136\u540e\u6211\u4e0a\u73ed\u3002"
+        is one continuous thought the user chose not to break onto separate
+        lines, so it's saved as one sentence rather than fragmented.
         """
-        return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+        return [line.strip() for line in text.strip().splitlines() if line.strip()]
 
     def import_text_locally(self, raw_text: str, translation_text: str = "") -> dict:
         """
@@ -729,10 +726,11 @@ class JuziEngine:
         which generate_fresh_session overwrites wholesale on every new batch)
         that pick_hsk_sentences draws from alongside the built-in corpora, so
         a user's own imported material keeps resurfacing in practice. Both
-        texts are split into individual sentences and paired by position; if
-        the counts don't match (imperfect sentence-boundary detection on
-        either side), pairing is ambiguous, so the whole paste is saved as one
-        sentence instead of guessing an alignment.
+        texts are split by newline and paired by position -- a paragraph with
+        no line breaks stays one entry, while a list with one sentence per
+        line becomes one entry per line. If the line counts don't match
+        between the two texts, pairing is ambiguous, so the whole paste is
+        saved as one sentence instead of guessing an alignment.
         """
         chinese_chars = set(re.findall(r'[\u4e00-\u9fa5]', raw_text))
 
@@ -802,8 +800,8 @@ class JuziEngine:
             skipped_sentence_count = 0
             sentence_pairing_matched = None
             if translation_text and translation_text.strip():
-                chinese_sentences = self._split_chinese_sentences(raw_text)
-                english_sentences = self._split_english_sentences(translation_text)
+                chinese_sentences = self._split_lines(raw_text)
+                english_sentences = self._split_lines(translation_text)
                 sentence_pairing_matched = bool(chinese_sentences) and len(chinese_sentences) == len(english_sentences)
 
                 if sentence_pairing_matched:
