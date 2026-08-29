@@ -12,7 +12,6 @@ const state = {
     writer: null,
     writerToken: 0,
     skippedIndices: new Set(),
-    currentScorePenalty: 0,
     totalUnlockedCount: 0,
     totalDueCount: 0,
     ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
@@ -286,7 +285,6 @@ function loadSession() {
     state.charIndex = 0;
     state.hintTier = 0;
     state.charMistakes = 0;
-    state.currentScorePenalty = 0;
     state.skippedIndices = new Set();
 
     advancePastPunctuation();
@@ -613,15 +611,12 @@ function handleHintEscalation() {
     const targetChar = chineseChars[state.charIndex];
 
     if (state.hintTier === 1) {
-        state.currentScorePenalty = Math.max(state.currentScorePenalty, 1);
         showPinyinPush(targetChar, currentSentence, state.charIndex);
     } else if (state.hintTier === 2) {
-        state.currentScorePenalty = Math.max(state.currentScorePenalty, 2);
         if (state.writer) {
             state.writer.showOutline();
         }
     } else if (state.hintTier >= 3) {
-        state.currentScorePenalty = 3;
         if (state.writer) {
             // Tier 3: Master Class stroke walkthrough.
             //
@@ -675,13 +670,41 @@ function showPinyinPush(char, sentenceObj, charIndex) {
 
 /**
  * Clears the active character canvas so the user can retry writing from scratch.
+ *
+ * Clear resets the canvas, not the help already earned. setupCurrentCharacterWriter
+ * rebuilds the writer from scratch, which wipes the pinyin text and the outline,
+ * so hints bought at tiers 1 and 2 silently vanished -- while state.hintTier kept
+ * charging for them in the SM-2 grade. The user paid and got nothing back.
+ *
+ * Restoring them rather than resetting the tier is the deliberate direction: the
+ * opposite fix would make Clear a way to launder hints into a clean score, the
+ * same reason charMistakes is not reset here either.
  */
 function handleClearCanvas() {
     if (state.isCompleted) return;
-    if (state.writer) {
-        state.writer.cancelQuiz();
-        setupCurrentCharacterWriter();
-    }
+    if (!state.writer) return;
+
+    state.writer.cancelQuiz();
+    setupCurrentCharacterWriter();
+    reapplyEarnedHints();
+}
+
+/**
+ * Puts back the hint tiers already earned for the current character after the
+ * canvas has been rebuilt. Tier 3's walkthrough is deliberately not replayed --
+ * it is an animation, not a persistent state, and re-running it on every Clear
+ * would trap the user watching it again before they could write.
+ */
+function reapplyEarnedHints() {
+    const currentSentence = state.sentences[state.currentIndex];
+    if (!currentSentence || state.hintTier < 1) return;
+
+    const chineseChars = Array.from(currentSentence.chinese);
+    const targetChar = chineseChars[state.charIndex];
+    if (targetChar === undefined) return;
+
+    showPinyinPush(targetChar, currentSentence, state.charIndex);
+    if (state.hintTier >= 2 && state.writer) state.writer.showOutline();
 }
 
 /**
@@ -893,7 +916,13 @@ async function handleGenerateSession() {
             state.sentences = result.sentences;
             state.currentIndex = 0;
             state.totalUnlockedCount = result.total_unlocked_count ?? state.totalUnlockedCount;
+            // The due badge has to move with the new batch too. It was left
+            // untouched here, so after generating sentences it kept showing
+            // whatever figure the page loaded with -- drifting further from
+            // the truth with every review until the next full refresh.
+            state.totalDueCount = result.total_due_count ?? state.totalDueCount;
             updateCharacterCounter();
+            updateDueCounter();
             elements.importModal.style.display = "none";
             loadSession();
         } else {

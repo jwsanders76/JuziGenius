@@ -48,7 +48,10 @@ def build():
             next_rank += 1
             added += 1
 
-    words["_metadata"] = {"total_words": next_rank - 1}
+    # Count the entries actually present rather than deriving it from the
+    # rank counter: the two agree only while nothing is ever removed, and
+    # a stale total is worse than no total.
+    words["_metadata"] = {"total_words": sum(1 for w in words if not w.startswith("_"))}
     return words, added
 
 

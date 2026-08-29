@@ -50,6 +50,23 @@ _TONE_MARKS = {"̄": 1, "́": 2, "̌": 3, "̀": 4}
 _NUMERIC_NEIGHBOURS = set("零一二三四五六七八九十百千万亿两")
 
 
+def _due_ratio(chinese: str, due_set: set) -> float:
+    """
+    What proportion of a sentence's characters are due for review.
+
+    A proportion rather than a count, because a count is really a length
+    measurement in disguise: with a due queue of any size nearly every
+    sentence contains several due characters, so ranking by count reliably
+    picks the longest sentence available (measured: 10.3 average characters
+    picked against 6.0 available). Density asks the question actually worth
+    asking -- how much of this sentence is practice I need right now.
+    """
+    hanzi = [c for c in chinese if "一" <= c <= "鿿"]
+    if not hanzi:
+        return 0.0
+    return sum(1 for c in hanzi if c in due_set) / len(hanzi)
+
+
 class JuziEngine:
     def __init__(self, brain_path="brain.json", words_path="words_freq.json", master_dict_path="master_dictionary.json"):
         self.brain_path = brain_path
@@ -389,13 +406,37 @@ class JuziEngine:
             if quality < 3:
                 # A lapse always counts, including a same-day repeat.
                 reps = 0
-                interval = 1
+                # interval 0, not 1, so the character comes back into the due
+                # set *today* rather than tomorrow. With interval 1 and `last`
+                # stamped today, get_due_characters computes last + 1 day >
+                # today and drops it -- so failing a character removed it from
+                # today's practice, which is precisely backwards: the one
+                # character the learner just demonstrably could not write was
+                # the one thing excluded from the rest of the session. SM-2
+                # schedules a lapse for immediate re-study, and
+                # pick_hsk_sentences biases toward due characters, so 0 puts
+                # it back in front of them within the same sitting. The next
+                # successful review takes the reps == 0 branch and sets the
+                # interval to 1 as usual, so nothing downstream changes.
+                interval = 0
                 factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
                 factor = max(1.3, factor)
-            elif already_reviewed_today:
+            elif already_reviewed_today and reps > 0:
                 # Successful repeat on a day already credited: no schedule
                 # change, and no ease bump either (that would inflate the
                 # multiplier for every later review just as badly).
+                #
+                # `reps > 0` exempts a character that LAPSED earlier today,
+                # which is a different situation wearing the same clothes.
+                # A lapse sets reps to 0 and interval to 0 so the character
+                # returns to practice immediately; if the guard also blocked
+                # its recovery, writing it correctly afterwards would change
+                # nothing and it would sit at interval 0 for the rest of the
+                # day however well the learner then performed -- re-queued
+                # with no way out. Letting the recovery through graduates it
+                # to interval 1 exactly once (the next same-day success has
+                # reps == 1 and takes this branch again), so the compounding
+                # this guard exists to prevent still cannot happen.
                 return {
                     "char": char,
                     "reps": reps,
@@ -850,6 +891,19 @@ class JuziEngine:
         those two groups, sentences that reuse characters currently due for
         SM-2 review are preferred over ones that don't, so practice
         naturally reinforces what's due.
+
+        That preference is measured as a *proportion* of the sentence, not a
+        raw count of due characters. Counting hits made length the dominant
+        term by accident: a 12-character sentence mentioning four due
+        characters outranked a 4-character sentence made entirely of them,
+        because 4 > 1. With a due queue of any real size almost every
+        sentence contains several due characters, so ranking by count
+        degenerated into "always serve the longest sentence available" --
+        measured on a 111-character pool, picks averaged 10.3 characters
+        against a 6.0 average for the sentences actually available, and every
+        pick sat at or near the 12-character maximum. That is exactly
+        backwards for a beginner, who has the smallest unlocked pool and the
+        least business being handed the longest sentences in it.
         """
         unlocked = self.load_unlocked_chars()
         if not unlocked:
@@ -868,8 +922,9 @@ class JuziEngine:
                 continue
             if all(c in unlocked_set or c in allowed_punct for c in chinese):
                 seen_chinese.add(chinese)
-                due_hits = sum(1 for c in chinese if c in due_set)
-                candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits, "_personal": True})
+                candidates.append({"english": english, "chinese": chinese,
+                                   "_due_ratio": _due_ratio(chinese, due_set),
+                                   "_personal": True})
 
         for filename in SENTENCE_SOURCE_FILES:
             if not os.path.exists(filename):
@@ -884,15 +939,18 @@ class JuziEngine:
                             continue
                         if all(c in unlocked_set or c in allowed_punct for c in chinese):
                             seen_chinese.add(chinese)
-                            due_hits = sum(1 for c in chinese if c in due_set)
-                            candidates.append({"english": english, "chinese": chinese, "_due_hits": due_hits, "_personal": False})
+                            candidates.append({"english": english, "chinese": chinese,
+                                               "_due_ratio": _due_ratio(chinese, due_set),
+                                               "_personal": False})
             except Exception as e:
                 print(f"Warning: could not read {filename}: {e}")
 
+        # Shuffle first so that sentences tying on the sort key come back in a
+        # different order each time rather than in corpus order.
         random.shuffle(candidates)
-        candidates.sort(key=lambda c: (c["_personal"], c["_due_hits"]), reverse=True)
+        candidates.sort(key=lambda c: (c["_personal"], c["_due_ratio"]), reverse=True)
         for c in candidates:
-            del c["_due_hits"]
+            del c["_due_ratio"]
             del c["_personal"]
         return candidates[:count]
 
@@ -935,7 +993,12 @@ class JuziEngine:
 
             return {
                 "sentences": brain_data.get("sentences", []),
-                "total_unlocked_count": len(unlocked_chars)
+                "total_unlocked_count": len(unlocked_chars),
+                # Returned so the "Due: N" badge can refresh with the new
+                # batch. Without it the frontend had no due figure to apply
+                # and left the badge showing whatever it read at page load,
+                # which drifts further from the truth with every review.
+                "total_due_count": len(self.get_due_characters(unlocked_chars)),
             }
 
 if __name__ == "__main__":
