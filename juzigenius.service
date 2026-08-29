@@ -10,14 +10,15 @@
 # Adjust User= and WorkingDirectory= below if you didn't clone the repo to
 # /home/deploy/JuziGenius under a user named "deploy".
 #
-# JUZI_BIND_HOST=127.0.0.1 keeps plain-HTTP port 8000 reachable only from
-# Caddy on this same machine -- see the note on that variable in server.py.
+# JUZI_BIND_HOST defaults to 127.0.0.1 already (see server.py), so plain-HTTP
+# port 8000 is reachable only from Caddy on this same machine. The line below
+# is set explicitly anyway so the deployed behavior doesn't silently change
+# if that default is ever revisited.
 #
-# JUZI_REQUIRE_SLUG=1 disables the default single-user account at the bare
-# domain, so a visitor to the apex URL can't read/write whoever's data lives
-# in the top-level brain.json -- see the note on that variable in server.py.
-# Create your own /u/<slug>/ account (create_user.py) rather than relying on
-# the bare domain once this is set.
+# The bare domain is locked to a landing page by default (no login, no
+# default account) unless JUZI_ALLOW_DEFAULT_ACCOUNT=1 is set -- see server.py.
+# Create your own /u/<slug>/ account with create_user.py rather than setting
+# that variable.
 
 [Unit]
 Description=JuziGenius backend (server.py)
@@ -28,7 +29,6 @@ Type=simple
 User=deploy
 WorkingDirectory=/home/deploy/JuziGenius
 Environment=JUZI_BIND_HOST=127.0.0.1
-Environment=JUZI_REQUIRE_SLUG=1
 ExecStart=/usr/bin/python3 server.py
 Restart=on-failure
 RestartSec=5
