@@ -22,6 +22,15 @@ const state = {
 
 const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected" };
 
+// When the page is served at /u/<slug>/, every API call must carry that
+// same prefix so the server routes it to that friend's own brain.json
+// instead of the shared default one. Empty string (no prefix) for a plain
+// single-user install at the site root, so this stays a no-op there.
+const API_BASE = (() => {
+    const match = window.location.pathname.match(/^\/u\/([A-Za-z0-9_-]{16,})(?:\/|$)/);
+    return match ? `/u/${match[1]}` : "";
+})();
+
 // Speed of the tier-3 stroke walkthrough. Set on the writer at creation time
 // rather than passed to animateCharacter(), which ignores per-call speed.
 const HINT_WALKTHROUGH_SPEED = 4.5;
@@ -46,7 +55,7 @@ const STROKE_DATA_CDN = "https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1";
  * which is the difference between a readable message and a blank canvas.
  */
 function loadCharacterStrokes(char, onComplete, onError) {
-    fetch(`/api/strokes?char=${encodeURIComponent(char)}`)
+    fetch(`${API_BASE}/api/strokes?char=${encodeURIComponent(char)}`)
         .then(response => {
             if (response.ok) return response.json();
             if (response.status === 404) return null;   // not vendored
@@ -224,7 +233,7 @@ function initEventListeners() {
 async function fetchNewSession() {
     elements.englishPrompt.textContent = "Loading session from offline bank...";
     try {
-        const response = await fetch('/api/session');
+        const response = await fetch(`${API_BASE}/api/session`);
         if (!response.ok) throw new Error("Failed to fetch session from backend engine.");
         
         const data = await response.json();
@@ -500,7 +509,7 @@ function mistakePenalty(mistakes) {
  */
 function submitCharacterReview(char, hintTier, mistakes = 0) {
     const quality = Math.max(2, 5 - hintTier - mistakePenalty(mistakes));
-    fetch('/api/character/review', {
+    fetch(`${API_BASE}/api/character/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ char, quality })
@@ -541,7 +550,7 @@ function triggerSentenceCompletion() {
     if (container) {
         container.innerHTML = `
             <div class="victory-card">
-                <img src="avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
+                <img src="/avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
                 <button id="btn-next" class="btn-next">Next Sentence →</button>
             </div>
@@ -705,7 +714,7 @@ async function loadSuggestions() {
     elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Loading suggestions...</p>`;
 
     try {
-        const response = await fetch('/api/suggestions');
+        const response = await fetch(`${API_BASE}/api/suggestions`);
         if (!response.ok) throw new Error("Failed to fetch word suggestions.");
         const data = await response.json();
         renderSuggestions(data.suggestions || []);
@@ -771,7 +780,7 @@ async function handleAddSuggestedWords() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch('/api/suggestions/add', {
+        const response = await fetch(`${API_BASE}/api/suggestions/add`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ words })
@@ -822,7 +831,7 @@ async function handleTextImport() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch('/api/import', {
+        const response = await fetch(`${API_BASE}/api/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, translation })
@@ -860,7 +869,7 @@ async function handleGenerateSession() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch('/api/session/generate', {
+        const response = await fetch(`${API_BASE}/api/session/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})

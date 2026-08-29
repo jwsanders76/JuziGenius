@@ -1,0 +1,39 @@
+# JuziGenius Caddyfile
+#
+# Terminates HTTPS and reverse-proxies to server.py's plain-HTTP backend on
+# 127.0.0.1:8000. Caddy obtains and renews a Let's Encrypt certificate
+# automatically for whatever domain is used as the site address below --
+# no manual certificate handling needed.
+#
+# --- One-time setup on the actual public host (not a dev machine) ---
+#   1. Point your domain's DNS A (and/or AAAA) record at this host's public
+#      IP. Let's Encrypt validates over port 80, so that has to already
+#      resolve before Caddy can issue a certificate.
+#   2. Open/forward ports 80 and 443 to this host.
+#   3. Install Caddy (Debian/Ubuntu, official repo -- see
+#      https://caddyserver.com/docs/install#debian-ubuntu-raspbian):
+#        sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+#        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+#        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+#        sudo apt update && sudo apt install caddy
+#      (The Debian package's systemd unit already runs Caddy with the
+#      capability to bind ports 80/443 without running fully as root.)
+#   4. Replace "your-domain.example.com" below with your real domain.
+#   5. Run JuziGenius's server.py with JUZI_BIND_HOST=127.0.0.1, so plain-HTTP
+#      port 8000 is reachable only from Caddy on this same host -- not
+#      directly from the internet in parallel with HTTPS:
+#        JUZI_BIND_HOST=127.0.0.1 python3 server.py
+#      (Worth running under its own systemd unit so it survives a reboot;
+#      an ordinary service file, not covered here.)
+#   6. sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# --- Testing locally, before you have a domain ---
+# Swap the site address below for ":8443" and add "tls internal" inside the
+# block to get a self-signed cert Caddy trusts on this machine (other
+# browsers will still warn -- it's not a publicly trusted CA). That's
+# enough to confirm the reverse proxy, and JuziGenius's own CSRF Host/Origin
+# check, work together before real DNS is in place.
+
+your-domain.example.com {
+	reverse_proxy 127.0.0.1:8000
+}

@@ -1,0 +1,30 @@
+# JuziGenius backend systemd unit -- keeps server.py running and
+# auto-restarts it on crash or reboot, sitting behind Caddy (see Caddyfile).
+#
+# Deploy steps on the host:
+#   sudo cp juzigenius.service /etc/systemd/system/juzigenius.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now juzigenius
+#   sudo systemctl status juzigenius
+#
+# Adjust User= and WorkingDirectory= below if you didn't clone the repo to
+# /home/deploy/JuziGenius under a user named "deploy".
+#
+# JUZI_BIND_HOST=127.0.0.1 keeps plain-HTTP port 8000 reachable only from
+# Caddy on this same machine -- see the note on that variable in server.py.
+
+[Unit]
+Description=JuziGenius backend (server.py)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/home/deploy/JuziGenius
+Environment=JUZI_BIND_HOST=127.0.0.1
+ExecStart=/usr/bin/python3 server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

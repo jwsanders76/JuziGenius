@@ -1,10 +1,18 @@
 import http.server
 import json
 import os
+import re
+import threading
 import urllib.parse
 from juzi_engine import JuziEngine
 
 PORT = 8000
+
+# Matches the /u/<slug>/... prefix used to route a request to one friend's
+# own isolated brain.json instead of the shared default one (see
+# get_engine_for_slug below). Anchored and length-floored so a malformed or
+# short guess never reaches the filesystem as a path component.
+USER_PREFIX_RE = re.compile(r"^/u/([A-Za-z0-9_-]{16,})(/.*)?$")
 
 # No POST body may legitimately need more than this -- even a whole novel
 # chapter pasted into Paste Text is a few hundred KB. Without a cap, do_POST
@@ -30,7 +38,46 @@ ALLOWED_STATIC_PATHS = {
 
 STROKE_DATA_PATH = "stroke_data.json"
 
-engine = JuziEngine()
+# The engine you get when you hit the server with no /u/<slug>/ prefix --
+# your own single-user local instance, unchanged from before multi-user
+# hosting existed.
+default_engine = JuziEngine()
+
+# Per-friend engines, one per provisioned /u/<slug>/ account, cached across
+# requests so each friend's brain.json is only opened/parsed once per
+# process rather than on every call. Guarded by engines_lock: server.py runs
+# on ThreadingHTTPServer, so two requests for the same brand-new slug could
+# otherwise race past the "not yet cached" check together and each construct
+# its own JuziEngine -- two separate brain_lock RLocks guarding the same
+# on-disk file, which reopens exactly the lost-update race brain_lock exists
+# to close.
+USERS_DIR = "users"
+engines = {}
+engines_lock = threading.Lock()
+
+
+def get_engine_for_slug(slug):
+    """
+    Resolves a /u/<slug>/ URL to that friend's own isolated JuziEngine (their
+    own brain.json under users/<slug>/), caching instances across requests.
+
+    Deliberately does NOT create users/<slug>/ on demand -- only
+    create_user.py provisions accounts. If it auto-vivified a fresh (empty,
+    unseeded) account for any request whose slug merely matches the format
+    regex, a scanner hammering random /u/<guess>/ paths would litter the
+    disk with junk directories, and "provisioned" would stop meaning
+    anything. A slug that hasn't been created returns None (the caller 404s),
+    same as any other guess.
+    """
+    with engines_lock:
+        if slug in engines:
+            return engines[slug]
+        user_dir = os.path.join(USERS_DIR, slug)
+        if not os.path.isdir(user_dir):
+            return None
+        engine = JuziEngine(brain_path=os.path.join(user_dir, "brain.json"))
+        engines[slug] = engine
+        return engine
 
 # Vendored Hanzi Writer stroke data, loaded once on first use and held in
 # memory. This is what makes handwriting work offline: without it the library
@@ -68,6 +115,47 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
 
+        user_match = USER_PREFIX_RE.match(path)
+        if user_match:
+            engine = get_engine_for_slug(user_match.group(1))
+            if engine is None:
+                self.send_response(404)
+                self.end_headers()
+                return
+            sub_path = user_match.group(2) or "/"
+            if sub_path in ("/", "/index.html"):
+                # Same page, served under the friend's own URL -- app.js
+                # figures out which account it's talking to from
+                # location.pathname (see API_BASE), so there's nothing
+                # per-user to inject into the HTML itself.
+                self.path = "/index.html"
+                return super().do_GET()
+            if self._handle_api_get(sub_path, engine):
+                return
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        if self._handle_api_get(path, default_engine):
+            return
+
+        # Refuse to serve anything not explicitly whitelisted (blocks config.py,
+        # brain.json, .git, hanzi_db.csv, etc. from being fetched over the network)
+        if path not in ALLOWED_STATIC_PATHS:
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        return super().do_GET()
+
+    def _handle_api_get(self, path, engine):
+        """
+        Handles the API GET routes against a resolved `engine` -- either the
+        default single-user one or a specific friend's, via
+        get_engine_for_slug. Returns True if `path` was one of these routes
+        (a response has already been sent), False otherwise so the caller
+        can fall through to static-file serving or 404.
+        """
         # Intercept API requests for offline session sentence loading
         if path == "/api/session":
             try:
@@ -113,13 +201,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(response_payload, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
         # Suggests the highest-frequency compound words not yet added to the
         # user's vocabulary, for the "Suggest Words" modal tab.
@@ -130,18 +218,20 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps({"suggestions": suggestions}, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
         # Serves one character's stroke-order data out of the vendored
         # stroke_data.json, replacing Hanzi Writer's default per-character
         # fetch to cdn.jsdelivr.net. A 404 here is not an error: app.js reads
-        # it as "not vendored" and falls back to the CDN.
+        # it as "not vendored" and falls back to the CDN. Shared reference
+        # data, not per-user, so `engine` is unused here -- every account
+        # reads the same vendored stroke set.
         if path == "/api/strokes":
             try:
                 params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -153,7 +243,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps({"error": "No vendored stroke data."}).encode("utf-8"))
-                    return
+                    return True
 
                 payload = json.dumps(entry, ensure_ascii=False).encode("utf-8")
                 self.send_response(200)
@@ -164,22 +254,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "public, max-age=31536000, immutable")
                 self.end_headers()
                 self.wfile.write(payload)
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
-        # Refuse to serve anything not explicitly whitelisted (blocks config.py,
-        # brain.json, .git, hanzi_db.csv, etc. from being fetched over the network)
-        if path not in ALLOWED_STATIC_PATHS:
-            self.send_response(404)
-            self.end_headers()
-            return
-
-        return super().do_GET()
+        return False
 
     def _csrf_check_failed(self):
         """Rejects cross-origin POSTs. Without this, any page the user has open in
@@ -258,6 +341,34 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if self._csrf_check_failed():
             return
 
+        user_match = USER_PREFIX_RE.match(path)
+        if user_match:
+            engine = get_engine_for_slug(user_match.group(1))
+            if engine is None:
+                self.send_response(404)
+                self.end_headers()
+                return
+            sub_path = user_match.group(2) or "/"
+            if self._handle_api_post(sub_path, engine):
+                return
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        if self._handle_api_post(path, default_engine):
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def _handle_api_post(self, path, engine):
+        """
+        Handles the API POST routes against a resolved `engine` -- either the
+        default single-user one or a specific friend's, via
+        get_engine_for_slug. Returns True if `path` was one of these routes
+        (a response has already been sent), False otherwise so the caller
+        can 404.
+        """
         # Intercept POST requests for importing raw text/sentences locally.
         # Body: { "text": "<chinese>", "translation": "<optional english>" }
         # When translation is given, matching sentences are also saved to
@@ -266,7 +377,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 body = self._read_json_body_or_reject()
                 if body is None:
-                    return
+                    return True
                 data = json.loads(body)
                 raw_text = data.get("text", "")
                 translation_text = data.get("translation", "")
@@ -278,13 +389,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
         # Generates a brand new batch of real HSK/Tatoeba example sentences,
         # replacing the saved bank. No body fields required.
@@ -292,7 +403,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 body = self._read_json_body_or_reject()
                 if body is None:
-                    return
+                    return True
 
                 # 3 keeps each batch focused rather than exhausting
                 # due/relevant sentences in one go.
@@ -302,13 +413,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(502)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
         # Adds user-selected words from the "Suggest Words" tab to brain.json.
         # Body: { "words": ["谢谢", "再见", ...] }
@@ -316,7 +427,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 body = self._read_json_body_or_reject()
                 if body is None:
-                    return
+                    return True
                 data = json.loads(body) if body else {}
                 words = data.get("words", [])
 
@@ -326,13 +437,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
         # Grades one completed character quiz and advances its SM-2
         # scheduling fields (interval/factor/reps/last) in brain.json.
@@ -341,7 +452,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 body = self._read_json_body_or_reject()
                 if body is None:
-                    return
+                    return True
                 data = json.loads(body) if body else {}
 
                 char = data.get("char", "")
@@ -356,26 +467,31 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return
+                return True
             except ValueError as e:
                 # Missing field or unknown character -- a client error, not a server error
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return
+                return True
 
-        self.send_response(404)
-        self.end_headers()
+        return False
 
 if __name__ == "__main__":
-    server_address = ("", PORT)
+    # Empty string (default) binds all interfaces, same as always -- what
+    # LAN-tablet/phone use needs. When this server sits behind Caddy (see
+    # the Caddyfile) on a publicly reachable host, set JUZI_BIND_HOST=127.0.0.1
+    # so plain-HTTP port 8000 is reachable only from Caddy's reverse proxy on
+    # the same machine, not directly from the internet in parallel with it.
+    bind_host = os.environ.get("JUZI_BIND_HOST", "")
+    server_address = (bind_host, PORT)
     # ThreadingHTTPServer, not HTTPServer: the plain version handles one
     # connection at a time on its single main thread, so one slow or
     # malicious connection (e.g. a request that declares a large body and
@@ -385,5 +501,6 @@ if __name__ == "__main__":
     # brain.json access is guarded by JuziEngine.brain_lock (see there) so
     # concurrent requests can't race on its read-modify-write.
     httpd = http.server.ThreadingHTTPServer(server_address, JuziAPIHandler)
-    print(f"JuziGenius Server running locally at http://localhost:{PORT}")
+    display_host = bind_host or "localhost"
+    print(f"JuziGenius Server running at http://{display_host}:{PORT}")
     httpd.serve_forever()

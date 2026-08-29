@@ -619,12 +619,13 @@ class JuziEngine:
         Picks real example sentences -- from the hand-curated HSK corpora, the
         larger Tatoeba-derived corpus, and the user's own saved pasted
         sentences -- whose characters are entirely within the user's currently
-        unlocked pool. No AI, no network call, no API key required. Among
-        equally-due candidates, the user's own pasted sentences are preferred
-        (real content they chose to study), and sentences that reuse
-        characters currently due for SM-2 review are preferred over ones that
-        don't, so practice naturally reinforces what's due instead of
-        drifting toward whatever the corpus happens to contain.
+        unlocked pool. No AI, no network call, no API key required. The
+        user's own pasted sentences are always ranked ahead of corpus
+        sentences (real content they chose to study takes priority over
+        anything the offline corpus happens to contain); within each of
+        those two groups, sentences that reuse characters currently due for
+        SM-2 review are preferred over ones that don't, so practice
+        naturally reinforces what's due.
         """
         unlocked = self.load_unlocked_chars()
         if not unlocked:
@@ -665,7 +666,7 @@ class JuziEngine:
                 print(f"Warning: could not read {filename}: {e}")
 
         random.shuffle(candidates)
-        candidates.sort(key=lambda c: (c["_due_hits"], c["_personal"]), reverse=True)
+        candidates.sort(key=lambda c: (c["_personal"], c["_due_hits"]), reverse=True)
         for c in candidates:
             del c["_due_hits"]
             del c["_personal"]

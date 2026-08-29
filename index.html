@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JuziGenius (句子Genius)</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
     <!-- Hanzi Writer, vendored locally so handwriting works with no network.
          Stroke data is served from stroke_data.json via /api/strokes -- see
          charDataLoader in app.js and fetch_stroke_data.py. -->
-    <script src="vendor/hanzi-writer.min.js"></script>
+    <script src="/vendor/hanzi-writer.min.js"></script>
 </head>
 <body>
     <div id="app-container">
@@ -18,7 +18,7 @@
             
             <div id="top-bar-center">
                 <div id="character-counter" title="Total unique characters unlocked in your database">
-                    <img src="avatar-nobg-128.png" alt="Juzi Mascot" class="mascot-avatar-small" />
+                    <img src="/avatar-nobg-128.png" alt="Juzi Mascot" class="mascot-avatar-small" />
                     <span>Unlocked: <strong id="counter-value">0</strong></span>
                 </div>
 
@@ -102,6 +102,6 @@
     </div>
 
     <!-- Main Controller Logic -->
-    <script src="app.js"></script>
+    <script src="/app.js"></script>
 </body>
 </html>
