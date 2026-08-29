@@ -1178,24 +1178,38 @@ class JuziEngine:
 
         # Study stages. Thresholds follow the usual spaced-repetition reading:
         # under a week is still being learned, under three weeks is holding but
-        # not proven, beyond that is genuinely retained.
+        # not proven, beyond that is genuinely retained. Built in the same pass
+        # as `character_list` below (the per-character "what have I learned"
+        # refresher view) so the stage-threshold logic exists in one place.
         stages = {"new": 0, "learning": 0, "young": 0, "mature": 0}
         factors, intervals = [], []
         forecast = {}
+        character_list = []
         for char, meta in unlocked.items():
             last = meta.get("last")
             interval = meta.get("interval", 0) or 0
             if not last:
-                stages["new"] += 1
+                stage = "new"
+            elif interval < 7:
+                stage = "learning"
+            elif interval < 21:
+                stage = "young"
+            else:
+                stage = "mature"
+            stages[stage] += 1
+
+            character_list.append({
+                "char": char,
+                "pinyin": meta.get("pinyin", ""),
+                "meaning": meta.get("meaning", ""),
+                "stage": stage,
+                "freq": master.get(char, {}).get("freq"),
+            })
+
+            if not last:
                 continue
             factors.append(meta.get("factor", 2.5) or 2.5)
             intervals.append(interval)
-            if interval < 7:
-                stages["learning"] += 1
-            elif interval < 21:
-                stages["young"] += 1
-            else:
-                stages["mature"] += 1
             try:
                 next_due = date.fromisoformat(last) + timedelta(days=interval)
             except ValueError:
@@ -1203,6 +1217,13 @@ class JuziEngine:
             offset = (next_due - today).days
             if 0 < offset <= 14:
                 forecast[offset] = forecast.get(offset, 0) + 1
+
+        # Most-common-first -- the same ordering the frequency-coverage bars
+        # above use, and the most useful order for a "what have I learned"
+        # skim: characters you'll actually encounter soonest come first.
+        # Characters absent from master_dictionary's freq data (rare, but the
+        # dictionary isn't guaranteed exhaustive) sort last rather than first.
+        character_list.sort(key=lambda c: (c["freq"] if c["freq"] is not None else float("inf"), c["char"]))
 
         # Coverage of the frequency list: the headline number for this app.
         ranked = [(meta.get("freq"), char) for char, meta in master.items()
@@ -1241,6 +1262,7 @@ class JuziEngine:
             "playable_sentences": self.count_playable_sentences(set(unlocked)),
             "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
                          for d in range(1, 15)],
+            "characters": character_list,
         }
 
     def count_playable_sentences(self, unlocked_set: set) -> int:

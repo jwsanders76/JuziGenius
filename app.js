@@ -182,14 +182,17 @@ function cacheDomElements() {
     elements.modalBtnSubmit = document.getElementById("modal-btn-submit");
     elements.importTextarea = document.getElementById("import-textarea");
     elements.importTranslationTextarea = document.getElementById("import-translation-textarea");
-    elements.modeTabs = document.querySelectorAll(".mode-tab");
-    elements.modePanels = document.querySelectorAll(".mode-panel");
+    elements.modeTabs = elements.importModal.querySelectorAll(".mode-tab");
+    elements.modePanels = elements.importModal.querySelectorAll(".mode-panel");
     elements.suggestionsList = document.getElementById("suggestions-list");
     elements.charSuggestionsList = document.getElementById("char-suggestions-list");
     elements.backlogNote = document.getElementById("backlog-note");
     elements.btnProgress = document.getElementById("btn-progress");
     elements.progressModal = document.getElementById("progress-modal");
     elements.progressBody = document.getElementById("progress-body");
+    elements.progressCharacters = document.getElementById("progress-characters");
+    elements.progressTabs = elements.progressModal.querySelectorAll(".mode-tab");
+    elements.progressPanels = elements.progressModal.querySelectorAll(".mode-panel");
     elements.progressBtnClose = document.getElementById("progress-btn-close");
 
     elements.onboardingModal = document.getElementById("onboarding-modal");
@@ -221,6 +224,9 @@ function initEventListeners() {
             if (elements.progressModal) elements.progressModal.style.display = "none";
         });
     }
+    elements.progressTabs.forEach(tab => {
+        tab.addEventListener("click", () => switchProgressTab(tab.dataset.progressTab));
+    });
 
     // Import Modal Event Listeners
     if (elements.btnImport) {
@@ -1426,16 +1432,31 @@ const FORECAST_COLOR = "#d95926";   // 3.86:1
 async function openProgressView() {
     if (!elements.progressModal) return;
     elements.progressModal.style.display = "flex";
+    switchProgressTab("overview");
     elements.progressBody.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
 
     try {
         const response = await fetch(`${API_BASE}/api/progress`);
         if (!response.ok) throw new Error("Failed to load progress.");
-        renderProgress(await response.json());
+        const data = await response.json();
+        renderProgress(data);
+        renderProgressCharacters(data.characters || []);
     } catch (err) {
         console.error(err);
         elements.progressBody.innerHTML = `<p class="suggestions-empty">Could not load your progress.</p>`;
     }
+}
+
+/**
+ * Switches the Progress modal between its Overview and Characters tabs.
+ */
+function switchProgressTab(tab) {
+    elements.progressTabs.forEach(t => {
+        t.classList.toggle("active", t.dataset.progressTab === tab);
+    });
+    elements.progressPanels.forEach(panel => {
+        panel.hidden = panel.dataset.progressPanel !== tab;
+    });
 }
 
 function statTile(value, label, title) {
@@ -1581,6 +1602,38 @@ function renderProgress(p) {
                 and <strong>${p.unlocked_words.toLocaleString()}</strong> compound words recorded.
             </p>
         </section>
+    `;
+}
+
+/**
+ * The Characters tab: every unlocked character at a glance, sorted most-
+ * common-first (same order as the frequency-coverage bars), for a quick
+ * "what have I learned so far" refresher. Reuses STAGE_STYLE's colors so
+ * the left-edge color on each tile means the same thing it does in the
+ * Overview tab's Study stages legend.
+ */
+function renderProgressCharacters(characters) {
+    if (!elements.progressCharacters) return;
+
+    if (characters.length === 0) {
+        elements.progressCharacters.innerHTML = `<p class="suggestions-empty">Nothing unlocked yet -- import some text to get started.</p>`;
+        return;
+    }
+
+    const stageColor = Object.fromEntries(STAGE_STYLE.map(s => [s.key, s.color]));
+
+    const tiles = characters.map(c => {
+        const title = `${c.char}${c.pinyin ? ` — ${c.pinyin}` : ""}${c.meaning ? ` — ${c.meaning}` : ""}`;
+        return `<div class="char-tile" style="--stage-color:${stageColor[c.stage] || "transparent"}" title="${escapeAttr(title)}">
+            <div class="char-tile-hanzi">${escapeHtml(c.char)}</div>
+            <div class="char-tile-pinyin">${escapeHtml(c.pinyin || "")}</div>
+            <div class="char-tile-meaning">${escapeHtml(c.meaning || "")}</div>
+        </div>`;
+    }).join("");
+
+    elements.progressCharacters.innerHTML = `
+        <p class="progress-note">${characters.length.toLocaleString()} character${characters.length === 1 ? "" : "s"} unlocked, most common first.</p>
+        <div class="char-grid">${tiles}</div>
     `;
 }
 

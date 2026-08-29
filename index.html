@@ -151,9 +151,28 @@
     <div id="progress-modal" class="modal-overlay">
         <div class="modal-card progress-card">
             <h2 class="modal-title">Your Progress</h2>
-            <div id="progress-body" class="progress-body">
-                <p class="suggestions-empty">Loading…</p>
+
+            <div class="mode-tabs">
+                <button type="button" class="mode-tab active" data-progress-tab="overview">Overview</button>
+                <button type="button" class="mode-tab" data-progress-tab="characters">Characters</button>
             </div>
+
+            <!-- Stats, coverage, forecast -- the existing progress view. -->
+            <div class="mode-panel" data-progress-panel="overview">
+                <div id="progress-body" class="progress-body">
+                    <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
+            <!-- Every unlocked character at a glance, for a quick "what have I
+                 learned so far" refresher -- separated from Overview because
+                 that panel is already long. -->
+            <div class="mode-panel" data-progress-panel="characters" hidden>
+                <div id="progress-characters" class="progress-body">
+                    <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
             <div class="modal-actions">
                 <button id="progress-btn-close" class="modal-btn btn-primary">Close</button>
             </div>

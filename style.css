@@ -1023,6 +1023,44 @@ body {
     font-family: inherit;
 }
 
+/* --- Progress view: Characters tab --- */
+.char-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 8px;
+}
+
+.char-tile {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--stage-color, var(--border-color));
+    border-radius: 8px;
+    padding: 8px 4px 6px;
+    text-align: center;
+    overflow: hidden;
+}
+
+.char-tile-hanzi {
+    font-size: 1.35rem;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.char-tile-pinyin {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.char-tile-meaning {
+    font-size: 0.62rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 @media (max-width: 520px) {
     .char-suggestion-row {
         grid-template-columns: auto auto 1fr auto;
