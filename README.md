@@ -32,6 +32,7 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 - Character dictionary (`hanzi_db.csv`, backing `master_dictionary.json`): [ruddfawcett/hanziDB.csv](https://github.com/ruddfawcett/hanziDB.csv) (MIT), itself based on Jun Da's Modern Chinese Character Frequency List.
 - Character stroke data: [hanzi-writer-data](https://www.npmjs.com/package/hanzi-writer-data) (MIT).
 - Handwriting library (`vendor/hanzi-writer.min.js`): [Hanzi Writer](https://github.com/chanind/hanzi-writer) (MIT).
+- Context-aware pinyin readings (`pinyin_readings.json`, built by `build_pinyin_readings.py`): [pypinyin](https://github.com/mozillazg/python-pinyin) (MIT) — see `pypinyin_source.LICENSE.txt`. Used at build time only; the app reads the generated file and makes no network call.
 
 ## License
 MIT — see `LICENSE`.

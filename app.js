@@ -614,7 +614,7 @@ function handleHintEscalation() {
 
     if (state.hintTier === 1) {
         state.currentScorePenalty = Math.max(state.currentScorePenalty, 1);
-        showPinyinPush(targetChar, currentSentence);
+        showPinyinPush(targetChar, currentSentence, state.charIndex);
     } else if (state.hintTier === 2) {
         state.currentScorePenalty = Math.max(state.currentScorePenalty, 2);
         if (state.writer) {
@@ -652,14 +652,25 @@ function handleHintEscalation() {
     }
 }
 
-function showPinyinPush(char, sentenceObj) {
+function showPinyinPush(char, sentenceObj, charIndex) {
     const hintContainer = document.getElementById("hint-display-container");
     if (!hintContainer) return;
 
+    // Prefer char_pinyin, which is indexed by POSITION and so can hold a
+    // context-correct reading: 长 is cháng in 很长 but zhǎng in 长大, and a
+    // sentence containing both has only one slot for it in char_metadata,
+    // which is keyed by character. Fall back to char_metadata for a sentence
+    // saved before char_pinyin existed.
+    const positional = sentenceObj.char_pinyin && sentenceObj.char_pinyin[charIndex];
     const charMeta = sentenceObj.char_metadata && sentenceObj.char_metadata[char];
-    const pinyinResult = charMeta && charMeta.pinyin ? charMeta.pinyin : "pīn yīn";
-    
-    hintContainer.textContent = `Hint (Tier 1 Pinyin): ${pinyinResult}`;
+    const pinyinResult = positional || (charMeta && charMeta.pinyin) || "";
+
+    // No reading available. The old fallback here printed the literal string
+    // "pīn yīn", which reads as a real answer and teaches a nonsense one;
+    // saying so plainly is the honest degradation.
+    hintContainer.textContent = pinyinResult
+        ? `Hint (Tier 1 Pinyin): ${pinyinResult}`
+        : "Hint (Tier 1 Pinyin): unavailable for this character";
 }
 
 /**

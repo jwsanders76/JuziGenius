@@ -206,16 +206,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception as gen_err:
                         print(f"Session bootstrap notice: {gen_err}")
 
-                # Ensure existing sentences have char_metadata attached
+                # Backfill per-character hint data on sentences saved before it
+                # existed. char_pinyin (per-POSITION, context-aware -- see
+                # finding 10) is newer than char_metadata, so a bank written by
+                # an older build has the latter but not the former; rebuild
+                # whenever either is missing rather than only on char_metadata.
+                # Computed for the response only, not written back: the saved
+                # bank is rewritten wholesale on the next generated batch, and
+                # this GET deliberately holds no write lock.
                 for s in saved_sentences:
-                    if "char_metadata" not in s:
-                        s["char_metadata"] = {}
-                        for char in s.get("chinese", ""):
-                            if char in unlocked_chars:
-                                s["char_metadata"][char] = {
-                                    "pinyin": unlocked_chars[char].get("pinyin", ""),
-                                    "meaning": unlocked_chars[char].get("meaning", "")
-                                }
+                    if "char_metadata" not in s or "char_pinyin" not in s:
+                        engine.attach_char_data(s, unlocked_chars)
 
                 response_payload = {
                     "sentences": saved_sentences,
