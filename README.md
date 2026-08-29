@@ -29,7 +29,9 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 - HSK 1-3 example sentences: hand-curated (`hsk_level1and2_words_with_sentences.csv`, `hsk_level3_words_with_sentences.csv`).
 - HSK 4-6 vocabulary: [clem109/hsk-vocabulary](https://github.com/clem109/hsk-vocabulary) (MIT).
 - General sentence corpus (`tatoeba_sentences.csv`, filtered from `tatoeba_cmn_eng_source.tsv`): [Tatoeba Project](https://tatoeba.org), via [manythings.org/anki](https://www.manythings.org/anki/) — native-speaker, proofread sentence pairs — licensed [CC BY 2.0 (France)](https://creativecommons.org/licenses/by/2.0/). Per-sentence contributor attribution is preserved in `tatoeba_cmn_eng_source.tsv`.
+- Character dictionary (`hanzi_db.csv`, backing `master_dictionary.json`): [ruddfawcett/hanziDB.csv](https://github.com/ruddfawcett/hanziDB.csv) (MIT), itself based on Jun Da's Modern Chinese Character Frequency List.
 - Character stroke data: [hanzi-writer-data](https://www.npmjs.com/package/hanzi-writer-data) (MIT).
+- Handwriting library (`vendor/hanzi-writer.min.js`): [Hanzi Writer](https://github.com/chanind/hanzi-writer) (MIT).
 
 ## License
 MIT — see `LICENSE`.
