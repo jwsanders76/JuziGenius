@@ -9,7 +9,7 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 ## Setup
 1. Clone the repo. Everything runs on the Python 3 standard library — no `pip install` needed.
 2. Seed a starting vocabulary: `python3 seed_brain.py --size 5`. This creates your personal `brain.json`. Characters are picked for sentence coverage, not raw frequency, so the pool always closes over a set of complete sentences you can practice immediately.
-   - There are four tiers to grow into as you're ready — Tier 1 `--size 5` (First Characters, 7 playable sentences), Tier 2 `--size 50` (Elementary, 93 playable sentences), Tier 3 `--size 300` (Intermediate, 1,633 playable sentences), Tier 4 `--size 500` (Ready to Jump In, 3,358 playable sentences). Just re-run `seed_brain.py` with a bigger `--size` whenever you want to tier up; it only ever *adds* characters on top of what you've already unlocked, so none of your SRS practice progress is lost. Past Tier 4, keep growing your vocabulary in-app via Paste Text or Suggest Words.
+   - There are four tiers to grow into as you're ready — Tier 1 `--size 5` (First Characters, 7 playable sentences), Tier 2 `--size 50` (Elementary, 90 playable sentences), Tier 3 `--size 300` (Intermediate, 1,632 playable sentences), Tier 4 `--size 500` (Ready to Jump In, 3,357 playable sentences). Just re-run `seed_brain.py` with a bigger `--size` whenever you want to tier up; it only ever *adds* characters on top of what you've already unlocked, so none of your SRS practice progress is lost. Past Tier 4, keep growing your vocabulary in-app via Paste Text or Suggest Words.
 3. *(Optional)* The offline stroke-order database (`stroke_data.json`, ~3,300 characters) ships with the repo, so handwriting works offline straight from a clone — no build step. Re-run `python3 fetch_stroke_data.py` only if you want to widen the character set (`--all` vendors every character upstream has).
 4. Run the server: `python3 server.py`. It prints `http://localhost:8000` and also binds to your LAN, so you can open that same port from a tablet/phone on the same network.
 
@@ -19,11 +19,11 @@ Unlike most apps, JuziGenius uses a "Zero-Help" philosophy:
 - Text import with compound-word detection, backed by a 9,900-character dictionary and a 5,000+ word frequency corpus (HSK 1–6); optionally pair a pasted translation to save real sentences from your own reading into a persistent personal practice bank
 - "HSK Sentences" practice mode drawing on 17,400+ real sentences (hand-curated HSK 1-3 examples plus a large Tatoeba-derived corpus, filtered to your known vocabulary) — plus your own saved sentences. No AI, no network, no API keys anywhere in the app.
 - Audible reinforcement via native text-to-speech on sentence completion, with Replay and Switch Voice controls (cycles through installed Mandarin voices, favoring a male/female split when the device's voices support it)
+- **Suggest Characters** — the most frequently used characters you haven't unlocked yet, each showing how many practice sentences it immediately makes writable (a common character that completes no sentence buys you no practice today)
+- **Progress view** — frequency-list coverage ("you can write 40 of the 100 most common characters in Chinese"), HSK coverage, study stages, and a 14-day review forecast. Charts are hand-built in HTML and inline SVG; no chart library, so nothing here needs the network
+- New characters are introduced at a steady pace (default 15/day, `settings.daily_new_limit` in `brain.json`), most frequent first, so pasting a long text queues characters rather than dumping hundreds into review at once
+- **Installable (PWA)** — add it to a phone or tablet home screen and it opens like an app. The interface is cached and loads with no network; your practice data still comes from your own server, so start that to actually practice. Requires HTTPS or localhost, so a plain-`http://` LAN address will run it as an ordinary page (see the `Caddyfile` for HTTPS)
 - Spaced repetition scheduling (SM-2): each completed character quiz grades recall quality from the hint tier used and updates that character's schedule; practice sentences are biased toward characters currently due for review, and a "Due: N" badge in the top bar tracks it live. A character advances its schedule at most once per day — repeats within a session (the same character twice in one sentence, or a looped sentence bank) don't compound the interval — but a failed repeat still applies its lapse
-
-## What's not implemented yet
-- **Discuss / grammar breakdown:** placeholder button only.
-- **PWA installability:** runs as a plain page, not an installable/offline app.
 
 ## Data sources & attribution
 - HSK 1-3 example sentences: hand-curated (`hsk_level1and2_words_with_sentences.csv`, `hsk_level3_words_with_sentences.csv`).

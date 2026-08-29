@@ -92,17 +92,6 @@ body {
     color: white;
 }
 
-#btn-discuss {
-    background-color: rgba(41, 128, 185, 0.15);
-    border-color: rgba(41, 128, 185, 0.5);
-    color: #aed6f1;
-}
-
-#btn-discuss:hover {
-    background-color: var(--accent-blue);
-    color: white;
-}
-
 /* --- Character Progress Counter & Mascot Avatar --- */
 #top-bar-center {
     display: flex;

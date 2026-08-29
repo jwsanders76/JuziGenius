@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JuziGenius (句子Genius)</title>
+
+    <!-- Installable-app metadata. The manifest href is RELATIVE while every
+         other asset here is absolute, and that is deliberate: it resolves to
+         /manifest.json at the site root and /u/<slug>/manifest.json under a
+         hosted account, and the server generates each with its own start_url.
+         An absolute path here would hand every friend an installed icon that
+         opens the default account's data instead of their own. -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121214">
+    <meta name="description" content="Hardcore Mandarin handwriting practice with spaced repetition. Fully offline.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="JuziGenius">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="icon" href="/icon-192.png" type="image/png">
+
     <link rel="stylesheet" href="/style.css">
     <!-- Hanzi Writer, vendored locally so handwriting works with no network.
          Stroke data is served from stroke_data.json via /api/strokes -- see
@@ -12,7 +29,7 @@
 </head>
 <body>
     <div id="app-container">
-        <!-- Top Bar: Import (Left), Mascot Counter (Center), Discuss (Right) -->
+        <!-- Top Bar: Import (Left), Mascot Counter (Center), Progress (Right) -->
         <header id="top-bar">
             <button id="btn-import" class="top-btn" title="Import Chinese Text">Import</button>
             
@@ -32,7 +49,6 @@
             </div>
 
             <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
-            <button id="btn-discuss" class="top-btn" title="Discuss & Grammar Breakdown">Discuss</button>
         </header>
 
         <!-- Prompt Zone -->

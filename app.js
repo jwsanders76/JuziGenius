@@ -124,11 +124,37 @@ const elements = {};
 document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
+    registerServiceWorker();
     fetchNewSession();
     // Chrome loads its voice list asynchronously; kick it off early so it's
     // ready by the time a sentence completes and the victory card needs it.
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
 });
+
+/**
+ * Registers the service worker that makes JuziGenius installable and lets it
+ * open with no server reachable at all.
+ *
+ * Always registered at the site root, never at /u/<slug>/: one worker with
+ * root scope serves every account, and a per-account worker would fight the
+ * root one over the same shell assets. The account a page belongs to is
+ * decided by API_BASE, not by the worker.
+ *
+ * Requires a secure context -- HTTPS or localhost. Opening the app over plain
+ * http:// on a LAN IP (the tablet setup in the README) will skip this and run
+ * as an ordinary page, which is why the failure is logged rather than shown:
+ * it is expected there, and the app works fine without it.
+ */
+function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js", { scope: "/" })
+            .catch(err => console.info(
+                "Service worker not registered — the app still works, it just " +
+                "won't be installable from here. This is expected over plain " +
+                "http:// on a LAN address; a secure context is required.", err));
+    });
+}
 
 function cacheDomElements() {
     elements.englishPrompt = document.getElementById("english-prompt");
@@ -136,7 +162,6 @@ function cacheDomElements() {
     elements.canvasContainer = document.getElementById("tian-zi-ge");
     elements.btnClear = document.getElementById("btn-clear");
     elements.btnHint = document.getElementById("btn-hint");
-    elements.btnDiscuss = document.getElementById("btn-discuss");
     elements.btnImport = document.getElementById("btn-import");
     elements.counterValue = document.getElementById("counter-value");
     elements.dueCounter = document.getElementById("due-counter");
@@ -186,12 +211,6 @@ function initEventListeners() {
     if (elements.progressBtnClose) {
         elements.progressBtnClose.addEventListener("click", () => {
             if (elements.progressModal) elements.progressModal.style.display = "none";
-        });
-    }
-
-    if (elements.btnDiscuss) {
-        elements.btnDiscuss.addEventListener("click", () => {
-            alert("Sentence discussion and grammar breakdown feature coming soon!");
         });
     }
 
@@ -283,7 +302,15 @@ async function fetchNewSession() {
         }
     } catch (err) {
         console.error(err);
-        elements.englishPrompt.textContent = "Connection error with Python backend engine.";
+        // Now that the app is installable, it will be opened offline -- from a
+        // home screen, on a tablet whose host machine is asleep. The shell
+        // comes out of the service worker cache and renders fine, so the only
+        // thing missing is the session, and "Connection error with Python
+        // backend engine" is the wrong thing to tell someone in that moment:
+        // it reads as a fault when the app is working exactly as designed.
+        elements.englishPrompt.textContent = navigator.onLine
+            ? "Can't reach the JuziGenius server. Is it still running?"
+            : "You're offline. JuziGenius keeps your practice data on your own machine, so start the server and reconnect to continue.";
     }
 }
 

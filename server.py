@@ -34,9 +34,50 @@ ALLOWED_STATIC_PATHS = {
     "/", "/index.html", "/style.css", "/app.js",
     "/avatar-nobg-128.png", "/avatar-nobg.png",
     "/vendor/hanzi-writer.min.js",
+    # Installable-app assets. sw.js must be served from the root for its scope
+    # to cover /u/<slug>/ pages as well as the bare site.
+    "/sw.js", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
 }
 
 STROKE_DATA_PATH = "stroke_data.json"
+
+
+def build_manifest(start_url="/"):
+    """
+    The web app manifest, generated per request rather than served as a static
+    file, because `start_url` and `scope` have to differ per account: a friend
+    who installs from /u/<slug>/ must get an app that opens on THEIR practice
+    session, not on the default account's. A static manifest can only name one
+    start URL, so installing from a slug would have silently produced an icon
+    that opens somebody else's data.
+
+    `id` is pinned to the start URL for the same reason -- browsers key an
+    installed app by id, so two accounts installed on one device must not
+    collide into a single entry.
+    """
+    return {
+        "id": start_url,
+        "name": "JuziGenius \u53e5\u5b50Genius",
+        "short_name": "JuziGenius",
+        "description": "Hardcore Mandarin handwriting practice with spaced "
+                       "repetition. Fully offline: no AI, no accounts, no keys.",
+        "start_url": start_url,
+        "scope": start_url,
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#121214",
+        "theme_color": "#121214",
+        "categories": ["education"],
+        "lang": "en",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png",
+             "purpose": "any"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "any"},
+            {"src": "/icon-maskable-512.png", "sizes": "512x512",
+             "type": "image/png", "purpose": "maskable"},
+        ],
+    }
 
 # When true, the bare domain (no /u/<slug>/ prefix) serves nothing but the
 # shared static assets -- no default single-user account, no API. Set via
@@ -133,6 +174,9 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 return
             sub_path = user_match.group(2) or "/"
+            if sub_path == "/manifest.json":
+                self._send_manifest(f"/u/{user_match.group(1)}/")
+                return
             if sub_path in ("/", "/index.html"):
                 # Same page, served under the friend's own URL -- app.js
                 # figures out which account it's talking to from
@@ -163,6 +207,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 return
         elif self._handle_api_get(path, default_engine):
+            return
+
+        if path == "/manifest.json":
+            self._send_manifest("/")
             return
 
         # Refuse to serve anything not explicitly whitelisted (blocks config.py,
@@ -387,6 +435,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return True
 
         return False
+
+    def _send_manifest(self, start_url):
+        payload = json.dumps(build_manifest(start_url),
+                             ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/manifest+json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _send_json_error(self, status, message):
         self.send_response(status)
