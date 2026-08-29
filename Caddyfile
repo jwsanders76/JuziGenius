@@ -20,8 +20,9 @@
 #      capability to bind ports 80/443 without running fully as root.)
 #   4. Replace both "your-domain.example.com" placeholders below with your
 #      real domain (apex and www). Make sure DNS has an A record for both
-#      names -- Let's Encrypt issues one cert covering everything listed
-#      on the site address line, but only for names that actually resolve.
+#      names -- each site block below gets its own cert, and Let's Encrypt
+#      only issues one for a name that actually resolves. The www block
+#      redirects to the apex, which is the canonical URL.
 #   5. Run JuziGenius's server.py with JUZI_BIND_HOST=127.0.0.1, so plain-HTTP
 #      port 8000 is reachable only from Caddy on this same host -- not
 #      directly from the internet in parallel with HTTPS:
@@ -37,6 +38,10 @@
 # enough to confirm the reverse proxy, and JuziGenius's own CSRF Host/Origin
 # check, work together before real DNS is in place.
 
-your-domain.example.com, www.your-domain.example.com {
+www.your-domain.example.com {
+	redir https://your-domain.example.com{uri} permanent
+}
+
+your-domain.example.com {
 	reverse_proxy 127.0.0.1:8000
 }
