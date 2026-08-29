@@ -28,7 +28,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 选择	to select	xuǎn zé	我 在 饭馆 的 菜单 上 选择 了 一 个 菜	wǒ zài fànguǎn de càidān shàng xuǎnzéle yī gè cài	I chose a dish from the restaurant’s menu.
 城市	city	chéng shì	这个 城市 有没有 什么 好 饭馆	zhège chéngshì yǒu méiyǒu shé me hǎo fànguǎn	Are there any good restaurants in this city?
 见面	to meet	jiàn miàn	我们 今晚 九 点 在 饭馆 见面	wǒmen jīnwǎn jiǔ diǎn zài fànguǎn jiànmiàn	We will meet at the restaurant tonight at nine o'clock.
-决定	to decide	jué dìng	你们 决定 去 哪 家 饭馆 了 吗	nǐmen juédìng qù nǎ jiā fànguǎn ma	Have you decided which restaurant you're going to?
+决定	to decide	jué dìng	你们 决定 去 哪 家 饭馆 了 吗	nǐmen juédìng qù nǎ jiā fànguǎn le ma	Have you decided which restaurant you're going to?
 或者	or	huò zhě	你 想 喝 茶 或者 咖啡	nǐ xiǎng hē chá huòzhě kāfēi	Do you want tea or coffee?
 只	only	zhǐ	我 只 喝 水	wǒ zhǐ hē shuǐ	I only drink water.
 有名	famous	yǒu míng	那 家 餐馆 在 这个 城市 很 有名	nà jiā cānguǎn zài zhège chéngshì hěn yǒumíng	That restaurant is very famous in this city.
@@ -60,9 +60,9 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 树	tree	shù	我 花园 里 的 树 很 大	wǒ huāyuán lǐ de shù hěn dà	The tree in my garden is very big.
 刮风	windy	guā fēng	今天 晚上 刮风	jīntiān wǎnshàng guāfēng	It is windy this evening.
 地方	area	dì fang	这 个 地方 有 很多 树	zhège dìfāng yǒu hěnduō shù	This place has a lot of trees.
-世界	world	shì jiè	这 里 是 世界 上 最 冷 的 地方	zhèlǐ  shì shìjiè shàng zuì lěng dì dìfāng	This is the coldest place in the world.
+世界	world	shì jiè	这 里 是 世界 上 最 冷 的 地方	zhèlǐ shì shìjiè shàng zuì lěng de dìfāng	This is the coldest place in the world.
 云	cloud	yún	今天多云	jīntiān duōyún	It is cloudy today.
-太阳	sun	tài yáng	今天 非常 多云 多云 ， 我 看 不到 太阳	jīntiān fēicháng duōyún duōyún, wǒ kàn bù dào tàiyáng	it's very cloudy today, I can't see the sun.
+太阳	sun	tài yáng	今天 非常 多云 ， 我 看 不到 太阳	jīntiān fēicháng duōyún, wǒ kàn bù dào tàiyáng	it's very cloudy today, I can't see the sun.
 月亮	moon	yuè liang	月亮 出来 了	yuèliàng chūláile	The moon has come out.
 办公室	office	bàn gōng shì	我 现在 在 办公室	wǒ xiànzài zài bàngōngshì	I'm at the office right now.
 层	floor	céng	我们 的 办公室 在 二 层	wǒmen de bàngōngshì zài èr céng	Our office is on the second floor.
@@ -85,7 +85,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 附近	close	fù jìn	在 你 家 附近 有 公园 吗	zài nǐ jiā fùjìn yǒu gōngyuán ma	Is there a park near your home?
 站	station	zhàn	我 在 火车 站 附近	wǒ zài huǒchē zhàn fùjìn	I'm near the train station.
 西	west	xī	办公室 在 地铁 站 西面	bàngōngshì zài dìtiě zhàn xī miàn	The office is west of the subway station.
-东	east	dōng	他 住 在 我 家 东边	tā zhù zài wǒj iā dōngbian	He lives east of my house.
+东	east	dōng	他 住 在 我 家 东边	tā zhù zài wǒ jiā dōngbian	He lives east of my house.
 邻居	neighbor	lín jū	我 和 很多 邻居 都 是 朋友	wǒ hé hěnduō línjū dōu shì péngyǒu	I am friends with many of my neighbors.
 辆	classifier for vehicles	liàng	他 有 两 辆 车	tā yǒu liǎng liàng chē	He has two cars.
 司机	driver	sī jī	那个 出租车 司机 有 一 辆 好 车	nàgè chūzū chē sījī yǒuyī liàng hǎo chē	That taxi driver has a nice car.
@@ -103,7 +103,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 中间	between	zhōng jiān	我 家 和 邻居 家 中间 有 一 个 公园	wǒjiā hé línjū jiā zhōngjiān yǒu yīgè gōngyuán	There is a park between my house and my neighbor's house.
 鼻子	nose	bí zi	她 的 鼻子 很 小	tā de bízi hěn xiǎo	Her nose is very small.
 腿	leg	tuǐ	狗 有 四条 腿	gǒu yǒu sìtiáo tuǐ	dogs have four legs.
-疼	hurts	téng	我 腿 痛	wǒ tuǐ téng	My legs hurt.
+疼	hurts	téng	我 腿 疼	wǒ tuǐ téng	My legs hurt.
 耳朵	ear	ěr duo	这些 狗 有 大 耳朵	zhèxiē gǒu yǒu dà ěrduǒ	Those dogs have big ears.
 只	(counter for birds and some animals)	zhī	那 只 小狗 的 耳朵 很 小	nà zhǐ xiǎo gǒu de ěrduǒ hěn xiǎo	That puppy has very small ears.
 脚	foot	jiǎo	他 的 脚 很 大	tā de jiǎo hěn dà	His feet are very big.
@@ -174,7 +174,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 提高	to raise	tí gāo	他 的 体育 水平 提高了	tā de tǐyù shuǐpíng tígāole	His athletic ability has improved.
 为了	in order to	wèi le	为了 提高 我 的 体育 水平 ， 我 每天 都 努力 练习	wèile tígāo wǒ de tǐyù shuǐpíng, wǒ měitiān dū nǔlì liànxí	In order to improve my fitness level, I practice hard every day.
 经常	often	jīng cháng	他 经常 去 公园 跑步	tā jīngcháng qù gōngyuán pǎobù	He often goes running in the park.
-然后	after	rán hòu	我 每天 早上 六 点 半 起床 ， 然后 去 锻炼	wǒ měitiān zǎoshangm liù diǎn bàn qǐchuáng, ránhòu qù duànliàn	I wake up at 6:30 every morning, then go to exercise.
+然后	after	rán hòu	我 每天 早上 六 点 半 起床 ， 然后 去 锻炼	wǒ měitiān zǎoshang liù diǎn bàn qǐchuáng, ránhòu qù duànliàn	I wake up at 6:30 every morning, then go to exercise.
 以后	after	yǐ hòu	完成 运动 以后 ， 我 喜欢 喝 苹果汁	wánchéng yùndòng yǐhòu, wǒ xǐhuān hē píngguǒ zhī	After completing exercise, I like to drink apple  juice.
 动物	animal	dòng wù	这个 公园 里 有 很 多 动物	zhège gōngyuán li yǒu hěnduō dòngwù	There are many animals in this park.
 熊猫	panda	xióng māo	我在 动物园 看到了一个熊猫	wǒ zài dòngwùyuán kàn dàole yīgè xióngmāo	I saw a panda at the zoo.
@@ -197,7 +197,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 打算	to plan	dǎ suàn	我 打算 参加 他 的 生日 聚会	wǒ dǎsuàn cānjiā tā de shēngrì jùhuì	I plan to attend his birthday party.
 结婚	to marry	jié hūn	我们 打算 明年 结婚	wǒmen dǎsuàn míngnián jiéhūn	We plan to get married next year.
 祝	to wish	zhù	祝 你 生日快乐	zhù nǐ shēngrì kuàilè	Wish you a happy birthday!
-客人	visitor	kè rén	很多 客人 参加了 他 的 生日 聚会	hěnduō kèrén shēn jiā le tā de shēngrì jùhuì	Many guests attended his birthday party.
+客人	visitor	kè rén	很多 客人 参加了 他 的 生日 聚会	hěnduō kèrén cānjiāle tā de shēngrì jùhuì	Many guests attended his birthday party.
 礼物	gift	lǐ wù	你 送 她 礼物 了 吗	nǐ sòng tā lǐwùle ma	Did you give her a gift?
 位	formal counter for people	wèi	十 位 客人 打算 参加 他 的 生日 聚会	shí wèi kèrén dǎsuàn cānjiā tā de shēngrì jùhuì	Ten guests plan to attend his birthday party.
 那天	the day of	nèi tiān	在 他 生日 那天 客人 们 送 了 他 很多 礼物	zài tā shēngrì nèitiān kèrénmen sòngle tā hěnduō lǐwù	On his birthday the guests gave him many gifts.
