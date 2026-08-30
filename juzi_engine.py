@@ -50,6 +50,21 @@ CHARACTER_ONLY_UNLOCK_THRESHOLD = 20
 # CHARACTER_ONLY_UNLOCK_THRESHOLD by definition, so it never truncates.
 CHARACTER_ONLY_BATCH_CAP = CHARACTER_ONLY_UNLOCK_THRESHOLD
 
+# How many single characters a *sentence* batch may reserve for unlocked
+# characters that no playable sentence contains. See
+# JuziEngine._stranded_character_picks for why they exist at all: sentence
+# practice can only serve a character inside a sentence the learner can
+# already write, so a character can be unlocked, due, and counted in the
+# "Due: N" badge while nothing ever puts it in front of them.
+#
+# One, deliberately. A due single character scores the maximum on _due_ratio,
+# so left to rank freely these would fill the batch and turn a sentence
+# session into character drill -- most visibly for a large pool carrying rare
+# characters from pasted text, where the stranded set can be dozens deep. One
+# slot per batch makes every stranded character reachable within a few
+# batches while leaving the session sentence-shaped.
+STRANDED_CHARACTER_SLOTS = 1
+
 # How far suggest_new_words demotes a word whose characters are all already
 # unlocked: it teaches vocabulary but unlocks no new handwriting practice.
 # Applied as a multiplier on the frequency rank, so a top-50 word like 你好
@@ -1615,6 +1630,31 @@ class JuziEngine:
             unlocked, brain_data, date.today().isoformat())
         return len(bank) < self._beginner_batch_size(unlocked, never_graded, budget)
 
+    @staticmethod
+    def _character_candidate(char: str, meta: dict, due_set: set,
+                             completed: dict, today_iso: str,
+                             never_graded: set, budget: int) -> dict:
+        """
+        One unlocked character dressed as a one-character "sentence", ranked
+        by the same keys real sentences are.
+
+        Shared by the two places that serve individual characters: the
+        beginner phase (_pick_beginner_characters) and the stranded-character
+        slot a sentence batch reserves (see pick_hsk_sentences). They want
+        the same thing -- a character the learner can actually be given --
+        and having built the dict in one place, a later change to the ranking
+        keys cannot reach one call site and miss the other.
+        """
+        return {
+            "english": meta.get("meaning", ""),
+            "chinese": char,
+            "_fresh": _freshness(char, completed, today_iso),
+            "_due_ratio": _due_ratio(char, due_set),
+            "_personal": False,
+            "_new_chars": {char} if char in never_graded else set(),
+            "_fits": (char not in never_graded) or budget >= 1,
+        }
+
     def _pick_beginner_characters(self, unlocked: dict, due_set: set,
                                    completed: dict, today_iso: str,
                                    count: int, never_graded: set,
@@ -1640,18 +1680,75 @@ class JuziEngine:
         loop three characters forever while the other two sat in the "Due"
         badge, unreachable. See CHARACTER_ONLY_BATCH_CAP.
         """
-        candidates = [{
-            "english": meta.get("meaning", ""),
-            "chinese": char,
-            "_fresh": _freshness(char, completed, today_iso),
-            "_due_ratio": _due_ratio(char, due_set),
-            "_new_chars": {char} if char in never_graded else set(),
-        } for char, meta in unlocked.items()]
+        candidates = [
+            self._character_candidate(char, meta, due_set, completed,
+                                      today_iso, never_graded, budget)
+            for char, meta in unlocked.items()]
 
         random.shuffle(candidates)
         candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
         size = self._beginner_batch_size(unlocked, never_graded, budget)
         return self._strip_ranking_keys(self._fill_batch(candidates, size, budget))
+
+    def _stranded_character_picks(self, unlocked: dict, sentences: list,
+                                  due_set: set, completed: dict,
+                                  today_iso: str, never_graded: set,
+                                  budget: int) -> list:
+        """
+        The unlocked characters that no playable sentence contains, offered as
+        one-character items so they are reachable at all -- at most
+        STRANDED_CHARACTER_SLOTS of them per batch.
+
+        Sentence practice serves a character only as part of a sentence the
+        learner can already write end to end. A character can be unlocked, due
+        for review, and counted in the "Due: N" badge while every corpus
+        sentence containing it also needs some character the learner does not
+        have yet. Nothing then ever serves it: the badge and the practice
+        material are computed from different places, which is exactly the
+        shape of finding 24, one level up.
+
+        This is not hypothetical and it is not rare at the boundary. Measured
+        on the guided path out of Tier 1 -- seed at "First Peel", then take
+        Suggest Characters' top pick repeatedly -- crossing
+        CHARACTER_ONLY_UNLOCK_THRESHOLD hands the learner 23 playable
+        sentences that between them contain only 16 of their 20 characters.
+        The other four are 一, 了, 力 and 十: two of the most frequent
+        characters in the language, and two of Tier 1's own five. Verified by
+        generating 900 sentences against that pool, in which all four appear
+        zero times while all four sit in the due set.
+
+        No choice of threshold fixes this, which is why the tuning question
+        finding 18 raised has no numeric answer. Lowering it strands a
+        *larger* share of a smaller pool (at twelve characters, four of the
+        twelve); raising it withholds sentences the learner could be
+        practising; and the crossover never arrives -- 力 and 十 are still
+        uncovered at 120 characters. The two populations, playable sentences
+        and characters those sentences reach, simply grow at different rates,
+        and the transition between the two modes was written as though they
+        did not.
+
+        Capped at one per batch rather than ranked freely among the sentences.
+        A stranded character that is due scores 1.0 on _due_ratio, the
+        maximum any item can score, so uncapped they would take the whole
+        batch and turn a sentence session into character drill -- which is a
+        real risk for a large pool carrying rare pasted characters, not just
+        at the boundary. One slot is enough to make every stranded character
+        reachable within a few batches while the session stays sentence-shaped.
+        """
+        covered = set()
+        for cand in sentences:
+            covered.update(cand["chinese"])
+        stranded = [char for char in unlocked if char not in covered]
+        if not stranded:
+            return []
+
+        picks = [self._character_candidate(char, unlocked[char], due_set,
+                                           completed, today_iso, never_graded,
+                                           budget)
+                 for char in stranded]
+        random.shuffle(picks)
+        picks.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
+        return picks[:STRANDED_CHARACTER_SLOTS]
 
     def pick_hsk_sentences(self, count: int = 5) -> list:
         """
@@ -1766,6 +1863,10 @@ class JuziEngine:
         # sentence gets character practice rather than nothing.
         if not candidates:
             return beginner_batch()
+
+        candidates.extend(self._stranded_character_picks(
+            unlocked_chars, candidates, due_set, completed, today_iso,
+            never_graded, budget))
 
         # Shuffle first so that sentences tying on the sort key come back in a
         # different order each time rather than in corpus order.
