@@ -412,7 +412,20 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 # Bootstrap: populate an initial batch from the local HSK corpus if the
                 # bank is empty but characters exist, so first-run works with zero
                 # configuration.
-                if not saved_sentences and total_unlocked > 0:
+                #
+                # Also rebuild a character-only bank that is narrower than the
+                # unlocked pool. The saved bank is otherwise replaced only on
+                # an explicit "Get Sentences", which is right for sentences
+                # and strands people in character practice: a Tier 1 account
+                # seeded before the batch covered the pool holds three of its
+                # five characters and loops them forever, while the other two
+                # sit in the "Due" badge unreachable. Same for a character
+                # unlocked mid-phase through Suggest Characters or Paste
+                # Text. beginner_bank_is_stale asks for exactly the size a
+                # fresh batch would be, so this settles after one rebuild
+                # rather than rewriting brain.json on every page load.
+                if total_unlocked > 0 and (not saved_sentences
+                                           or engine.beginner_bank_is_stale(brain_data)):
                     try:
                         fresh = engine.generate_fresh_session(count=3)
                         saved_sentences = fresh["sentences"]

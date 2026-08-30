@@ -29,6 +29,27 @@ SENTENCE_SOURCE_FILES = HSK_SOURCE_FILES + EXTRA_SENTENCE_FILES
 # count, not a one-time tier choice.
 CHARACTER_ONLY_UNLOCK_THRESHOLD = 20
 
+# Most characters one character-only batch may hold.
+#
+# A batch of real sentences is deliberately small (server.py asks for 3): the
+# saved bank is replaced only on an explicit "Get Sentences", so a small batch
+# keeps a session finishable and the choice of what to practice next
+# deliberate. Applied to character practice that same 3 stranded people. A
+# Tier 1 pool is 5 characters, so a 3-item bank covered three of them and
+# looped those three forever -- the other two showed in the "Due" badge, which
+# reads unlocked_chars directly, but could never come up, because nothing
+# refreshes the bank on its own. Practising perfectly made it worse: the more
+# reliably they finished the three they had, the longer the two they had never
+# seen sat there.
+#
+# So a character-only batch covers the whole unlocked pool instead. There is
+# no session to keep finishable here -- the pool *is* the session -- and
+# nothing is gained by hiding part of it. This cap only bites in the
+# finding-18 fallback, where a pool of any size can end up in character
+# practice; inside the beginner phase proper the pool is below
+# CHARACTER_ONLY_UNLOCK_THRESHOLD by definition, so it never truncates.
+CHARACTER_ONLY_BATCH_CAP = CHARACTER_ONLY_UNLOCK_THRESHOLD
+
 # How far suggest_new_words demotes a word whose characters are all already
 # unlocked: it teaches vocabulary but unlocks no new handwriting practice.
 # Applied as a multiplier on the frequency rank, so a top-50 word like 你好
@@ -1440,6 +1461,62 @@ class JuziEngine:
         return [{k: v for k, v in s.items() if not k.startswith("_")}
                 for s in sentences]
 
+    @staticmethod
+    def _beginner_batch_size(unlocked: dict, never_graded: set, budget: int) -> int:
+        """
+        How many characters a character-only batch should hold: the whole
+        unlocked pool, less any never-graded characters the day's intake
+        budget cannot admit yet, capped at CHARACTER_ONLY_BATCH_CAP.
+
+        This deliberately mirrors what _fill_batch will actually yield --
+        every already-graded character costs nothing and always fits, and
+        never-graded ones fit while the budget lasts -- so the two agree by
+        construction. beginner_bank_is_stale compares a saved bank against
+        this same number, and would rewrite that bank on every request if it
+        expected a batch larger than _fill_batch can produce.
+
+        Floored at 1 rather than 0 so that an account whose daily_new_limit
+        is 0 still gets something to practise: _fill_batch tops a short batch
+        up past the budget, and one character is the difference between a
+        paced session and finding 18's empty one.
+        """
+        affordable = len(unlocked) - len(never_graded) + min(budget, len(never_graded))
+        return max(1, min(CHARACTER_ONLY_BATCH_CAP, affordable))
+
+    def beginner_bank_is_stale(self, brain_data: dict) -> bool:
+        """
+        True when a saved character-only bank holds fewer characters than a
+        fresh one would, so /api/session should rebuild it rather than serve
+        it (see server.py's bootstrap).
+
+        The saved bank is normally replaced only on an explicit "Get
+        Sentences", and that stays true for sentences. But character practice
+        has no equivalent of finishing a session: the bank is just a window
+        onto the unlocked pool, and a window narrower than the pool leaves
+        characters permanently unreachable while the "Due" badge still counts
+        them. That is what stranded Tier 1 accounts created before the batch
+        covered the pool, and it is also what would happen to anyone who
+        unlocks a character mid-phase through Suggest Characters or Paste
+        Text -- the new character would be due immediately and never served.
+
+        Only ever second-guesses a bank that is entirely single characters,
+        so a real sentence bank is never rebuilt behind the learner's back.
+
+        Stable by construction: it asks for exactly the size
+        _beginner_batch_size promises, so one rebuild satisfies it and the
+        next request leaves the bank alone. A bank held short by the daily
+        intake budget is *not* stale -- that is the cap doing its job, and
+        treating it as stale would rewrite brain.json on every page load.
+        """
+        bank = brain_data.get("sentences") or []
+        if not bank or any(len(s.get("chinese") or "") != 1 for s in bank):
+            return False
+
+        unlocked = brain_data.get("unlocked_chars") or {}
+        never_graded, budget = self._new_character_budget(
+            unlocked, brain_data, date.today().isoformat())
+        return len(bank) < self._beginner_batch_size(unlocked, never_graded, budget)
+
     def _pick_beginner_characters(self, unlocked: dict, due_set: set,
                                    completed: dict, today_iso: str,
                                    count: int, never_graded: set,
@@ -1458,6 +1535,12 @@ class JuziEngine:
         new-character budget applies here too (finding 17) -- a learner
         holding nineteen never-practiced characters should meet them over
         days rather than all at once, exactly as in sentence mode.
+
+        `count` -- the caller's sentence-batch size -- is deliberately
+        ignored in favour of _beginner_batch_size. A batch of 3 is right for
+        sentences and wrong for characters: it made a 5-character Tier 1 pool
+        loop three characters forever while the other two sat in the "Due"
+        badge, unreachable. See CHARACTER_ONLY_BATCH_CAP.
         """
         candidates = [{
             "english": meta.get("meaning", ""),
@@ -1469,7 +1552,8 @@ class JuziEngine:
 
         random.shuffle(candidates)
         candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
-        return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
+        size = self._beginner_batch_size(unlocked, never_graded, budget)
+        return self._strip_ranking_keys(self._fill_batch(candidates, size, budget))
 
     def pick_hsk_sentences(self, count: int = 5) -> list:
         """
