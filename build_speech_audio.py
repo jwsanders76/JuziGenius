@@ -14,11 +14,22 @@ pattern fetch_stroke_data.py and build_pinyin_readings.py already use for
 their own vendored data.
 
 Scope, by explicit user decision: this covers SENTENCE_SOURCE_FILES (the
-17k+-sentence HSK/Tatoeba corpus) only -- not a user's own pasted_sentences,
-which don't exist at build time, and not the Tier-1 character-only phase's
-single-character items. Playback for anything outside this generated set
-falls back to the existing browser Web Speech API (see app.js); a 404 from
-GET /api/speech is exactly that signal, by design, not an error to fix here.
+17k+-sentence HSK/Tatoeba corpus) plus every character in
+master_dictionary.json, synthesized standalone -- not just Tier 1's
+BEGINNER_RANK_CUTOFF subset. The Tier-1 character-only phase and the
+stranded-character slot (see juzi_engine.py's _character_candidate) both
+serve a single unlocked character as a one-character pseudo-sentence, and
+`unlocked_chars` can reach any master_dictionary.json character via Paste
+Text -- not just the beginner-selected ones -- so scoping to Tier 1's own
+subset would recreate the exact rare-character gap that vendoring the full
+stroke_data.json set (see the Resolved Decisions entry in project_state.md)
+was chosen specifically to close. A user's own pasted_sentences, which don't
+exist at build time, are still out of scope. Playback for anything outside
+this generated set falls back to the existing browser Web Speech API (see
+app.js); a 404 from GET /api/speech is exactly that signal, by design, not
+an error to fix here. No server.py or app.js change was needed to add
+character coverage -- a single character is just another `text` value under
+the same sha256-addressed scheme a multi-character sentence already uses.
 
 Output layout: speech_audio/<voice>/<hash[:2]>/<hash>.mp3, where <hash> is
 the sha256 hex digest of the sentence text (spaces stripped, matching how
@@ -56,6 +67,7 @@ import argparse
 import csv
 import hashlib
 import io
+import json
 import multiprocessing
 import os
 import shutil
@@ -74,6 +86,7 @@ VOICES = {
 
 OUTPUT_DIR = "speech_audio"
 MP3_BITRATE = "56k"  # matches the measured ~17 KB/sentence estimate in project_state.md
+MASTER_DICTIONARY_PATH = "master_dictionary.json"
 
 
 def collect_sentences():
@@ -96,6 +109,22 @@ def collect_sentences():
                     seen.add(chinese)
                     ordered.append(chinese)
     return ordered
+
+
+def collect_characters():
+    """
+    Every character master_dictionary.json knows, as a standalone one-
+    character string -- exactly the `chinese` value _character_candidate
+    (juzi_engine.py) builds for a Tier-1 beginner item or a stranded-
+    character slot. Covers the full unlockable set, not just Tier 1's
+    beginner subset -- see this file's module docstring for why.
+    """
+    if not os.path.exists(MASTER_DICTIONARY_PATH):
+        print(f"Warning: {MASTER_DICTIONARY_PATH} not found, skipping "
+              f"character audio.", file=sys.stderr)
+        return []
+    with open(MASTER_DICTIONARY_PATH, "r", encoding="utf-8") as f:
+        return list(json.load(f).keys())
 
 
 def sentence_hash(chinese):
@@ -188,13 +217,27 @@ def _init_worker(model_path, ffmpeg_bin):
 
 
 def _synthesize_one(args):
+    """
+    Returns (chinese, error_str_or_None). Never raises -- a single character
+    is more likely than a full sentence to hit a phonemiser edge case (no
+    surrounding context to disambiguate), and one bad item must not abort
+    the whole multi-hour pool the way an uncaught exception through
+    imap_unordered does. Caught once here, not per-caller: build_pinyin_
+    readings.py and this script are the only two things that ever ask
+    piper/pypinyin about a character in isolation, and this is the one that
+    can hit an unrecoverable G2PW failure (e.g. "Cannot convert bopomofo to
+    pinyin") rather than just a degraded-but-valid answer.
+    """
     voice_name, chinese = args
     mp3_path = output_path(voice_name, chinese)
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wav_file:
-        _worker_voice.synthesize_wav(chinese, wav_file)
-    wav_to_mp3(buf.getvalue(), mp3_path, _worker_ffmpeg_bin)
-    return mp3_path
+    try:
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wav_file:
+            _worker_voice.synthesize_wav(chinese, wav_file)
+        wav_to_mp3(buf.getvalue(), mp3_path, _worker_ffmpeg_bin)
+        return (chinese, None)
+    except Exception as e:
+        return (chinese, str(e))
 
 
 def synthesize_all(voice_name, model_path, sentences, ffmpeg_bin, workers=1, dry_run=False):
@@ -206,6 +249,7 @@ def synthesize_all(voice_name, model_path, sentences, ffmpeg_bin, workers=1, dry
 
     start = time.time()
     tasks = [(voice_name, s) for s in todo]
+    failures = []
     # One PiperVoice per worker process (loaded once in _init_worker, not per
     # sentence) is what actually gets this job down from single-threaded
     # core-hours to wall-clock hours -- see project_state.md section 7 item
@@ -213,13 +257,23 @@ def synthesize_all(voice_name, model_path, sentences, ffmpeg_bin, workers=1, dry
     with multiprocessing.Pool(
         processes=workers, initializer=_init_worker, initargs=(model_path, ffmpeg_bin)
     ) as pool:
-        for i, _ in enumerate(pool.imap_unordered(_synthesize_one, tasks, chunksize=4), 1):
+        for i, (chinese, error) in enumerate(
+            pool.imap_unordered(_synthesize_one, tasks, chunksize=4), 1
+        ):
+            if error is not None:
+                failures.append((chinese, error))
+                print(f"[{voice_name}] FAILED on {chinese!r}: {error}", flush=True)
             if i % 50 == 0 or i == len(todo):
                 elapsed = time.time() - start
                 rate = i / elapsed if elapsed > 0 else 0
                 remaining = (len(todo) - i) / rate if rate > 0 else float("inf")
                 print(f"[{voice_name}] {i}/{len(todo)} "
                       f"({rate:.2f}/s, ~{remaining/60:.1f} min left)", flush=True)
+
+    if failures:
+        print(f"[{voice_name}] {len(failures)} item(s) failed and were skipped "
+              f"(will retry on the next run -- not marked done): "
+              f"{[c for c, _ in failures]}", flush=True)
 
 
 def main():
@@ -235,6 +289,9 @@ def main():
                               "Voices are still processed one at a time, so peak "
                               "memory is workers * one voice's per-process RSS, not "
                               "both voices' at once.")
+    parser.add_argument("--no-characters", action="store_true",
+                         help="Skip standalone character audio (Tier 1 / stranded-"
+                              "character items); generate sentences only.")
     args = parser.parse_args()
 
     voice_names = [v.strip() for v in args.voices.split(",") if v.strip()]
@@ -249,9 +306,17 @@ def main():
             sys.exit(1)
 
     sentences = collect_sentences()
+    print(f"{len(sentences)} distinct sentences from {SENTENCE_SOURCE_FILES}.", flush=True)
+
+    if not args.no_characters:
+        seen = set(sentences)
+        characters = [c for c in collect_characters() if c not in seen]
+        print(f"{len(characters)} standalone characters from "
+              f"{MASTER_DICTIONARY_PATH}.", flush=True)
+        sentences = sentences + characters
+
     if args.limit:
         sentences = sentences[:args.limit]
-    print(f"{len(sentences)} distinct sentences from {SENTENCE_SOURCE_FILES}.", flush=True)
 
     ffmpeg_bin = find_ffmpeg()
     for voice_name in voice_names:
