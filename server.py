@@ -57,6 +57,16 @@ ALLOWED_STATIC_PATHS = {
 STROKE_DATA_PATH = "stroke_data.json"
 STROKE_INDEX_PATH = "stroke_data.index.json"
 
+# Pre-generated sentence audio (see build_speech_audio.py). Content-addressed
+# by sha256(sentence text), sharded by the hash's first two hex characters,
+# so no in-memory index is needed the way stroke_data.index.json is -- the
+# path is derived, not looked up. Only covers SENTENCE_SOURCE_FILES; a
+# pasted sentence (or anything else not in that corpus at build time) simply
+# has no file here, and a 404 is the intended signal for app.js to fall back
+# to the browser's Web Speech API -- not an error to fix on this end.
+SPEECH_AUDIO_DIR = "speech_audio"
+SPEECH_VOICES = {"chaowen", "huayan"}
+
 
 def build_manifest(start_url="/"):
     """
@@ -268,6 +278,20 @@ def stroke_entry_bytes(char):
     if entry is None:
         return None
     return json.dumps(entry, ensure_ascii=False).encode("utf-8")
+
+
+def speech_audio_path(voice, chinese):
+    """
+    The on-disk path build_speech_audio.py would have written this sentence
+    to for this voice, or None if `voice` isn't one we generate. Derived,
+    not looked up -- see SPEECH_AUDIO_DIR's comment. Existence is checked by
+    the caller; this just computes where to look.
+    """
+    if voice not in SPEECH_VOICES:
+        return None
+    h = hashlib.sha256(chinese.encode("utf-8")).hexdigest()
+    return os.path.join(SPEECH_AUDIO_DIR, voice, h[:2], f"{h}.mp3")
+
 
 class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # Without this, a connection that stops sending data mid-request (or
@@ -587,6 +611,51 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(payload)))
                 # Stroke data for a character never changes; let the browser
                 # keep it so repeat characters don't re-request every time.
+                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+                self.end_headers()
+                self.wfile.write(payload)
+                return True
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return True
+
+        # Serves one sentence's pre-generated audio (build_speech_audio.py),
+        # replacing the browser's Web Speech API for anything in the local
+        # corpus. A 404 here is not an error -- it's how app.js knows to fall
+        # back to speechSynthesis, which is the intended (and only) path for
+        # a user's own pasted sentences, since those don't exist at build
+        # time. Shared reference data, not per-user, so `engine` is unused,
+        # same as /api/strokes above.
+        if path == "/api/speech":
+            try:
+                params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                text = (params.get("text") or [""])[0]
+                voice = (params.get("voice") or [""])[0]
+                file_path = speech_audio_path(voice, text) if text else None
+
+                if file_path is None or not os.path.exists(file_path):
+                    self.send_response(404)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "No pre-generated audio for this sentence/voice."}).encode("utf-8"))
+                    return True
+
+                # Opened per request, like /api/strokes, rather than through a
+                # shared handle -- a seek/read on a shared file object isn't
+                # thread-safe and ThreadingHTTPServer makes concurrent
+                # requests real.
+                with open(file_path, "rb") as f:
+                    payload = f.read()
+
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(payload)))
+                # This exact (text, voice) pair's audio never changes -- the
+                # hash is of the text itself, so any edit produces a
+                # different path rather than a stale file at this one.
                 self.send_header("Cache-Control", "public, max-age=31536000, immutable")
                 self.end_headers()
                 self.wfile.write(payload)

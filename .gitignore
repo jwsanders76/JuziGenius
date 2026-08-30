@@ -32,3 +32,19 @@ Thumbs.db
 # --- Web/PWA Clutter ---
 node_modules/
 .eslintcache
+
+# --- TTS voice sample listening tests (throwaway, not the build pipeline) ---
+tts_voice_samples/
+
+# --- Pre-generated offline sentence audio (build_speech_audio.py) ---
+# models/ holds the piper .onnx voice models (downloaded, not authored here;
+# re-fetch from huggingface.co/rhasspy/piper-voices per the script's docstring).
+# speech_audio/ is the generated MP3 output -- ~292 MB per voice, git cannot
+# delta it, and it must be rsynced to the droplet rather than committed. See
+# project_state.md section 7 item 15.
+models/
+speech_audio/
+# g2pW/ is piper's own phonemiser model cache (~153 MB), auto-downloaded into
+# the working directory the first time the chaowen (pinyin/G2PW) voice runs.
+# Not something this project manages -- left in place to avoid re-downloading.
+g2pW/

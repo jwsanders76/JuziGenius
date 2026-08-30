@@ -15,7 +15,11 @@ const state = {
     totalUnlockedCount: 0,
     totalDueCount: 0,
     newBacklog: 0,
-    ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
+    // Which pre-generated voice (see build_speech_audio.py / PREGENERATED_VOICES)
+    // to request for corpus sentences; also picks which gender of browser
+    // voice to fall back to for a user's own pasted sentences, which have no
+    // pre-generated audio. Defaults to "huayan" (female) on a fresh install.
+    ttsVoice: localStorage.getItem("juzi_tts_voice") || "huayan",
     isCompleted: false,
     importMode: "paste",
     // Last payload from /api/settings -- held so the Settings panel can
@@ -121,6 +125,10 @@ function skipCurrentCharacter() {
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
+// The <audio> element currently playing pre-generated sentence audio (see
+// playNativeTTS), held so a second playback (Replay, or advancing quickly)
+// can stop the previous one instead of overlapping it.
+let currentAudioEl = null;
 
 // DOM Elements Cache
 const elements = {};
@@ -1168,13 +1176,72 @@ async function handleGenerateSession() {
     }
 }
 
+// The two voices build_speech_audio.py pre-generates offline audio for, and
+// the gender each one is (measured by fundamental frequency -- see
+// project_state.md section 7 item 15). Kept in sync with SPEECH_VOICES in
+// server.py and VOICES in build_speech_audio.py.
+const PREGENERATED_VOICES = { chaowen: "male", huayan: "female" };
+
 /**
- * Neural Text-to-Speech playback at native speed (Rate 1.0), using whichever
- * Mandarin voice is currently selected (see getPreferredChineseVoice).
+ * Sentence playback. Tries pre-generated audio for the corpus sentence first
+ * (GET /api/speech) -- this is the offline path, and covers everything in
+ * SENTENCE_SOURCE_FILES. A 404 there is expected, not an error: it's exactly
+ * what a user's own pasted sentence produces, since that text didn't exist
+ * at build time, and playback falls back to the browser's Web Speech API for
+ * it, same as before this feature existed. Fully offline for corpus
+ * sentences; still network-dependent for pasted ones (see §1's TTS caveat
+ * in project_state.md).
  */
-function playNativeTTS(text) {
+async function playNativeTTS(text) {
+    if (!text) return;
+
+    if (currentAudioEl) {
+        currentAudioEl.pause();
+        currentAudioEl = null;
+    }
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+
+    const audioBlob = await fetchPregeneratedAudio(text);
+    if (audioBlob) {
+        // Deliberately not folded into the fetch's own try/catch: a fetch
+        // 404/network failure means "no pre-generated audio, use the
+        // browser instead," but a play() rejection (e.g. no user-gesture
+        // yet) is a different problem that speechSynthesis.speak() would
+        // likely hit too -- swapping providers on it would just fail a
+        // second way instead of surfacing the real one.
+        currentAudioEl = new Audio(URL.createObjectURL(audioBlob));
+        currentAudioEl.play().catch(err => console.error("Audio playback failed.", err));
+        return;
+    }
+
+    playBrowserTTS(text);
+}
+
+/**
+ * Fetches this sentence's pre-generated audio for the current voice, or null
+ * if there isn't any -- a 404 (not in the corpus) or a network error are
+ * treated the same way here, since both mean "fall back to the browser."
+ */
+async function fetchPregeneratedAudio(text) {
+    try {
+        const url = `${API_BASE}/api/speech?text=${encodeURIComponent(text)}&voice=${state.ttsVoice}`;
+        const resp = await fetch(url);
+        if (resp.ok) return await resp.blob();
+    } catch (err) {
+        console.error("Could not fetch pre-generated audio, falling back to the browser voice.", err);
+    }
+    return null;
+}
+
+/**
+ * Falls back to the browser's Web Speech API -- the only playback path for a
+ * user's own pasted sentences, and the only one on a device where
+ * speechSynthesis itself is unavailable is simply silent (checked below).
+ */
+function playBrowserTTS(text) {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
 
     currentUtterance = new SpeechSynthesisUtterance(text);
     currentUtterance.lang = 'zh-CN';
@@ -1236,64 +1303,46 @@ function getOrderedChineseVoices() {
 }
 
 /**
- * Returns the voice to speak with: the user's saved choice (state.ttsVoiceURI)
- * if it's still installed, otherwise the first available Mandarin voice.
+ * Returns the browser voice to speak a PASTED sentence with -- the fallback
+ * path only, since a corpus sentence never reaches here (see playNativeTTS).
+ * Picks a browser voice matching the gender of the pre-generated voice
+ * currently selected (state.ttsVoice), so switching voices stays coherent
+ * across both playback paths; falls back to the first available Mandarin
+ * voice if the device has none of that gender or can't be told apart.
  */
 function getPreferredChineseVoice() {
     const ordered = getOrderedChineseVoices();
     if (ordered.length === 0) return null;
-    if (state.ttsVoiceURI) {
-        const saved = ordered.find(v => v.voiceURI === state.ttsVoiceURI);
-        if (saved) return saved;
-    }
+    const wantGender = PREGENERATED_VOICES[state.ttsVoice];
+    const matching = ordered.find(v => classifyVoiceGender(v) === wantGender);
+    if (matching) return matching;
     return ordered.find(v => v.lang === 'zh-CN') || ordered[0];
 }
 
 /**
- * Advances to the next voice in the ordered list (wrapping around) and
- * persists the choice in localStorage so it survives a reload. With two
- * detected genders this reads as "switch to the other gender"; with only
- * ungendered voices available it still cycles through whatever exists.
+ * Toggles between the two pre-generated voices and persists the choice.
+ * Unlike the old browser-voice cycling this replaced, this always has
+ * exactly two real options on every device -- chaowen and huayan are shipped
+ * pre-generated audio, not whatever the OS happens to expose (see
+ * project_state.md section 7 item 15).
  */
 function switchToNextVoice() {
-    const ordered = getOrderedChineseVoices();
-    if (ordered.length < 2) return;
-    const current = getPreferredChineseVoice();
-    const currentIdx = ordered.findIndex(v => v.voiceURI === current.voiceURI);
-    const next = ordered[(currentIdx + 1) % ordered.length];
-    state.ttsVoiceURI = next.voiceURI;
-    localStorage.setItem("juzi_tts_voice_uri", next.voiceURI);
+    state.ttsVoice = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
+    localStorage.setItem("juzi_tts_voice", state.ttsVoice);
 }
 
 /**
- * Labels the Switch Voice button with the gender it would switch TO (so the
- * button reads as an action), or disables it when there's nothing to switch
- * to -- either only one Mandarin voice is installed, or the device exposes
- * several but none can be told apart.
+ * Labels the Switch Voice button with the gender it would switch TO, so the
+ * button reads as an action. Always enabled: both pre-generated voices are
+ * always available, regardless of what the device's own voice list looks
+ * like.
  */
 function updateSwitchVoiceButton(btn) {
-    const ordered = getOrderedChineseVoices();
-    if (ordered.length < 2) {
-        btn.disabled = true;
-        btn.textContent = "🔄 Only One Voice";
-        btn.title = "Only one Mandarin voice is installed on this device.";
-        return;
-    }
-
-    const current = getPreferredChineseVoice();
-    const currentIdx = ordered.findIndex(v => v.voiceURI === current.voiceURI);
-    const next = ordered[(currentIdx + 1) % ordered.length];
-    const nextGender = classifyVoiceGender(next);
-
+    const next = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
+    const nextGender = PREGENERATED_VOICES[next];
     btn.disabled = false;
-    if (nextGender === "female") {
-        btn.textContent = "🔄 Switch to Female Voice";
-    } else if (nextGender === "male") {
-        btn.textContent = "🔄 Switch to Male Voice";
-    } else {
-        btn.textContent = "🔄 Switch Voice";
-    }
-    btn.title = `Current voice: ${current.name}`;
+    btn.textContent = nextGender === "female" ? "🔄 Switch to Female Voice" : "🔄 Switch to Male Voice";
+    btn.title = `Current voice: ${PREGENERATED_VOICES[state.ttsVoice]}`;
 }
 
 /**
