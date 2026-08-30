@@ -125,6 +125,13 @@ function skipCurrentCharacter() {
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
+// Pre-generated audio blobs fetched ahead of playback, keyed by "voice::text".
+// Populated as soon as a sentence loads (see loadSession) so that autoplay on
+// sentence completion isn't the first thing to await the network -- an await
+// there breaks the user-gesture chain that some browsers (notably iOS Safari)
+// require for HTMLMediaElement.play() to succeed, which made audio silently
+// fail on completion until the user manually replayed it.
+const pregeneratedAudioCache = new Map();
 // The <audio> element currently playing pre-generated sentence audio (see
 // playNativeTTS), held so a second playback (Replay, or advancing quickly)
 // can stop the previous one instead of overlapping it.
@@ -534,6 +541,8 @@ function loadSession() {
     state.hintTier = 0;
     state.charMistakes = 0;
     state.skippedIndices = new Set();
+
+    prefetchPregeneratedAudio(currentSentence.chinese);
 
     advancePastPunctuation();
     renderAssemblyLine();
@@ -1288,15 +1297,42 @@ async function playNativeTTS(text) {
  * if there isn't any -- a 404 (not in the corpus) or a network error are
  * treated the same way here, since both mean "fall back to the browser."
  */
-async function fetchPregeneratedAudio(text) {
-    try {
-        const url = `${API_BASE}/api/speech?text=${encodeURIComponent(text)}&voice=${state.ttsVoice}`;
-        const resp = await fetch(url);
-        if (resp.ok) return await resp.blob();
-    } catch (err) {
-        console.error("Could not fetch pre-generated audio, falling back to the browser voice.", err);
+function fetchPregeneratedAudio(text) {
+    const key = `${state.ttsVoice}::${text}`;
+    let pending = pregeneratedAudioCache.get(key);
+    if (!pending) {
+        pending = (async () => {
+            try {
+                const url = `${API_BASE}/api/speech?text=${encodeURIComponent(text)}&voice=${state.ttsVoice}`;
+                const resp = await fetch(url);
+                if (resp.ok) return await resp.blob();
+                // 404 means the corpus genuinely has no audio for this sentence
+                // (e.g. it's user-pasted) -- that won't change on retry, so the
+                // cached null stands.
+            } catch (err) {
+                // A network hiccup, unlike a 404, might not recur -- don't let
+                // a transient failure permanently pin this sentence to the
+                // browser-voice fallback for the rest of the session.
+                pregeneratedAudioCache.delete(key);
+                console.error("Could not fetch pre-generated audio, falling back to the browser voice.", err);
+            }
+            return null;
+        })();
+        pregeneratedAudioCache.set(key, pending);
     }
-    return null;
+    return pending;
+}
+
+/**
+ * Kicks off fetchPregeneratedAudio ahead of playback so its result is already
+ * cached (or in flight) by the time playNativeTTS needs it -- called as soon
+ * as a sentence becomes current, well before the user gesture that will
+ * eventually trigger playback. Fire-and-forget: a failed prefetch just means
+ * playNativeTTS falls back to the browser voice, same as today.
+ */
+function prefetchPregeneratedAudio(text) {
+    if (!text) return;
+    fetchPregeneratedAudio(text);
 }
 
 /**
@@ -1393,6 +1429,7 @@ function getPreferredChineseVoice() {
 function switchToNextVoice() {
     state.ttsVoice = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
     localStorage.setItem("juzi_tts_voice", state.ttsVoice);
+    prefetchPregeneratedAudio(currentSentenceText());
 }
 
 /**
