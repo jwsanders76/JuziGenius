@@ -519,6 +519,20 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json_error(500, str(e))
                 return True
 
+        # The Settings panel's payload: the stored values plus the bounds and
+        # today's counts that make the number mean something.
+        if path == "/api/settings":
+            try:
+                payload = engine.read_settings()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
         # The starting-tier catalog shown to a friend who hasn't onboarded yet
         # (see /api/onboarding/seed below and TIER_INFO in seed_brain.py).
         # Static, shared reference data -- `engine` is unused here, same as
@@ -821,6 +835,35 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"reset": True, "erased": erased},
                                             ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
+        # Saves the Settings panel. Body: { "daily_new_limit": 15 }.
+        # update_settings ignores any key it doesn't understand, so this
+        # can't be used to write arbitrary data into brain.json, and raises
+        # ValueError on an out-of-range value rather than clamping -- someone
+        # who types 500 should be told the cap, not left believing they set it.
+        if path == "/api/settings":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                values = json.loads(body)
+                if not isinstance(values, dict):
+                    self._send_json_error(400, "Body must be a JSON object.")
+                    return True
+                try:
+                    payload = engine.update_settings(values)
+                except ValueError as bad:
+                    self._send_json_error(400, str(bad))
+                    return True
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
                 return True
             except Exception as e:
                 self._send_json_error(500, str(e))

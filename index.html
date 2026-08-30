@@ -155,6 +155,7 @@
             <div class="mode-tabs">
                 <button type="button" class="mode-tab active" data-progress-tab="overview">Overview</button>
                 <button type="button" class="mode-tab" data-progress-tab="characters">Characters</button>
+                <button type="button" class="mode-tab" data-progress-tab="settings">Settings</button>
                 <button type="button" class="mode-tab" data-progress-tab="reset">Start Over</button>
             </div>
 
@@ -171,6 +172,45 @@
             <div class="mode-panel" data-progress-panel="characters" hidden>
                 <div id="progress-characters" class="progress-body">
                     <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
+            <!-- The one setting that does anything. daily_goal and strict_mode
+                 used to sit beside it in brain.json and were read by nothing;
+                 they are gone from the schema rather than shown here, since a
+                 control that does nothing is worse than no control. -->
+            <div class="mode-panel" data-progress-panel="settings" hidden>
+                <div class="progress-body">
+                    <section class="progress-section">
+                        <h3 class="progress-title">New characters per day</h3>
+                        <p class="progress-note">
+                            How many characters you have never written may enter practice
+                            each day. The rest wait their turn, most common first &mdash; so
+                            unlocking a lot at once becomes a queue rather than a wall.
+                            The limit is held to unless keeping it would leave you with
+                            nothing to practise at all, in which case you get something
+                            rather than an empty session.
+                        </p>
+
+                        <div class="setting-row">
+                            <input type="number" id="setting-daily-new-limit" class="setting-input"
+                                   inputmode="numeric" autocomplete="off" step="1">
+                            <span id="setting-limit-range" class="setting-hint"></span>
+                        </div>
+
+                        <p id="setting-context" class="progress-note"></p>
+
+                        <div class="danger-actions">
+                            <button type="button" id="settings-btn-reset" class="modal-btn btn-secondary">
+                                Use default
+                            </button>
+                            <button type="button" id="settings-btn-save" class="modal-btn btn-primary">
+                                Save
+                            </button>
+                        </div>
+
+                        <p id="settings-status" class="danger-status" role="status" hidden></p>
+                    </section>
                 </div>
             </div>
 

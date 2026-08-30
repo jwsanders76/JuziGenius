@@ -85,8 +85,30 @@ _master_dict_lock = threading.Lock()
 # which is not a study plan but a wall. A cap turns the backlog into a queue;
 # the characters admitted are the most frequent ones, so the wait is spent on
 # the most useful characters first. Overridable per account via brain.json's
-# settings.daily_new_limit, which until now was a dormant key.
+# settings.daily_new_limit, editable from the Settings panel in the progress
+# view (see read_settings/update_settings and server.py's /api/settings).
 DEFAULT_DAILY_NEW_LIMIT = 15
+
+# Bounds the Settings panel enforces on daily_new_limit.
+#
+# 0 is deliberately allowed and is not a broken state: it means "introduce
+# nothing new, just review what I already have", which is a real way to use
+# an app like this after a big import. The character-only phase floors its
+# batch at 1 so even that cannot produce an empty session (see
+# _beginner_batch_size).
+#
+# 100 is where the cap stops being a cap. The point of finding 13 was that an
+# unpaced intake is a wall rather than a queue; past about a hundred a day
+# there is no pacing left to speak of, and anyone who genuinely wants that
+# can still edit brain.json by hand.
+MIN_DAILY_NEW_LIMIT = 0
+MAX_DAILY_NEW_LIMIT = 100
+
+# Settings keys that were written into every new brain and read by nothing.
+# update_settings drops them on the next save; empty_brain no longer writes
+# them. Kept as a named list so it is obvious these are being removed on
+# purpose rather than lost.
+DEAD_SETTING_KEYS = ("daily_goal", "strict_mode")
 
 # Combining marks that NFD leaves on a toned pinyin vowel, in tone order.
 # Reading the mark is more robust than a table of precomposed vowels, which
@@ -227,6 +249,82 @@ class JuziEngine:
         except (TypeError, ValueError):
             return DEFAULT_DAILY_NEW_LIMIT
         return max(0, value)
+
+    def read_settings(self) -> dict:
+        """
+        The settings panel's whole payload: the stored values, the bounds the
+        UI should enforce, and enough of today's state to make the number
+        mean something ("12 introduced today, 60 waiting") rather than being
+        an abstract dial.
+        """
+        brain_data = self._read_brain()
+        unlocked = brain_data.get("unlocked_chars", {}) or {}
+        today = date.today().isoformat()
+        return {
+            "daily_new_limit": self.daily_new_limit(brain_data),
+            "default_daily_new_limit": DEFAULT_DAILY_NEW_LIMIT,
+            "min_daily_new_limit": MIN_DAILY_NEW_LIMIT,
+            "max_daily_new_limit": MAX_DAILY_NEW_LIMIT,
+            "introduced_today": sum(1 for m in unlocked.values()
+                                    if m.get("introduced") == today),
+            "new_backlog": self.new_character_backlog(unlocked),
+            "unlocked_chars": len(unlocked),
+        }
+
+    def update_settings(self, values: dict) -> dict:
+        """
+        Validates and persists settings from the Settings panel, returning
+        the same payload read_settings does so the caller can re-render from
+        the stored truth rather than from what it hoped it saved.
+
+        Only keys this understands are touched; anything else in `values` is
+        ignored rather than written, so a stale or hostile client cannot use
+        this endpoint to stuff arbitrary data into brain.json.
+
+        Raises ValueError on a value that isn't a whole number in range --
+        the endpoint turns that into a 400. Silently clamping instead would
+        be worse: someone typing 500 should be told the cap is 100, not left
+        believing they set 500.
+        """
+        if "daily_new_limit" in values:
+            raw = values["daily_new_limit"]
+            # bool is an int subclass, and True would quietly become 1.
+            if isinstance(raw, bool):
+                raise ValueError("'daily_new_limit' must be a whole number.")
+            # int(7.5) is 7, so a bare int() would silently truncate a
+            # fraction into a valid-looking setting -- the same
+            # accept-but-change-it behaviour the range check above refuses.
+            # An integral float (7.0) is fine: JSON has no integer type, so
+            # that is a spelling of 7 rather than a different value.
+            if isinstance(raw, float) and not raw.is_integer():
+                raise ValueError("'daily_new_limit' must be a whole number.")
+            try:
+                limit = int(raw)
+            except (TypeError, ValueError):
+                raise ValueError("'daily_new_limit' must be a whole number.")
+            if not MIN_DAILY_NEW_LIMIT <= limit <= MAX_DAILY_NEW_LIMIT:
+                raise ValueError(
+                    f"'daily_new_limit' must be between {MIN_DAILY_NEW_LIMIT} "
+                    f"and {MAX_DAILY_NEW_LIMIT}.")
+        else:
+            limit = None
+
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            settings = brain_data.setdefault("settings", {})
+            if limit is not None:
+                settings["daily_new_limit"] = limit
+            # daily_goal and strict_mode were written into every new brain
+            # and read by nothing, ever. They are gone from the schema now
+            # (see seed_brain.empty_brain); drop them from existing accounts
+            # on the first save rather than shipping a migration script, the
+            # same way prune_single_char_words cleans up after finding 5.
+            for dead in DEAD_SETTING_KEYS:
+                settings.pop(dead, None)
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return self.read_settings()
 
     def _read_brain(self) -> dict:
         """Reads brain.json, returning {} rather than raising if it can't."""

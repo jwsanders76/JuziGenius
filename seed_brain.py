@@ -47,7 +47,7 @@ import csv
 import json
 import os
 
-from juzi_engine import SENTENCE_SOURCE_FILES
+from juzi_engine import DEFAULT_DAILY_NEW_LIMIT, SENTENCE_SOURCE_FILES
 
 MASTER_DICT_PATH = "master_dictionary.json"
 BRAIN_PATH = "brain.json"
@@ -288,7 +288,14 @@ def empty_brain():
     return {
         "unlocked_chars": {},
         "unlocked_words": {},
-        "settings": {"daily_goal": 10, "strict_mode": True},
+        # daily_new_limit is written explicitly rather than left to
+        # DEFAULT_DAILY_NEW_LIMIT so the value the Settings panel edits is
+        # visible in brain.json instead of being an invisible default. The
+        # long-dormant daily_goal and strict_mode keys are gone: both were
+        # written here and read by nothing, and a setting that does nothing
+        # is worse than no setting -- update_settings drops them from
+        # existing accounts on the next save.
+        "settings": {"daily_new_limit": DEFAULT_DAILY_NEW_LIMIT},
         "sentences": [],
         "onboarded": False,
     }

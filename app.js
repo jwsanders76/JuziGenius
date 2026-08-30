@@ -17,7 +17,11 @@ const state = {
     newBacklog: 0,
     ttsVoiceURI: localStorage.getItem("juzi_tts_voice_uri") || null,
     isCompleted: false,
-    importMode: "paste"
+    importMode: "paste",
+    // Last payload from /api/settings -- held so the Settings panel can
+    // validate against the server's own bounds and restore its default
+    // without a second request.
+    settings: null
 };
 
 const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected", chars: "Unlock Selected" };
@@ -195,6 +199,13 @@ function cacheDomElements() {
     elements.progressPanels = elements.progressModal.querySelectorAll(".mode-panel");
     elements.progressBtnClose = document.getElementById("progress-btn-close");
 
+    elements.settingDailyNewLimit = document.getElementById("setting-daily-new-limit");
+    elements.settingLimitRange = document.getElementById("setting-limit-range");
+    elements.settingContext = document.getElementById("setting-context");
+    elements.settingsBtnSave = document.getElementById("settings-btn-save");
+    elements.settingsBtnReset = document.getElementById("settings-btn-reset");
+    elements.settingsStatus = document.getElementById("settings-status");
+
     elements.resetSummary = document.getElementById("reset-summary");
     elements.resetBtnBegin = document.getElementById("reset-btn-begin");
     elements.resetConfirmStep = document.getElementById("reset-confirm-step");
@@ -235,6 +246,20 @@ function initEventListeners() {
     elements.progressTabs.forEach(tab => {
         tab.addEventListener("click", () => switchProgressTab(tab.dataset.progressTab));
     });
+
+    if (elements.settingsBtnSave) {
+        elements.settingsBtnSave.addEventListener("click", saveSettings);
+    }
+    if (elements.settingsBtnReset) {
+        // Restores the app default rather than saving it outright, so the
+        // usual Save still confirms the change.
+        elements.settingsBtnReset.addEventListener("click", () => {
+            if (!elements.settingDailyNewLimit || state.settings === null) return;
+            elements.settingDailyNewLimit.value = state.settings.default_daily_new_limit;
+            elements.settingDailyNewLimit.focus();
+            if (elements.settingsStatus) elements.settingsStatus.hidden = true;
+        });
+    }
 
     // Start Over tab. Bound once against static markup, unlike the two other
     // progress panels, which are rebuilt with innerHTML on every open -- a
@@ -1497,6 +1522,134 @@ function switchProgressTab(tab) {
         panel.hidden = panel.dataset.progressPanel !== tab;
     });
     if (tab !== "reset") armAccountReset(false);
+    // Loaded on demand rather than alongside /api/progress: most visits to
+    // this modal never open Settings, and the panel wants the account's live
+    // intake counts at the moment it is shown, not at the moment the modal
+    // was opened.
+    if (tab === "settings") loadSettings();
+}
+
+/**
+ * Fetches the settings payload and renders the panel.
+ */
+async function loadSettings() {
+    if (!elements.settingDailyNewLimit) return;
+    if (elements.settingsStatus) elements.settingsStatus.hidden = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/settings`);
+        if (!response.ok) throw new Error(`Failed to load settings (${response.status}).`);
+        renderSettings(await response.json());
+    } catch (err) {
+        console.error(err);
+        state.settings = null;
+        setSettingsControlsEnabled(false);
+        if (elements.settingContext) {
+            elements.settingContext.textContent = "Couldn't load your settings.";
+        }
+    }
+}
+
+function renderSettings(s) {
+    state.settings = s;
+    setSettingsControlsEnabled(true);
+
+    elements.settingDailyNewLimit.value = s.daily_new_limit;
+    elements.settingDailyNewLimit.min = s.min_daily_new_limit;
+    elements.settingDailyNewLimit.max = s.max_daily_new_limit;
+
+    if (elements.settingLimitRange) {
+        elements.settingLimitRange.textContent =
+            `${s.min_daily_new_limit}–${s.max_daily_new_limit} (default ${s.default_daily_new_limit})`;
+    }
+
+    // The counts are what turn an abstract dial into a decision: the same
+    // number reads very differently with 0 waiting than with 400.
+    if (elements.settingContext) {
+        const waiting = s.new_backlog || 0;
+        const intro = s.introduced_today || 0;
+        const parts = [
+            `${intro} new character${intro === 1 ? "" : "s"} introduced today`,
+            `${waiting} waiting`
+        ];
+        elements.settingContext.textContent =
+            `Right now: ${parts.join(", ")}.` +
+            (s.daily_new_limit === 0
+                ? " At 0, no new characters arrive unless you would otherwise have nothing to practise."
+                : "");
+    }
+}
+
+function setSettingsControlsEnabled(enabled) {
+    [elements.settingDailyNewLimit, elements.settingsBtnSave, elements.settingsBtnReset]
+        .forEach(el => el && (el.disabled = !enabled));
+}
+
+/**
+ * Saves the panel and re-renders from the server's response rather than from
+ * what was typed, so the displayed state is always the stored one.
+ */
+async function saveSettings() {
+    if (!elements.settingDailyNewLimit || state.settings === null) return;
+
+    const typed = elements.settingDailyNewLimit.value.trim();
+    const limit = Number(typed);
+    // Checked here as well as on the server so the common mistake gets an
+    // instant answer; the server still rejects independently, since this
+    // check lives in a page anyone can edit.
+    if (typed === "" || !Number.isInteger(limit)
+        || limit < state.settings.min_daily_new_limit
+        || limit > state.settings.max_daily_new_limit) {
+        showSettingsStatus(`Enter a whole number between ${state.settings.min_daily_new_limit} `
+            + `and ${state.settings.max_daily_new_limit}.`);
+        return;
+    }
+
+    setSettingsControlsEnabled(false);
+    showSettingsStatus("Saving…");
+    try {
+        const response = await fetch(`${API_BASE}/api/settings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ daily_new_limit: limit })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
+
+        renderSettings(data);
+        showSettingsStatus("Saved.");
+        // The cap decides how many characters are due, so the badge behind
+        // this modal is now stale. Refreshed from the same figures the
+        // progress view uses rather than guessing at the new count.
+        refreshDueCounter();
+    } catch (err) {
+        console.error(err);
+        setSettingsControlsEnabled(true);
+        showSettingsStatus(err.message || "Couldn't save your settings.");
+    }
+}
+
+function showSettingsStatus(message) {
+    if (!elements.settingsStatus) return;
+    elements.settingsStatus.hidden = false;
+    elements.settingsStatus.textContent = message;
+}
+
+/**
+ * Re-reads the due/backlog figures and repaints the top-bar badge, for when
+ * something other than a review changes them.
+ */
+async function refreshDueCounter() {
+    try {
+        const response = await fetch(`${API_BASE}/api/session`);
+        if (!response.ok) return;
+        const data = await response.json();
+        state.totalDueCount = data.total_due_count || 0;
+        state.newBacklog = data.new_backlog || 0;
+        updateDueCounter();
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 // Typed by the user to confirm a reset, and sent in the request body so no

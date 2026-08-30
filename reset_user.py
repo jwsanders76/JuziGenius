@@ -23,23 +23,13 @@ import argparse
 import json
 import os
 
-from seed_brain import MASTER_DICT_PATH, SIZE_CHOICES, TIER_NAMES, build_brain
+from seed_brain import (MASTER_DICT_PATH, SIZE_CHOICES, TIER_NAMES, build_brain,
+                        empty_brain)
 from user_registry import USERS_DIR, find_by_name, load_registry
 
 # Every account link points at the one live domain -- see create_user.py's
 # BASE_URL for the same constant.
 BASE_URL = "https://juzigenius.com"
-
-
-def _empty_brain():
-    """Same shape create_user.py's create_user() writes for a brand new account."""
-    return {
-        "unlocked_chars": {},
-        "unlocked_words": {},
-        "settings": {"daily_goal": 10, "strict_mode": True},
-        "sentences": [],
-        "onboarded": False,
-    }
 
 
 def main():
@@ -83,7 +73,7 @@ def main():
     link = f"{BASE_URL}/u/{slug}/"
 
     if args.size is None:
-        brain = _empty_brain()
+        brain = empty_brain()
         with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
             json.dump(brain, f, ensure_ascii=False, indent=4)
         print(

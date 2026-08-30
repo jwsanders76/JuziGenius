@@ -1061,6 +1061,42 @@ body {
     text-overflow: ellipsis;
 }
 
+/* --- Progress view: Settings tab --- */
+.setting-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.setting-input {
+    width: 96px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    padding: 9px 12px;
+}
+
+.setting-input:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+}
+
+.setting-input:disabled {
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.setting-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
 /* --- Progress view: Start Over tab ---
    Red is used here as a warning, never as the only thing carrying meaning:
    every element it marks also says what it is in words. Contrast measured
@@ -1189,6 +1225,15 @@ body {
 }
 
 @media (max-width: 520px) {
+    /* Four progress tabs, not two. At phone width each gets roughly a
+       quarter of the card, and "Characters" no longer fits at the full size,
+       so the row tightens rather than overflowing or wrapping to two lines. */
+    .mode-tab {
+        font-size: 0.72rem;
+        padding: 8px 2px;
+    }
+    .mode-tabs { gap: 3px; }
+
     .char-suggestion-row {
         grid-template-columns: auto auto 1fr auto;
         grid-template-areas:
