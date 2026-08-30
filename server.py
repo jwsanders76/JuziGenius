@@ -6,7 +6,7 @@ import re
 import threading
 import urllib.parse
 from juzi_engine import JuziEngine
-from seed_brain import SIZE_CHOICES, TIER_INFO
+from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
 
 PORT = 8000
@@ -32,6 +32,12 @@ USER_SLUG_IN_LOG_RE = re.compile(r"/u/[A-Za-z0-9_-]{16,}")
 # the decoded string, and the parsed JSON -- for no legitimate reason. This
 # rejects oversized requests before reading the body at all.
 MAX_BODY_SIZE = 2 * 1024 * 1024  # 2 MB
+
+# POST /api/account/reset erases an account irreversibly, so it requires this
+# word in its body: arriving at the right URL is not enough, the request has
+# to state what it intends. app.js asks the user to type the same word, so
+# the string is deliberately short, unambiguous and language-neutral.
+RESET_CONFIRMATION = "RESET"
 
 # Only these paths may ever be served as static files. This is a network-facing
 # server (bound to all interfaces so it's reachable from a tablet on the same
@@ -721,6 +727,87 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     "name": TIER_INFO[size]["name"],
                     "total_unlocked_count": len(new_brain["unlocked_chars"]),
                 }, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self._send_json_error(500, str(e))
+                return True
+
+        # Wipes the account back to a brand new one -- everything unlocked,
+        # every SM-2 schedule, every completed sentence and every personally
+        # pasted sentence, followed by the tier picker on the next session
+        # fetch. Body: { "confirm": "RESET" }.
+        #
+        # This is the account owner's own escape hatch (the Start Over tab in
+        # the progress view), for someone who wants to begin again from a
+        # clean slate rather than live with a pool they picked wrong or a
+        # review backlog they have given up on. Without it the only way back
+        # was to ask the operator to run reset_user.py.
+        #
+        # Note what this deliberately gives up. /api/onboarding/seed is
+        # one-shot precisely so that holding the link cannot wipe an
+        # account's progress; this endpoint hands that capability back, and
+        # the link is the only credential there is. That is inherent in the
+        # feature -- a self-service reset is a self-service reset -- and it
+        # widens nothing that link-holding did not already permit, since
+        # anyone with the link can already grade characters wrongly or import
+        # junk. The protections that remain are the CSRF pair on every POST
+        # (so another site cannot trigger this in a logged-in browser), the
+        # explicit confirmation token below, and the two-step confirmation in
+        # the UI.
+        #
+        # RESET_CONFIRMATION is required in the body so that no bare,
+        # bodyless POST to this path can destroy an account: a request has to
+        # say what it is doing, not merely arrive at the right URL.
+        if path == "/api/account/reset":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                if json.loads(body).get("confirm") != RESET_CONFIRMATION:
+                    self._send_json_error(
+                        400, f"Reset requires \"confirm\": \"{RESET_CONFIRMATION}\".")
+                    return True
+
+                with engine.brain_lock:
+                    brain_data = {}
+                    if os.path.exists(engine.brain_path):
+                        with open(engine.brain_path, "r", encoding="utf-8") as f:
+                            brain_data = json.load(f)
+
+                    # Counted before the overwrite so the response can report
+                    # what was actually destroyed, rather than what the client
+                    # last happened to render.
+                    erased = {
+                        "unlocked_chars": len(brain_data.get("unlocked_chars", {}) or {}),
+                        "unlocked_words": len(brain_data.get("unlocked_words", {}) or {}),
+                        "completed_sentences": len(brain_data.get("completed_sentences", {}) or {}),
+                        "pasted_sentences": len(brain_data.get("pasted_sentences", []) or []),
+                    }
+
+                    with open(engine.brain_path, "w", encoding="utf-8") as f:
+                        json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
+
+                # Logged because it is irreversible and someone will ask what
+                # happened to their progress. The account is not named: the
+                # slug is the credential and does not belong in a log (see
+                # log_message and finding 21), so this records that a reset
+                # happened and how much it took, not whose it was.
+                #
+                # flush=True because stdout is block-buffered whenever it is
+                # not a terminal -- which is every real deployment, systemd
+                # included. Without it this line sits in the buffer while the
+                # access log (stderr, unbuffered) races ahead, so the one
+                # event worth finding in the journal arrives late, out of
+                # order, or not at all if the process is killed.
+                print(f"Account reset on request: erased {erased['unlocked_chars']} characters, "
+                      f"{erased['completed_sentences']} completed sentences, "
+                      f"{erased['pasted_sentences']} saved sentences.", flush=True)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"reset": True, "erased": erased},
+                                            ensure_ascii=False).encode("utf-8"))
                 return True
             except Exception as e:
                 self._send_json_error(500, str(e))

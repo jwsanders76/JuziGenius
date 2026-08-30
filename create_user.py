@@ -35,6 +35,7 @@ import json
 import os
 import secrets
 
+from seed_brain import empty_brain
 from user_registry import USERS_DIR, load_registry, save_registry
 
 BASE_URL = "https://juzigenius.com"
@@ -47,15 +48,11 @@ def create_user():
     # existing directory if it somehow does.
     os.makedirs(user_dir, exist_ok=False)
 
-    brain = {
-        "unlocked_chars": {},
-        "unlocked_words": {},
-        "settings": {"daily_goal": 10, "strict_mode": True},
-        "sentences": [],
-        "onboarded": False,
-    }
+    # Same shape a self-service reset returns an account to, from one
+    # definition -- see seed_brain.empty_brain and server.py's
+    # POST /api/account/reset.
     with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
-        json.dump(brain, f, ensure_ascii=False, indent=4)
+        json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
 
     return slug
 

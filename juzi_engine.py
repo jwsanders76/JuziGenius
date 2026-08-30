@@ -1297,6 +1297,11 @@ class JuziEngine:
             "sentences_completed_unique": len(completed),
             "sentences_completed_total": sum(
                 (e.get("count", 0) or 0) for e in completed.values()),
+            # Reported so the Start Over tab can name what a reset destroys.
+            # Everything else here is re-derivable -- reseed a tier and the
+            # characters come back -- but these are sentences the user typed
+            # in from their own reading, and nothing can reconstruct them.
+            "pasted_sentences": len(brain_data.get("pasted_sentences", []) or []),
             "playable_sentences": self.count_playable_sentences(set(unlocked)),
             "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
                          for d in range(1, 15)],

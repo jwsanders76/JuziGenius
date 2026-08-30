@@ -155,6 +155,7 @@
             <div class="mode-tabs">
                 <button type="button" class="mode-tab active" data-progress-tab="overview">Overview</button>
                 <button type="button" class="mode-tab" data-progress-tab="characters">Characters</button>
+                <button type="button" class="mode-tab" data-progress-tab="reset">Start Over</button>
             </div>
 
             <!-- Stats, coverage, forecast -- the existing progress view. -->
@@ -170,6 +171,61 @@
             <div class="mode-panel" data-progress-panel="characters" hidden>
                 <div id="progress-characters" class="progress-body">
                     <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
+            <!-- Wipe the account back to a brand new one. Its own tab rather
+                 than a section at the foot of Overview: that panel is long
+                 and scrolled through on every visit, and an irreversible
+                 action should not sit at the end of a scroll people take for
+                 other reasons. Two steps, the second requiring the word to be
+                 typed, because there is no undo and no backup. -->
+            <div class="mode-panel" data-progress-panel="reset" hidden>
+                <div class="progress-body">
+                    <section class="danger-zone">
+                        <h3 class="danger-title">Start over from scratch</h3>
+                        <p class="progress-note">
+                            Erases everything below and takes you back to the starting-tier
+                            picker, exactly as if you had just opened your link for the very
+                            first time. Your link itself stays the same, so nothing needs
+                            re-sending.
+                        </p>
+
+                        <ul id="reset-summary" class="danger-list">
+                            <li>Loading…</li>
+                        </ul>
+
+                        <p class="danger-warning">
+                            This cannot be undone. There is no backup and no way to recover
+                            any of it afterwards &mdash; least of all the sentences you saved
+                            from your own reading, which nothing else can reconstruct.
+                        </p>
+
+                        <div class="danger-actions">
+                            <button type="button" id="reset-btn-begin" class="modal-btn btn-danger-outline">
+                                Start over&hellip;
+                            </button>
+                        </div>
+
+                        <div id="reset-confirm-step" class="danger-confirm" hidden>
+                            <label class="danger-label" for="reset-confirm-input">
+                                Type <strong>RESET</strong> below to confirm:
+                            </label>
+                            <input type="text" id="reset-confirm-input" class="danger-input"
+                                   autocomplete="off" autocapitalize="characters"
+                                   autocorrect="off" spellcheck="false" placeholder="RESET">
+                            <div class="danger-actions">
+                                <button type="button" id="reset-btn-cancel" class="modal-btn btn-secondary">
+                                    Cancel
+                                </button>
+                                <button type="button" id="reset-btn-confirm" class="modal-btn btn-danger" disabled>
+                                    Erase everything
+                                </button>
+                            </div>
+                        </div>
+
+                        <p id="reset-status" class="danger-status" role="status" hidden></p>
+                    </section>
                 </div>
             </div>
 

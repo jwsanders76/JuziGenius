@@ -1061,6 +1061,133 @@ body {
     text-overflow: ellipsis;
 }
 
+/* --- Progress view: Start Over tab ---
+   Red is used here as a warning, never as the only thing carrying meaning:
+   every element it marks also says what it is in words. Contrast measured
+   against the .modal-card surface (#1e1e24): the heading and warning colour
+   #ff8f7f reads 7.4:1, and white on the #c0392b confirm button 5.4:1 -- the
+   flat --accent-red would have been 3.8:1 behind white, which is why this
+   uses a darker red rather than the palette variable. */
+.danger-zone {
+    border: 1px solid #7d3229;
+    border-radius: 10px;
+    padding: 16px;
+    background: rgba(192, 57, 43, 0.06);
+}
+
+.danger-title {
+    font-size: 0.95rem;
+    color: #ff8f7f;
+    margin: 0 0 6px;
+}
+
+.danger-list {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.danger-list li {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 10px;
+    line-height: 1.4;
+}
+
+.danger-list strong {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.danger-note { color: var(--text-secondary); }
+
+.danger-warning {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #ff8f7f;
+    margin: 0 0 14px;
+}
+
+.danger-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.danger-confirm {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* An author `display` beats the user-agent's [hidden] rule, so setting the
+   attribute alone would leave the confirmation step permanently on screen --
+   the same reason .mode-panel[hidden] exists above. Worth the explicit rule
+   here more than anywhere: the failure mode is a destructive control that is
+   armed before anyone asked for it. */
+.danger-confirm[hidden] { display: none; }
+
+.danger-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.danger-label strong {
+    color: var(--text-primary);
+    letter-spacing: 0.06em;
+}
+
+.danger-input {
+    width: 100%;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    padding: 9px 12px;
+}
+
+.danger-input:focus {
+    outline: none;
+    border-color: #ff8f7f;
+}
+
+.btn-danger {
+    background-color: #c0392b;
+    color: white;
+}
+
+.btn-danger:disabled {
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.btn-danger-outline {
+    background-color: transparent;
+    color: #ff8f7f;
+    border: 1px solid #7d3229;
+}
+
+.danger-status {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin: 12px 0 0;
+    text-align: right;
+}
+
 @media (max-width: 520px) {
     .char-suggestion-row {
         grid-template-columns: auto auto 1fr auto;

@@ -195,6 +195,14 @@ function cacheDomElements() {
     elements.progressPanels = elements.progressModal.querySelectorAll(".mode-panel");
     elements.progressBtnClose = document.getElementById("progress-btn-close");
 
+    elements.resetSummary = document.getElementById("reset-summary");
+    elements.resetBtnBegin = document.getElementById("reset-btn-begin");
+    elements.resetConfirmStep = document.getElementById("reset-confirm-step");
+    elements.resetConfirmInput = document.getElementById("reset-confirm-input");
+    elements.resetBtnCancel = document.getElementById("reset-btn-cancel");
+    elements.resetBtnConfirm = document.getElementById("reset-btn-confirm");
+    elements.resetStatus = document.getElementById("reset-status");
+
     elements.onboardingModal = document.getElementById("onboarding-modal");
     elements.onboardingTiersList = document.getElementById("onboarding-tiers");
     elements.onboardingStatus = document.getElementById("onboarding-status");
@@ -227,6 +235,23 @@ function initEventListeners() {
     elements.progressTabs.forEach(tab => {
         tab.addEventListener("click", () => switchProgressTab(tab.dataset.progressTab));
     });
+
+    // Start Over tab. Bound once against static markup, unlike the two other
+    // progress panels, which are rebuilt with innerHTML on every open -- a
+    // destructive control should not be re-created on a path where a missed
+    // re-bind would leave a dead-looking button.
+    if (elements.resetBtnBegin) {
+        elements.resetBtnBegin.addEventListener("click", () => armAccountReset(true));
+    }
+    if (elements.resetBtnCancel) {
+        elements.resetBtnCancel.addEventListener("click", () => armAccountReset(false));
+    }
+    if (elements.resetConfirmInput) {
+        elements.resetConfirmInput.addEventListener("input", syncResetConfirmButton);
+    }
+    if (elements.resetBtnConfirm) {
+        elements.resetBtnConfirm.addEventListener("click", performAccountReset);
+    }
 
     // Import Modal Event Listeners
     if (elements.btnImport) {
@@ -1445,14 +1470,24 @@ async function openProgressView() {
         const data = await response.json();
         renderProgress(data);
         renderProgressCharacters(data.characters || []);
+        renderResetSummary(data);
     } catch (err) {
         console.error(err);
         elements.progressBody.innerHTML = `<p class="suggestions-empty">Could not load your progress.</p>`;
+        // Otherwise the Start Over tab sits on "Loading…" indefinitely while
+        // its buttons still work -- a reset offered without saying what it
+        // would destroy, which is the one thing this panel exists to say.
+        if (elements.resetSummary) {
+            elements.resetSummary.innerHTML =
+                `<li>Couldn't load what's currently in your account.</li>`;
+        }
     }
 }
 
 /**
- * Switches the Progress modal between its Overview and Characters tabs.
+ * Switches the Progress modal between its Overview, Characters and Start Over
+ * tabs. Leaving Start Over disarms it, so a confirmation typed and abandoned
+ * can't still be sitting there armed the next time the tab is opened.
  */
 function switchProgressTab(tab) {
     elements.progressTabs.forEach(t => {
@@ -1461,6 +1496,138 @@ function switchProgressTab(tab) {
     elements.progressPanels.forEach(panel => {
         panel.hidden = panel.dataset.progressPanel !== tab;
     });
+    if (tab !== "reset") armAccountReset(false);
+}
+
+// Typed by the user to confirm a reset, and sent in the request body so no
+// bodyless POST to /api/account/reset can wipe an account. Must match
+// server.py's RESET_CONFIRMATION.
+const RESET_CONFIRMATION = "RESET";
+
+/**
+ * Lists what a reset would destroy, in the Start Over tab, using the numbers
+ * from the same /api/progress payload the Overview tab renders.
+ *
+ * Naming the actual counts rather than saying "all your progress" is the
+ * point: "42 characters and 8 sentences you saved yourself" is a decision
+ * someone can weigh, where a generic warning is one they skim. Personal
+ * pasted sentences are listed last and called out separately because they
+ * are the only part that cannot be rebuilt -- a character pool comes back by
+ * re-picking a tier, but sentences the user typed in from their own reading
+ * are gone for good.
+ */
+function renderResetSummary(p) {
+    if (!elements.resetSummary) return;
+
+    // Singular and plural spelled out per row rather than derived: the noun
+    // that takes the "s" is the last word in some of these and the first in
+    // others ("sentences you saved from your own reading"), so a rule would
+    // be longer than the exceptions it saves.
+    const rows = [
+        [p.unlocked_chars,
+         "unlocked character", "unlocked characters",
+         "and everything the review schedule knows about them"],
+        [p.sentences_completed_unique,
+         "completed sentence", "completed sentences",
+         "your whole writing history"],
+        [p.unlocked_words,
+         "recorded compound word", "recorded compound words", ""],
+        [p.pasted_sentences || 0,
+         "sentence you saved from your own reading",
+         "sentences you saved from your own reading",
+         "which nothing can bring back"]
+    ];
+
+    elements.resetSummary.innerHTML = rows.map(([count, one, many, note]) => {
+        const n = Number(count) || 0;
+        return `<li><strong>${n.toLocaleString()}</strong> ${escapeHtml(n === 1 ? one : many)}${
+            note ? ` <span class="danger-note">&mdash; ${escapeHtml(note)}</span>` : ""}</li>`;
+    }).join("");
+}
+
+/**
+ * Shows or hides the second confirmation step, and resets it either way so
+ * it is never left half-filled from a previous visit.
+ */
+function armAccountReset(armed) {
+    if (elements.resetConfirmStep) elements.resetConfirmStep.hidden = !armed;
+    if (elements.resetBtnBegin) elements.resetBtnBegin.hidden = armed;
+    if (elements.resetConfirmInput) {
+        elements.resetConfirmInput.value = "";
+        elements.resetConfirmInput.disabled = false;
+        if (armed) elements.resetConfirmInput.focus();
+    }
+    if (elements.resetStatus) elements.resetStatus.hidden = true;
+    syncResetConfirmButton();
+}
+
+/**
+ * The confirm button stays disabled until the word is typed. Matched
+ * case-insensitively: tablets are where this app is mostly used and their
+ * keyboards fight capitalisation, so demanding exact case would punish the
+ * typing, not confirm the intent. The canonical spelling is what gets sent.
+ */
+function syncResetConfirmButton() {
+    if (!elements.resetBtnConfirm) return;
+    const typed = elements.resetConfirmInput ? elements.resetConfirmInput.value.trim() : "";
+    elements.resetBtnConfirm.disabled = typed.toUpperCase() !== RESET_CONFIRMATION;
+}
+
+/**
+ * Wipes the account and hands the user straight back to the tier picker.
+ *
+ * Local state is cleared before the session refetch rather than left to be
+ * overwritten: the canvas, the current sentence and its hint tier all belong
+ * to a sentence that no longer exists in the account, and a stroke finished
+ * against the old writer would otherwise post a review for a character the
+ * server has just forgotten.
+ */
+async function performAccountReset() {
+    const buttons = [elements.resetBtnConfirm, elements.resetBtnCancel];
+    buttons.forEach(b => b && (b.disabled = true));
+    if (elements.resetConfirmInput) elements.resetConfirmInput.disabled = true;
+    if (elements.resetStatus) {
+        elements.resetStatus.hidden = false;
+        elements.resetStatus.textContent = "Erasing your progress…";
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/account/reset`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confirm: RESET_CONFIRMATION })
+        });
+        if (!response.ok) throw new Error(`Reset failed (${response.status}).`);
+
+        state.sentences = [];
+        state.currentIndex = 0;
+        state.charIndex = 0;
+        state.hintTier = 0;
+        state.charMistakes = 0;
+        state.skippedIndices = new Set();
+        state.isCompleted = false;
+        // Bump the token so any in-flight stroke animation or character-data
+        // load from the old sentence is treated as superseded (see
+        // setupCurrentCharacterWriter's writerToken guard).
+        state.writerToken++;
+        state.writer = null;
+
+        if (elements.progressModal) elements.progressModal.style.display = "none";
+        armAccountReset(false);
+        // Reports onboarded: false now, so this lands on the tier picker --
+        // the same path a brand new account takes on its first visit.
+        fetchNewSession();
+    } catch (err) {
+        console.error(err);
+        if (elements.resetStatus) {
+            elements.resetStatus.hidden = false;
+            elements.resetStatus.textContent =
+                "Couldn't reset your account, so nothing was changed. Please try again in a moment.";
+        }
+        if (elements.resetConfirmInput) elements.resetConfirmInput.disabled = false;
+        if (elements.resetBtnCancel) elements.resetBtnCancel.disabled = false;
+        syncResetConfirmButton();
+    }
 }
 
 function statTile(value, label, title) {

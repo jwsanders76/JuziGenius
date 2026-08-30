@@ -266,6 +266,34 @@ def _fresh_char_entry(char, master):
     }
 
 
+def empty_brain():
+    """
+    A brand new account with nothing unlocked and no tier chosen yet -- the
+    state create_user.py provisions, and the state server.py's
+    POST /api/account/reset returns an account to when its owner asks to
+    start over.
+
+    `onboarded: false` is what makes app.js show the tier picker instead of
+    the normal session (see fetchNewSession), so this is not merely an empty
+    brain but specifically a *pre-onboarding* one. Note what is absent as
+    much as what is here: no completed_sentences and no pasted_sentences, so
+    a reset drops the user's own saved sentences along with their SRS
+    schedule. That is the point of starting over, but it is the one part
+    that cannot be re-derived from anything, so anything calling this must
+    say so plainly first.
+
+    Defined here, beside build_brain, so the two agree on the schema --
+    create_user.py used to carry its own copy of this dict.
+    """
+    return {
+        "unlocked_chars": {},
+        "unlocked_words": {},
+        "settings": {"daily_goal": 10, "strict_mode": True},
+        "sentences": [],
+        "onboarded": False,
+    }
+
+
 def build_brain(size, master, onboarded=True):
     """
     `onboarded=False` marks the brain as still awaiting its owner's own tier
@@ -277,15 +305,11 @@ def build_brain(size, master, onboarded=True):
     """
     chars = (select_beginner_characters(size, master) if size == SIZE_CHOICES[0]
               else select_characters(size, master))
-    unlocked_chars = {char: _fresh_char_entry(char, master) for char in chars}
 
-    return {
-        "unlocked_chars": unlocked_chars,
-        "unlocked_words": {},
-        "settings": {"daily_goal": 10, "strict_mode": True},
-        "sentences": [],
-        "onboarded": onboarded,
-    }
+    brain = empty_brain()
+    brain["unlocked_chars"] = {char: _fresh_char_entry(char, master) for char in chars}
+    brain["onboarded"] = onboarded
+    return brain
 
 
 def grow_brain(size, brain_data, master):
