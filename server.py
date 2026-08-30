@@ -1,3 +1,4 @@
+import hashlib
 import http.server
 import json
 import os
@@ -15,6 +16,12 @@ PORT = 8000
 # get_engine_for_slug below). Anchored and length-floored so a malformed or
 # short guess never reaches the filesystem as a path component.
 USER_PREFIX_RE = re.compile(r"^/u/([A-Za-z0-9_-]{16,})(/.*)?$")
+
+# The same prefix, unanchored, for redacting slugs out of log lines -- those
+# carry a whole request line ("GET /u/<slug>/api/session HTTP/1.1"), not a bare
+# path, so the anchored pattern above cannot match inside one. See
+# JuziAPIHandler.log_message.
+USER_SLUG_IN_LOG_RE = re.compile(r"/u/[A-Za-z0-9_-]{16,}")
 
 # No POST body may legitimately need more than this -- even a whole novel
 # chapter pasted into Paste Text is a few hundred KB. Without a cap, do_POST
@@ -42,6 +49,7 @@ ALLOWED_STATIC_PATHS = {
 }
 
 STROKE_DATA_PATH = "stroke_data.json"
+STROKE_INDEX_PATH = "stroke_data.index.json"
 
 
 def build_manifest(start_url="/"):
@@ -136,29 +144,115 @@ def get_engine_for_slug(slug):
         engines[slug] = engine
         return engine
 
-# Vendored Hanzi Writer stroke data, loaded once on first use and held in
-# memory. This is what makes handwriting work offline: without it the library
-# fetches every character from cdn.jsdelivr.net as the user is asked to write
-# it. Tracked in the repo (built by fetch_stroke_data.py), so a fresh clone
-# has it. If it's ever missing, /api/strokes 404s and app.js falls back to
-# the CDN rather than failing outright.
-_stroke_data = None
+# Vendored Hanzi Writer stroke data. This is what makes handwriting work
+# offline: without it the library fetches every character from
+# cdn.jsdelivr.net as the user is asked to write it. Tracked in the repo
+# (built by fetch_stroke_data.py), so a fresh clone has it. If it's ever
+# missing, /api/strokes 404s and app.js falls back to the CDN rather than
+# failing outright.
+#
+# Finding 20: this file is 29.4 MB, and parsing it into one dict cost 137 MB
+# resident (195 MB peak) held for the process lifetime -- to serve what are
+# only ever single-key lookups. fetch_stroke_data.py now writes a byte-offset
+# index beside it, so a character's stroke data is read as one ~3 KB span and
+# the rest is never materialised. The span is already JSON, so it goes to the
+# socket verbatim: no parse on the way in, no re-encode on the way out.
+#
+# The index carries the size and sha256 of the file it describes. A stale
+# index would serve one character's strokes under another character's name --
+# silent, and miserable to diagnose from the symptom -- so a mismatch falls
+# back to the old full parse rather than being trusted.
+_stroke_index = None            # {char: [offset, length]}, or {} if unusable
+_stroke_data = None             # full parse; populated only on the fallback path
+_stroke_lock = threading.Lock()
 
 
-def load_stroke_data():
-    global _stroke_data
+def _file_digest(path, chunk_size=1 << 20):
+    """sha256 of a file, read in chunks so a 29 MB file costs 1 MB of memory."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(chunk_size), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _load_stroke_index():
+    """
+    The byte-offset index, or {} if it is absent or does not match the data
+    file (in which case the caller falls back to parsing the whole thing).
+    """
+    if not os.path.exists(STROKE_INDEX_PATH):
+        print(f"Notice: {STROKE_INDEX_PATH} not found -- falling back to parsing "
+              f"all of {STROKE_DATA_PATH} into memory. Re-run "
+              f"'python3 fetch_stroke_data.py' to rebuild the index.")
+        return {}
+    try:
+        with open(STROKE_INDEX_PATH, "r", encoding="utf-8") as f:
+            index = json.load(f)
+        if index.get("source_bytes") != os.path.getsize(STROKE_DATA_PATH):
+            raise ValueError("size does not match")
+        if index.get("source_sha256") != _file_digest(STROKE_DATA_PATH):
+            raise ValueError("checksum does not match")
+        entries = index.get("entries") or {}
+        print(f"Loaded stroke-data index for {len(entries)} characters "
+              f"({STROKE_DATA_PATH} stays on disk).")
+        return entries
+    except Exception as e:
+        print(f"Warning: {STROKE_INDEX_PATH} is stale or unreadable ({e}) -- "
+              f"falling back to parsing all of {STROKE_DATA_PATH}. Re-run "
+              f"'python3 fetch_stroke_data.py' to rebuild it.")
+        return {}
+
+
+def stroke_entry_bytes(char):
+    """
+    One character's stroke data as raw JSON bytes, or None if not vendored.
+
+    A 404 from the caller is not an error: app.js reads it as "not vendored"
+    and falls back to the pinned CDN.
+    """
+    global _stroke_index, _stroke_data
+
+    if not os.path.exists(STROKE_DATA_PATH):
+        if _stroke_index is None:
+            with _stroke_lock:
+                if _stroke_index is None:
+                    print(f"Notice: {STROKE_DATA_PATH} not found -- handwriting will "
+                          f"fall back to the CDN. Run 'python3 fetch_stroke_data.py' "
+                          f"to enable offline stroke data.")
+                    _stroke_index, _stroke_data = {}, {}
+        return None
+
+    if _stroke_index is None:
+        with _stroke_lock:
+            if _stroke_index is None:
+                _stroke_index = _load_stroke_index()
+
+    span = _stroke_index.get(char)
+    if span is not None:
+        offset, length = span
+        # Opened per request rather than holding one shared handle: a seek on
+        # a shared file object is not thread-safe, and ThreadingHTTPServer
+        # means concurrent /api/strokes calls are real. The open is cheap and
+        # the browser caches each character immutably, so this is rare.
+        with open(STROKE_DATA_PATH, "rb") as f:
+            f.seek(offset)
+            return f.read(length)
+
+    if _stroke_index:
+        return None             # index is good and simply has no such character
+
+    # Fallback: no usable index, so parse the file the old way.
     if _stroke_data is None:
-        if not os.path.exists(STROKE_DATA_PATH):
-            print(
-                f"Notice: {STROKE_DATA_PATH} not found -- handwriting will fall back to the CDN. "
-                f"Run 'python3 fetch_stroke_data.py' to enable offline stroke data."
-            )
-            _stroke_data = {}
-        else:
-            with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
-                _stroke_data = json.load(f)
-            print(f"Loaded offline stroke data for {len(_stroke_data)} characters.")
-    return _stroke_data
+        with _stroke_lock:
+            if _stroke_data is None:
+                with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
+                    _stroke_data = json.load(f)
+                print(f"Loaded offline stroke data for {len(_stroke_data)} characters.")
+    entry = _stroke_data.get(char)
+    if entry is None:
+        return None
+    return json.dumps(entry, ensure_ascii=False).encode("utf-8")
 
 class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # Without this, a connection that stops sending data mid-request (or
@@ -168,6 +262,25 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # 30s is generous for a real client on the same LAN and short enough
     # that an abandoned/slow connection doesn't linger.
     timeout = 30
+
+    def log_message(self, format, *args):
+        """
+        Logs requests with the account slug redacted.
+
+        The /u/<slug>/ link IS the credential -- there is no username or
+        password behind it, so anyone holding it has full read/write access to
+        that account (see create_user.py). http.server logs the full request
+        line by default, which put that credential into the systemd journal on
+        every single request, where it is retained, rotated to disk, and
+        readable by anyone with journal access. Caddy's own access log records
+        it a second time; redact there too if those logs are kept.
+
+        The slug is replaced rather than dropped so the logs stay useful for
+        debugging: which account is unclear, but the route and status are not.
+        """
+        super().log_message(format, *(
+            USER_SLUG_IN_LOG_RE.sub("/u/<redacted>", arg) if isinstance(arg, str) else arg
+            for arg in args))
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
@@ -239,13 +352,25 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         after an update -- which presents as new code simply not running, with
         no error anywhere to explain it. `no-cache` still allows the cache, it
         just requires a revalidation first, so the usual response is a cheap
-        304 rather than a re-download. /api/strokes sets its own long immutable
-        caching (stroke data for a character never changes) and is left alone.
+        304 rather than a re-download.
+
+        A handler that has already set its own Cache-Control keeps it --
+        /api/strokes sets a long immutable one, since a character's stroke
+        data never changes. Finding 23: that check compared the capitalised
+        "Cache-Control" against _headers_buffer_names(), which returns
+        lowercased names, so it never matched and a second, contradictory
+        `no-cache` was appended to every response that set one. A stray
+        `path.startswith("/api/")` test hid this at the apex, but a hosted
+        request path begins `/u/<slug>/`, so for every real account
+        /api/strokes went out with both headers -- and `no-cache` wins when a
+        browser combines them, quietly defeating a year of immutable caching
+        on the one endpoint that most needs it. That path test is gone: it was
+        a cruder second guess at the same rule, and it left the other API
+        routes with no cache header at all, exposing per-account state to
+        heuristic freshness caching.
         """
-        if "Cache-Control" not in self._headers_buffer_names():
-            path = urllib.parse.urlparse(self.path).path
-            if not path.startswith("/api/"):
-                self.send_header("Cache-Control", "no-cache")
+        if "cache-control" not in self._headers_buffer_names():
+            self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
     def _headers_buffer_names(self):
@@ -404,16 +529,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 char = (params.get("char") or [""])[0]
-                entry = load_stroke_data().get(char) if char else None
+                # Already-encoded JSON straight off disk (see
+                # stroke_entry_bytes) -- nothing to parse or re-serialise.
+                payload = stroke_entry_bytes(char) if char else None
 
-                if entry is None:
+                if payload is None:
                     self.send_response(404)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps({"error": "No vendored stroke data."}).encode("utf-8"))
                     return True
 
-                payload = json.dumps(entry, ensure_ascii=False).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(payload)))

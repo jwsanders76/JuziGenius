@@ -32,6 +32,7 @@ Usage:
 """
 import argparse
 import csv
+import hashlib
 import io
 import json
 import os
@@ -44,6 +45,7 @@ WORDS_PATH = "words_freq.json"
 BRAIN_PATH = "brain.json"
 MASTER_DICT_PATH = "master_dictionary.json"
 OUTPUT_PATH = "stroke_data.json"
+INDEX_PATH = "stroke_data.index.json"
 
 PACKAGE = "hanzi-writer-data"
 REGISTRY_URL = f"https://registry.npmjs.org/{PACKAGE}"
@@ -111,6 +113,62 @@ def build(wanted=None):
     return data, version
 
 
+def file_digest(path, chunk_size=1 << 20):
+    """sha256 of a file, read in chunks so a 29 MB file costs 1 MB of memory."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(chunk_size), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def write_with_index(data, output_path, index_path):
+    """
+    Writes stroke_data.json and, beside it, a byte-offset index into it.
+
+    Finding 20: server.py used to parse the whole 29 MB file into one dict on
+    the first /api/strokes request and hold it for the process lifetime --
+    137 MB resident, 195 MB peak, to serve what are only ever single-key
+    lookups. Irrelevant on a dev box, a permanent fixed cost per process on
+    the small VPS this deploys to. With this index the server reads one ~3 KB
+    byte span per character and never materialises the rest.
+
+    The offsets are recorded *while writing*, not recovered by scanning
+    afterwards, so they are exact by construction -- there is no parser to get
+    subtly wrong, and no startup scan to pay for (a brace-depth scanner over
+    this file measured 2.8 s). The output is byte-identical to the
+    json.dump(..., separators=(",", ":")) this replaces.
+
+    The index carries the size and sha256 of the file it describes, so
+    server.py can refuse a stale index rather than serving one character's
+    strokes under another character's name -- the kind of corruption that is
+    very hard to diagnose from the symptom.
+    """
+    offsets = {}
+    with open(output_path, "wb") as f:
+        f.write(b"{")
+        for i, (char, entry) in enumerate(data.items()):
+            if i:
+                f.write(b",")
+            f.write(json.dumps(char, ensure_ascii=False).encode("utf-8"))
+            f.write(b":")
+            blob = json.dumps(entry, ensure_ascii=False,
+                              separators=(",", ":")).encode("utf-8")
+            offsets[char] = [f.tell(), len(blob)]
+            f.write(blob)
+        f.write(b"}")
+
+    index = {
+        "source": os.path.basename(output_path),
+        "source_bytes": os.path.getsize(output_path),
+        "source_sha256": file_digest(output_path),
+        "entries": offsets,
+    }
+    with open(index_path, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, separators=(",", ":"))
+    return index
+
+
 def main():
     parser = argparse.ArgumentParser(description="Vendor Hanzi Writer stroke data for offline use.")
     parser.add_argument(
@@ -125,11 +183,14 @@ def main():
 
     data, version = build(wanted)
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+    write_with_index(data, OUTPUT_PATH, INDEX_PATH)
 
     size_mb = os.path.getsize(OUTPUT_PATH) / 1024 / 1024
+    index_kb = os.path.getsize(INDEX_PATH) / 1024
     print(f"Wrote {len(data)} characters to {OUTPUT_PATH} ({size_mb:.1f} MB) from {PACKAGE}@{version}.")
+    print(f"Wrote byte-offset index to {INDEX_PATH} ({index_kb:.0f} KB) -- "
+          f"commit both together; server.py rejects an index whose checksum "
+          f"doesn't match the data file.")
 
     if wanted is not None:
         missing = wanted - set(data)
