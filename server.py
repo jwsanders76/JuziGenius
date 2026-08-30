@@ -190,7 +190,7 @@ def _load_stroke_index():
     if not os.path.exists(STROKE_INDEX_PATH):
         print(f"Notice: {STROKE_INDEX_PATH} not found -- falling back to parsing "
               f"all of {STROKE_DATA_PATH} into memory. Re-run "
-              f"'python3 fetch_stroke_data.py' to rebuild the index.")
+              f"'python3 fetch_stroke_data.py' to rebuild the index.", flush=True)
         return {}
     try:
         with open(STROKE_INDEX_PATH, "r", encoding="utf-8") as f:
@@ -200,13 +200,21 @@ def _load_stroke_index():
         if index.get("source_sha256") != _file_digest(STROKE_DATA_PATH):
             raise ValueError("checksum does not match")
         entries = index.get("entries") or {}
+        # flush=True on every message in this group: stdout is block-buffered
+        # whenever it is not a terminal, which is every real deployment. These
+        # are the lines a deploy is checked against -- whether the index
+        # arrived with the pull, or the service is silently paying the
+        # pre-finding-20 memory cost -- and unflushed they sit in the buffer
+        # while the access log (stderr) races ahead in the same journal. Their
+        # absence then reads as a fault that is really just buffering. Same
+        # reasoning as the account-reset log line.
         print(f"Loaded stroke-data index for {len(entries)} characters "
-              f"({STROKE_DATA_PATH} stays on disk).")
+              f"({STROKE_DATA_PATH} stays on disk).", flush=True)
         return entries
     except Exception as e:
         print(f"Warning: {STROKE_INDEX_PATH} is stale or unreadable ({e}) -- "
               f"falling back to parsing all of {STROKE_DATA_PATH}. Re-run "
-              f"'python3 fetch_stroke_data.py' to rebuild it.")
+              f"'python3 fetch_stroke_data.py' to rebuild it.", flush=True)
         return {}
 
 
@@ -225,7 +233,7 @@ def stroke_entry_bytes(char):
                 if _stroke_index is None:
                     print(f"Notice: {STROKE_DATA_PATH} not found -- handwriting will "
                           f"fall back to the CDN. Run 'python3 fetch_stroke_data.py' "
-                          f"to enable offline stroke data.")
+                          f"to enable offline stroke data.", flush=True)
                     _stroke_index, _stroke_data = {}, {}
         return None
 
@@ -254,7 +262,8 @@ def stroke_entry_bytes(char):
             if _stroke_data is None:
                 with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
                     _stroke_data = json.load(f)
-                print(f"Loaded offline stroke data for {len(_stroke_data)} characters.")
+                print(f"Loaded offline stroke data for {len(_stroke_data)} characters.",
+                      flush=True)
     entry = _stroke_data.get(char)
     if entry is None:
         return None
