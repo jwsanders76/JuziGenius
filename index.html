@@ -212,6 +212,17 @@
 
                         <p id="settings-status" class="danger-status" role="status" hidden></p>
                     </section>
+
+                    <!-- Only shown for a real username/password account
+                         (see cacheDomElements/initSettingsUi in app.js) --
+                         a /u/<slug>/ link has no session cookie to log out
+                         of, so this stays hidden there. -->
+                    <section class="progress-section" id="logout-section" hidden>
+                        <h3 class="progress-title">Account</h3>
+                        <button type="button" id="btn-logout" class="modal-btn btn-secondary">
+                            Log Out
+                        </button>
+                    </section>
                 </div>
             </div>
 

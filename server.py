@@ -1,10 +1,14 @@
 import hashlib
+import http.cookies
 import http.server
 import json
 import os
 import re
 import threading
 import urllib.parse
+import accounts
+import auth
+import invites
 from juzi_engine import JuziEngine
 from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
@@ -13,7 +17,7 @@ PORT = 8000
 
 # Matches the /u/<slug>/... prefix used to route a request to one friend's
 # own isolated brain.json instead of the shared default one (see
-# get_engine_for_slug below). Anchored and length-floored so a malformed or
+# get_engine_for_id below). Anchored and length-floored so a malformed or
 # short guess never reaches the filesystem as a path component.
 USER_PREFIX_RE = re.compile(r"^/u/([A-Za-z0-9_-]{16,})(/.*)?$")
 
@@ -52,6 +56,10 @@ ALLOWED_STATIC_PATHS = {
     # Installable-app assets. sw.js must be served from the root for its scope
     # to cover /u/<slug>/ pages as well as the bare site.
     "/sw.js", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png",
+    # The real-login page's own script. login.html itself isn't listed here --
+    # it's reached only via the /login route (see do_GET), the same pattern
+    # index.html and landing.html already use.
+    "/auth.js",
 }
 
 STROKE_DATA_PATH = "stroke_data.json"
@@ -118,6 +126,17 @@ def build_manifest(start_url="/"):
 # development against the root brain.json. Do not set it on a public host.
 REQUIRE_SLUG = os.environ.get("JUZI_ALLOW_DEFAULT_ACCOUNT", "") != "1"
 
+# Whether the real-login session cookie gets the Secure attribute (browser
+# refuses to ever send it over plain http). On by default -- this process
+# normally sits behind Caddy, which terminates real HTTPS in front of it
+# (see the Caddyfile), so the cookie should never travel in the clear.
+# Deliberately its own flag rather than reusing REQUIRE_SLUG: testing the
+# real hosted-mode routing (REQUIRE_SLUG true) against a local plain-http
+# server needs Secure off, so tying the two together would make that
+# combination impossible to test at all. Set JUZI_COOKIE_SECURE=0 for that
+# case; never set it on a public host.
+COOKIE_SECURE = os.environ.get("JUZI_COOKIE_SECURE", "1") != "0"
+
 # The engine for a request with no /u/<slug>/ prefix. Unreachable over HTTP
 # unless JUZI_ALLOW_DEFAULT_ACCOUNT=1 (see REQUIRE_SLUG above); it exists so
 # local development, seed_brain.py and create_user.py still have something to
@@ -136,28 +155,38 @@ USERS_DIR = "users"
 engines = {}
 engines_lock = threading.Lock()
 
+# Guards users/accounts.json and users/invite_codes.json across concurrent
+# requests -- signup reads and writes both files together (redeem a code,
+# create an account), and this makes that pair atomic with respect to two
+# simultaneous signups, the same reason engines_lock exists for brand-new
+# slugs. Login and session-cookie checks only read, but take the same lock
+# so they can never observe a signup's writes half-applied.
+ACCOUNTS_LOCK = threading.Lock()
 
-def get_engine_for_slug(slug):
+
+def get_engine_for_id(account_id):
     """
-    Resolves a /u/<slug>/ URL to that friend's own isolated JuziEngine (their
-    own brain.json under users/<slug>/), caching instances across requests.
+    Resolves either a /u/<slug>/ token or a real-login user_id to that
+    account's own isolated JuziEngine (users/<account_id>/brain.json),
+    caching instances across requests. Both kinds of id are generated the
+    same way (secrets.token_urlsafe) and used as the same users/<id>/
+    directory name -- see create_user.py and accounts.create_account -- so
+    one cache and one lookup serve both account systems.
 
-    Deliberately does NOT create users/<slug>/ on demand -- only
-    create_user.py provisions accounts. If it auto-vivified a fresh (empty,
-    unseeded) account for any request whose slug merely matches the format
-    regex, a scanner hammering random /u/<guess>/ paths would litter the
-    disk with junk directories, and "provisioned" would stop meaning
-    anything. A slug that hasn't been created returns None (the caller 404s),
-    same as any other guess.
+    Deliberately does NOT create users/<account_id>/ on demand -- only
+    create_user.py (old slug accounts) and accounts.create_account (new
+    login accounts) provision directories. An id that merely matches the
+    format but was never provisioned returns None (the caller 404s), same
+    as any other guess.
     """
     with engines_lock:
-        if slug in engines:
-            return engines[slug]
-        user_dir = os.path.join(USERS_DIR, slug)
+        if account_id in engines:
+            return engines[account_id]
+        user_dir = os.path.join(USERS_DIR, account_id)
         if not os.path.isdir(user_dir):
             return None
         engine = JuziEngine(brain_path=os.path.join(user_dir, "brain.json"))
-        engines[slug] = engine
+        engines[account_id] = engine
         return engine
 
 # Vendored Hanzi Writer stroke data. This is what makes handwriting work
@@ -324,9 +353,16 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
 
+        if path == "/login":
+            # Same bypass-the-allowlist pattern as index.html/landing.html
+            # below: rewrite and hand off to SimpleHTTPRequestHandler's own
+            # file lookup rather than adding login.html to ALLOWED_STATIC_PATHS.
+            self.path = "/login.html"
+            return super().do_GET()
+
         user_match = USER_PREFIX_RE.match(path)
         if user_match:
-            engine = get_engine_for_slug(user_match.group(1))
+            engine = get_engine_for_id(user_match.group(1))
             if engine is None:
                 self.send_response(404)
                 self.end_headers()
@@ -349,16 +385,21 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if REQUIRE_SLUG:
-            # No default-account fallback: the app and its API only work
-            # behind a real /u/<slug>/ link. The bare domain is a landing
-            # page -- deliberately still navigable, and the place a real
-            # login screen will go once accounts exist -- so a stranger who
-            # wanders in gets a front door rather than someone's practice
-            # data.
-            # Shared static assets below (CSS/JS/images) still serve --
-            # every /u/<slug>/ page references them by the same absolute
-            # path, and they carry no personal data.
+            # No /u/<slug>/ prefix, but there might still be a valid
+            # real-login session cookie -- resolve it the same way a slug
+            # would be, so a cookie-authenticated visitor gets the practice
+            # app at the bare domain exactly like the old single-account
+            # default_engine did, just scoped to their own account instead
+            # of a shared one. Anonymous or invalid-cookie requests fall
+            # through unchanged to the landing page / 404 below.
+            user_id, _username = self._resolve_session_account()
+            engine = get_engine_for_id(user_id) if user_id else None
+            if engine is not None and self._handle_api_get(path, engine):
+                return
             if path in ("/", "/index.html"):
+                if engine is not None:
+                    self.path = "/index.html"
+                    return super().do_GET()
                 self.path = "/landing.html"
                 return super().do_GET()
             if path.startswith("/api/"):
@@ -424,7 +465,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         Handles the API GET routes against a resolved `engine` -- either the
         default single-user one or a specific friend's, via
-        get_engine_for_slug. Returns True if `path` was one of these routes
+        get_engine_for_id. Returns True if `path` was one of these routes
         (a response has already been sent), False otherwise so the caller
         can fall through to static-file serving or 404.
         """
@@ -749,15 +790,190 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return empty_default
         return self.rfile.read(content_length).decode('utf-8')
 
+    def _client_ip(self):
+        """
+        The requester's real IP for rate limiting, preferring the
+        X-Forwarded-For Caddy sets when this process sits behind it (see the
+        Caddyfile) -- without it every request would appear to come from
+        127.0.0.1 and share one rate-limit bucket. Falls back to the raw
+        socket address for local development with no proxy in front.
+        """
+        forwarded = self.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
+
+    def _resolve_session_account(self):
+        """
+        Returns (user_id, username) for a valid, current real-login session
+        cookie, or (None, None) if there isn't one -- missing, malformed,
+        expired, or signed under a session_version older than the account's
+        current one (e.g. after a password reset). Never raises; every
+        failure mode is simply "not logged in".
+        """
+        cookie_header = self.headers.get("Cookie")
+        if not cookie_header:
+            return None, None
+        jar = http.cookies.SimpleCookie()
+        try:
+            jar.load(cookie_header)
+        except Exception:
+            return None, None
+        morsel = jar.get(auth.SESSION_COOKIE_NAME)
+        if morsel is None:
+            return None, None
+        verified = auth.verify_session_cookie(morsel.value)
+        if verified is None:
+            return None, None
+        user_id, session_version = verified
+        with ACCOUNTS_LOCK:
+            accounts_data = accounts.load_accounts()
+        username, entry = accounts.find_account_by_user_id(accounts_data, user_id)
+        if entry is None or entry.get("session_version") != session_version:
+            return None, None
+        return user_id, username
+
+    def _set_session_cookie(self, user_id, session_version):
+        cookie_value = auth.make_session_cookie(user_id, session_version)
+        # HttpOnly: JavaScript can't read it, so it isn't a target for an XSS
+        # payload to exfiltrate. SameSite=Lax: the browser won't attach it to
+        # a cross-site POST at all, which is a second, independent layer on
+        # top of the existing CSRF check below. Secure per COOKIE_SECURE --
+        # see its definition for why this is a separate flag from REQUIRE_SLUG.
+        flags = "HttpOnly; SameSite=Lax; Path=/"
+        if COOKIE_SECURE:
+            flags += "; Secure"
+        self.send_header(
+            "Set-Cookie",
+            f"{auth.SESSION_COOKIE_NAME}={cookie_value}; Max-Age={auth.SESSION_TTL_SECONDS}; {flags}"
+        )
+
+    def _clear_session_cookie(self):
+        self.send_header("Set-Cookie", f"{auth.SESSION_COOKIE_NAME}=; Max-Age=0; Path=/")
+
+    def _handle_signup(self):
+        """
+        POST /api/signup. Body: {"username", "password", "invite_code"}.
+        Creates a brand new real-login account (same empty_brain() shape
+        every account-creation path uses) and logs it straight in, so the
+        redirect to / lands on the existing onboarding tier picker with no
+        extra step -- a fresh account's brain.json already has
+        "onboarded": false, and app.js's fetchNewSession already knows what
+        to do with that.
+        """
+        try:
+            body = self._read_json_body_or_reject()
+            if body is None:
+                return
+            data = json.loads(body)
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+            invite_code = (data.get("invite_code") or "").strip()
+
+            ip_key = f"signup:{self._client_ip()}"
+            if auth.rate_limited(ip_key):
+                self._send_json_error(429, "Too many signup attempts. Try again in a few minutes.")
+                return
+            auth.record_attempt(ip_key)
+
+            with ACCOUNTS_LOCK:
+                invite_codes = invites.load_invite_codes()
+                if not invites.redeem_invite_code(invite_codes, invite_code):
+                    self._send_json_error(400, "Invalid or already-used invite code.")
+                    return
+
+                accounts_data = accounts.load_accounts()
+                try:
+                    accounts.validate_new_account(accounts_data, username, password)
+                except ValueError as bad:
+                    self._send_json_error(400, str(bad))
+                    return
+
+                user_id = accounts.create_account(accounts_data, username, password)
+                invites.mark_invite_code_used(invite_codes, invite_code, username.lower())
+                accounts.save_accounts(accounts_data)
+                invites.save_invite_codes(invite_codes)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            # A brand new account always starts at INITIAL_SESSION_VERSION --
+            # no need to re-read the record just written above.
+            self._set_session_cookie(user_id, accounts.INITIAL_SESSION_VERSION)
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
+    def _handle_login(self):
+        """
+        POST /api/login. Body: {"username", "password"}. Wrong password and
+        unknown username get the exact same 401 message so this can't be
+        used to enumerate valid usernames (see accounts.verify_login's
+        constant-time dummy-hash comparison for the same reasoning applied
+        to timing).
+        """
+        try:
+            body = self._read_json_body_or_reject()
+            if body is None:
+                return
+            data = json.loads(body)
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+
+            ip_key = f"login:{self._client_ip()}"
+            if auth.rate_limited(ip_key):
+                self._send_json_error(429, "Too many login attempts. Try again in a few minutes.")
+                return
+            auth.record_attempt(ip_key)
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+            result = accounts.verify_login(accounts_data, username, password)
+            if result is None:
+                self._send_json_error(401, "Invalid username or password.")
+                return
+            user_id, session_version = result
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_session_cookie(user_id, session_version)
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
+    def _handle_logout(self):
+        # No body or existing session required -- clearing a cookie that may
+        # not even be valid is harmless, so a stray call here just no-ops.
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._clear_session_cookie()
+        self.end_headers()
+        self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
 
         if self._csrf_check_failed():
             return
 
+        # Auth endpoints are reachable at the root regardless of
+        # REQUIRE_SLUG -- they're how an anonymous visitor becomes a
+        # session-cookie-authenticated one in the first place, so they can't
+        # themselves require a session or a slug.
+        if path == "/api/signup":
+            self._handle_signup()
+            return
+        if path == "/api/login":
+            self._handle_login()
+            return
+        if path == "/api/logout":
+            self._handle_logout()
+            return
+
         user_match = USER_PREFIX_RE.match(path)
         if user_match:
-            engine = get_engine_for_slug(user_match.group(1))
+            engine = get_engine_for_id(user_match.group(1))
             if engine is None:
                 self.send_response(404)
                 self.end_headers()
@@ -770,7 +986,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if REQUIRE_SLUG:
-            # Same reasoning as do_GET: no default-account fallback publicly.
+            # Same idea as do_GET: no /u/<slug>/ prefix, but a valid
+            # real-login session cookie still resolves to that account's
+            # own engine.
+            user_id, _username = self._resolve_session_account()
+            engine = get_engine_for_id(user_id) if user_id else None
+            if engine is not None and self._handle_api_post(path, engine):
+                return
             self.send_response(404)
             self.end_headers()
             return
@@ -785,7 +1007,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         Handles the API POST routes against a resolved `engine` -- either the
         default single-user one or a specific friend's, via
-        get_engine_for_slug. Returns True if `path` was one of these routes
+        get_engine_for_id. Returns True if `path` was one of these routes
         (a response has already been sent), False otherwise so the caller
         can 404.
         """

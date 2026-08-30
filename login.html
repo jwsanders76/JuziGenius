@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JuziGenius (句子Genius) &mdash; Log In</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --surface-color: #1e1e24;
+            --card-bg: #262630;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --accent-gold: #f39c12;
+            --accent-purple: #8e44ad;
+            --accent-red: #e74c3c;
+            --border-color: #3f3f50;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 24px;
+        }
+        .card {
+            max-width: 380px;
+            width: 100%;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px 28px;
+            text-align: center;
+        }
+        .avatar {
+            width: 88px;
+            height: 88px;
+            object-fit: contain;
+            margin-bottom: 12px;
+        }
+        h1 {
+            font-size: 1.25rem;
+            color: var(--accent-gold);
+            margin-bottom: 20px;
+        }
+        .auth-tabs {
+            display: flex;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 18px;
+        }
+        .auth-tab {
+            flex: 1;
+            background: transparent;
+            border: none;
+            border-radius: 7px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 8px 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .auth-tab.active {
+            background-color: var(--accent-purple);
+            color: white;
+        }
+        .auth-panel[hidden] { display: none; }
+        .auth-panel { text-align: left; }
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            margin-top: 14px;
+        }
+        label:first-of-type { margin-top: 0; }
+        input {
+            width: 100%;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 10px 12px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+        }
+        input:focus { border-color: var(--accent-gold); }
+        .auth-hint {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        button.submit {
+            width: 100%;
+            margin-top: 20px;
+            padding: 11px;
+            border-radius: 8px;
+            border: none;
+            background-color: var(--accent-purple);
+            color: white;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.2s, transform 0.1s;
+        }
+        button.submit:active { transform: scale(0.98); }
+        button.submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .auth-status {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            min-height: 1.2em;
+        }
+        .auth-status.error { color: var(--accent-red); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img class="avatar" src="/avatar-nobg-128.png" alt="Juzi the mascot">
+        <h1>你好! Welcome back.</h1>
+
+        <div class="auth-tabs">
+            <button type="button" class="auth-tab active" data-tab="login">Log In</button>
+            <button type="button" class="auth-tab" data-tab="signup">Sign Up</button>
+        </div>
+
+        <form class="auth-panel" data-panel="login" id="login-form">
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" autocomplete="username" required>
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" autocomplete="current-password" required>
+            <button type="submit" class="submit">Log In</button>
+        </form>
+
+        <form class="auth-panel" data-panel="signup" id="signup-form" hidden>
+            <label for="signup-invite">Invite code</label>
+            <input type="text" id="signup-invite" autocomplete="off" required>
+            <div class="auth-hint">This corner of the internet is invite-only &mdash; ask whoever told you about it.</div>
+            <label for="signup-username">Choose a username</label>
+            <input type="text" id="signup-username" autocomplete="username" required>
+            <div class="auth-hint">3-20 characters: letters, numbers, _ or -.</div>
+            <label for="signup-password">Choose a password</label>
+            <input type="password" id="signup-password" autocomplete="new-password" required>
+            <div class="auth-hint">At least 8 characters.</div>
+            <button type="submit" class="submit">Sign Up</button>
+        </form>
+
+        <p id="auth-status" class="auth-status" hidden></p>
+    </div>
+    <script src="/auth.js"></script>
+</body>
+</html>

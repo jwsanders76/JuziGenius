@@ -6,6 +6,7 @@ users/
 project_state.md
 goal_prompt
 .env
+.session_secret
 
 # --- Python Clutter ---
 __pycache__/

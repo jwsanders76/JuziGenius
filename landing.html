@@ -56,6 +56,30 @@
             font-weight: 600;
             margin: 18px 0;
         }
+        .landing-actions {
+            margin-top: 22px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .landing-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: filter 0.2s, transform 0.1s;
+        }
+        .landing-btn:active { transform: scale(0.97); }
+        .landing-btn.primary {
+            background-color: var(--accent-orange);
+            color: white;
+        }
+        .landing-btn.secondary {
+            background-color: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
     </style>
 </head>
 <body>
@@ -64,8 +88,12 @@
         <h1>你好 I'm Juzi!</h1>
         <p>Orange by name, sentence by nature &mdash; I'm here to help you peel back the mystery of Chinese characters.</p>
         <p class="tagline">Let's make Chinese characters second nature.</p>
-        <p>This corner of the internet is invite-only &mdash; every learner here practices on their own private link.</p>
-        <p>Want in? Ask the person who told you about this site. They'll know exactly what you mean.</p>
+        <p>This corner of the internet is invite-only &mdash; every learner here practices on their own private link, or their own account.</p>
+        <p>Want in? Ask the person who told you about this site for an invite code, or a link if you already have one.</p>
+        <div class="landing-actions">
+            <a class="landing-btn secondary" href="/login">Log In</a>
+            <a class="landing-btn primary" href="/login#signup">Sign Up</a>
+        </div>
     </div>
 </body>
 </html>

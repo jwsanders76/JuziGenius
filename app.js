@@ -215,6 +215,9 @@ function cacheDomElements() {
     elements.settingsBtnReset = document.getElementById("settings-btn-reset");
     elements.settingsStatus = document.getElementById("settings-status");
 
+    elements.logoutSection = document.getElementById("logout-section");
+    elements.btnLogout = document.getElementById("btn-logout");
+
     elements.resetSummary = document.getElementById("reset-summary");
     elements.resetBtnBegin = document.getElementById("reset-btn-begin");
     elements.resetConfirmStep = document.getElementById("reset-confirm-step");
@@ -268,6 +271,32 @@ function initEventListeners() {
             elements.settingDailyNewLimit.value = state.settings.default_daily_new_limit;
             elements.settingDailyNewLimit.focus();
             if (elements.settingsStatus) elements.settingsStatus.hidden = true;
+        });
+    }
+
+    // Only meaningful for a real username/password account (API_BASE ""
+    // with an actual session cookie behind it) -- a /u/<slug>/ visitor has
+    // no session to log out of, so this section stays hidden for them (see
+    // the API_BASE check below) and the listener simply never fires.
+    if (API_BASE === "" && elements.logoutSection) {
+        elements.logoutSection.hidden = false;
+    }
+    if (elements.btnLogout) {
+        elements.btnLogout.addEventListener("click", async () => {
+            elements.btnLogout.disabled = true;
+            try {
+                await fetch(`${API_BASE}/api/logout`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: "{}"
+                });
+            } catch (err) {
+                console.error("Logout request failed.", err);
+            }
+            // Redirect regardless of whether the request itself succeeded --
+            // an unreachable server can't keep a stale cookie usefully
+            // logged in either way, and /login re-checks from scratch.
+            window.location.href = "/login";
         });
     }
 
