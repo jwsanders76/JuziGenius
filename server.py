@@ -350,6 +350,16 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             USER_SLUG_IN_LOG_RE.sub("/u/<redacted>", arg) if isinstance(arg, str) else arg
             for arg in args))
 
+    def _strip_conditional_headers(self):
+        """
+        Removes If-Modified-Since/If-None-Match from this request before
+        handing off to SimpleHTTPRequestHandler, so it can't 304 against a
+        cache entry left by a *different* file previously served under the
+        same URL. See the "/" route in do_GET for why that happens.
+        """
+        del self.headers["If-Modified-Since"]
+        del self.headers["If-None-Match"]
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
 
@@ -397,6 +407,22 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if engine is not None and self._handle_api_get(path, engine):
                 return
             if path in ("/", "/index.html"):
+                # "/" can serve either file depending on login state, but a
+                # browser's conditional-GET cache doesn't know that -- it
+                # caches by URL, and SimpleHTTPRequestHandler's 304 check
+                # only compares the file it's about to serve against
+                # whatever If-Modified-Since the browser learned from
+                # *whichever file it fetched last time*. A visitor who saw
+                # landing.html anonymously, then logged in and requested "/"
+                # again, got a 304 back (landing.html's mtime happens to be
+                # newer than index.html's) and their browser silently kept
+                # showing the stale cached landing page instead of ever
+                # re-requesting the real app -- indistinguishable from
+                # "signup succeeded but nothing loads". Dropping the
+                # conditional headers here forces a real 200 every time, so
+                # the file that actually matches this response's login state
+                # is what gets shown.
+                self._strip_conditional_headers()
                 if engine is not None:
                     self.path = "/index.html"
                     return super().do_GET()
