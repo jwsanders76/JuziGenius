@@ -92,6 +92,12 @@ body {
     color: white;
 }
 
+#top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* --- Character Progress Counter & Mascot Avatar --- */
 #top-bar-center {
     display: flex;

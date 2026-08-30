@@ -222,7 +222,6 @@ function cacheDomElements() {
     elements.settingsBtnReset = document.getElementById("settings-btn-reset");
     elements.settingsStatus = document.getElementById("settings-status");
 
-    elements.logoutSection = document.getElementById("logout-section");
     elements.btnLogout = document.getElementById("btn-logout");
 
     elements.resetSummary = document.getElementById("reset-summary");
@@ -283,10 +282,10 @@ function initEventListeners() {
 
     // Only meaningful for a real username/password account (API_BASE ""
     // with an actual session cookie behind it) -- a /u/<slug>/ visitor has
-    // no session to log out of, so this section stays hidden for them (see
-    // the API_BASE check below) and the listener simply never fires.
-    if (API_BASE === "" && elements.logoutSection) {
-        elements.logoutSection.hidden = false;
+    // no session to log out of, so this button stays hidden for them and
+    // the listener simply never fires.
+    if (API_BASE === "" && elements.btnLogout) {
+        elements.btnLogout.hidden = false;
     }
     if (elements.btnLogout) {
         elements.btnLogout.addEventListener("click", async () => {
