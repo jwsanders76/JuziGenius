@@ -178,6 +178,7 @@ function cacheDomElements() {
     elements.canvasContainer = document.getElementById("tian-zi-ge");
     elements.btnClear = document.getElementById("btn-clear");
     elements.btnHint = document.getElementById("btn-hint");
+    elements.btnSkip = document.getElementById("btn-skip");
     elements.btnImport = document.getElementById("btn-import");
     elements.counterValue = document.getElementById("counter-value");
     elements.dueCounter = document.getElementById("due-counter");
@@ -230,6 +231,7 @@ function cacheDomElements() {
 function initEventListeners() {
     if (elements.btnClear) elements.btnClear.addEventListener("click", handleClearCanvas);
     if (elements.btnHint) elements.btnHint.addEventListener("click", handleHintEscalation);
+    if (elements.btnSkip) elements.btnSkip.addEventListener("click", handleSkipSentence);
     
     if (elements.btnReplayAudio) {
         elements.btnReplayAudio.addEventListener("click", () => playNativeTTS(currentSentenceText()));
@@ -542,6 +544,7 @@ function updateDueCounter() {
 function toggleSidebarButtons(enabled) {
     if (elements.btnClear) elements.btnClear.disabled = !enabled;
     if (elements.btnHint) elements.btnHint.disabled = !enabled;
+    if (elements.btnSkip) elements.btnSkip.disabled = !enabled;
 }
 
 /**
@@ -785,7 +788,10 @@ function triggerSentenceCompletion() {
             <div class="victory-card">
                 <img src="/avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
-                <button id="btn-next" class="btn-next">${currentSentence.chinese.length === 1 ? "Next" : "Next Sentence"} →</button>
+                <div class="victory-actions">
+                    <button id="btn-repeat" class="btn-repeat">↺ Repeat</button>
+                    <button id="btn-next" class="btn-next">${currentSentence.chinese.length === 1 ? "Next" : "Next Sentence"} →</button>
+                </div>
             </div>
         `;
 
@@ -793,7 +799,36 @@ function triggerSentenceCompletion() {
         if (btnNext) {
             btnNext.addEventListener("click", nextSentence);
         }
+
+        const btnRepeat = document.getElementById("btn-repeat");
+        if (btnRepeat) {
+            btnRepeat.addEventListener("click", repeatSentence);
+        }
     }
+}
+
+/**
+ * Redoes the sentence just completed, for a user who wants another pass at
+ * it. Goes through the same loadSession() any other sentence uses, so hint
+ * tiers/mistakes reset and the canvas starts clean; completing it again
+ * re-fires /api/sentence/complete and per-character SM-2 review exactly as
+ * revisiting that sentence later in the normal rotation would.
+ */
+function repeatSentence() {
+    loadSession();
+}
+
+/**
+ * Abandons the current challenge without writing it, per user request: not
+ * every practice item served is one someone wants to do right now. Records no
+ * SM-2 review and no sentence-completion signal for it -- the same
+ * never-actually-attempted contract skipCurrentCharacter() already uses for a
+ * single character, just at the whole-sentence level. Characters already
+ * written earlier in this same sentence keep the credit they already earned.
+ */
+function handleSkipSentence() {
+    if (state.isCompleted) return;
+    nextSentence();
 }
 
 /**

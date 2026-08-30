@@ -286,6 +286,12 @@ body {
     color: white;
 }
 
+#btn-skip {
+    background-color: var(--card-bg);
+    color: #c0392b;
+    border: 1px solid var(--border-color);
+}
+
 /* --- Canvas Wrapper & InkStone Canvas --- */
 #canvas-wrapper {
     display: flex;
@@ -450,6 +456,12 @@ body {
     cursor: not-allowed;
 }
 
+.victory-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .btn-next {
     background-color: #27ae60;
     color: white;
@@ -469,6 +481,27 @@ body {
 }
 
 .btn-next:active {
+    transform: translateY(0);
+}
+
+.btn-repeat {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-repeat:hover {
+    background-color: var(--border-color);
+    transform: translateY(-1px);
+}
+
+.btn-repeat:active {
     transform: translateY(0);
 }
 
