@@ -1396,10 +1396,16 @@ class JuziEngine:
 
         # Sentence Bank tab: the live practice queue (see generate_fresh_session),
         # not the full completed-sentences history -- "what's queued up right
-        # now," same as the practice screen itself shows.
+        # now," same as the practice screen itself shows. Excludes the
+        # one-character stand-ins _character_candidate produces (beginner-phase
+        # character-only batches, and the stranded-character slot a sentence
+        # batch reserves -- see _stranded_character_picks) -- those are real
+        # practice items on the writing screen, but a bank labelled "Sentence
+        # Bank" showing a lone 力 or 十 reads as a data bug, not a feature.
         sentence_queue = [
             {"chinese": s.get("chinese", ""), "english": s.get("english", "")}
             for s in brain_data.get("sentences", []) or []
+            if len(s.get("chinese", "")) >= 2
         ]
 
         today = date.today()
