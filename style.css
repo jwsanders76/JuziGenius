@@ -446,8 +446,9 @@ body {
 }
 
 /* Pronunciation controls, sitting under the assembly line with the sentence
-   they act on. Styled for the dark app surface -- they previously lived on the
-   victory card's parchment background and were coloured for it. */
+   they act on. Available from the moment a sentence loads, not gated behind
+   completion -- icon-only, with the label as a hover tooltip rather than
+   visible text, so they read as a small always-there toolbar. */
 #sentence-audio-controls {
     display: flex;
     justify-content: center;
@@ -460,28 +461,32 @@ body {
     display: none;
 }
 
-.btn-audio-action {
+.btn-audio-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
     background-color: var(--card-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    font-weight: 600;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    line-height: 1;
     cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
 }
 
-.btn-audio-action:hover:not(:disabled) {
+.btn-audio-icon:hover:not(:disabled) {
     background-color: var(--border-color);
     transform: translateY(-1px);
 }
 
-.btn-audio-action:active:not(:disabled) {
+.btn-audio-icon:active:not(:disabled) {
     transform: translateY(0);
 }
 
-.btn-audio-action:disabled {
+.btn-audio-icon:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }

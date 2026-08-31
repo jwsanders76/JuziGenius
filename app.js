@@ -590,6 +590,10 @@ function loadSession() {
     advancePastPunctuation();
     renderAssemblyLine();
     setupCurrentCharacterWriter();
+    // Available immediately, not just after the sentence is completed -- per
+    // explicit user decision to make pronunciation always accessible rather
+    // than gated behind a success.
+    toggleSentenceAudioControls(true);
 }
 
 function updateCharacterCounter() {
@@ -869,14 +873,12 @@ function triggerSentenceCompletion() {
     const slots = document.querySelectorAll(".character-slot");
     slots.forEach(s => s.classList.add("success-flash"));
 
-    // 2. Trigger native audio speech playback
+    // 2. Trigger native audio speech playback (the pronunciation controls
+    //    are already visible -- loadSession() shows them as soon as the
+    //    sentence loads, not just on success).
     playNativeTTS(currentSentence.chinese);
 
-    // 3. Reveal the pronunciation controls, which live beside the completed
-    //    Chinese sentence rather than inside the victory card.
-    toggleSentenceAudioControls(true);
-
-    // 4. Render Victory Card with Mascot and Next button inside Tian Zi Ge
+    // 3. Render Victory Card with Mascot and Next button inside Tian Zi Ge
     const container = document.getElementById('tian-zi-ge');
     if (container) {
         container.innerHTML = `
@@ -1510,17 +1512,18 @@ function switchToNextVoice() {
 }
 
 /**
- * Labels the Switch Voice button with the gender it would switch TO, so the
- * button reads as an action. Always enabled: both pre-generated voices are
- * always available, regardless of what the device's own voice list looks
- * like.
+ * Icon-only button; the gender it would switch TO (and the one currently
+ * playing) is stated in the hover tooltip rather than as visible text.
+ * Always enabled: both pre-generated voices are always available, regardless
+ * of what the device's own voice list looks like.
  */
 function updateSwitchVoiceButton(btn) {
     const next = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
     const nextGender = PREGENERATED_VOICES[next];
     btn.disabled = false;
-    btn.textContent = nextGender === "female" ? "🔄 Switch to Female Voice" : "🔄 Switch to Male Voice";
-    btn.title = `Current voice: ${PREGENERATED_VOICES[state.ttsVoice]}`;
+    const label = `Switch to ${nextGender} voice (currently ${PREGENERATED_VOICES[state.ttsVoice]})`;
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
 }
 
 /**
