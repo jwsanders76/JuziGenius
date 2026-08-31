@@ -338,6 +338,27 @@ body {
     background-color: #f7f2e8 !important;
 }
 
+/* Light 3x3 registration grid (two evenly spaced vertical lines and two
+   horizontal, dividing the canvas into nine equal cells) overlaid above
+   Hanzi Writer's SVG so proportions and stroke placement are easier to
+   judge -- toggled by the Settings panel's "Show writing grid" checkbox
+   (see applyGridPreference in app.js). An absolutely positioned
+   pseudo-element rather than a real child: setupCurrentCharacterWriter
+   clears #tian-zi-ge's contents with innerHTML on every character, which
+   would otherwise wipe the grid along with the old writer. pointer-events:
+   none keeps it from intercepting the stroke-drawing input underneath. */
+#tian-zi-ge.show-grid::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(to right, transparent calc(33.33% - 0.75px), rgba(61, 47, 36, 0.2) 33.33%, transparent calc(33.33% + 0.75px)),
+        linear-gradient(to right, transparent calc(66.66% - 0.75px), rgba(61, 47, 36, 0.2) 66.66%, transparent calc(66.66% + 0.75px)),
+        linear-gradient(to bottom, transparent calc(33.33% - 0.75px), rgba(61, 47, 36, 0.2) 33.33%, transparent calc(33.33% + 0.75px)),
+        linear-gradient(to bottom, transparent calc(66.66% - 0.75px), rgba(61, 47, 36, 0.2) 66.66%, transparent calc(66.66% + 0.75px));
+}
+
 /* --- Stroke Data Failure Card (character can't be practiced offline) --- */
 .stroke-error-card {
     display: flex;
@@ -1208,6 +1229,25 @@ body {
     font-size: 0.78rem;
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
+}
+
+.setting-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.setting-checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-purple);
+    cursor: pointer;
+}
+
+.setting-checkbox-row span {
+    font-size: 0.95rem;
+    color: var(--text-primary);
 }
 
 /* --- Progress view: Start Over tab ---

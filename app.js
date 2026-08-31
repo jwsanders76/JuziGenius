@@ -20,6 +20,11 @@ const state = {
     // voice to fall back to for a user's own pasted sentences, which have no
     // pre-generated audio. Defaults to "huayan" (female) on a fresh install.
     ttsVoice: localStorage.getItem("juzi_tts_voice") || "huayan",
+    // Light 田字格 registration grid overlaid on the writing canvas, purely a
+    // client-side display preference -- unlike ttsVoice/settings.daily_new_limit
+    // it has no bearing on what gets served, so it lives only in localStorage.
+    // Defaults on, matching real tian zi ge practice paper.
+    showGrid: localStorage.getItem("juzi_show_grid") !== "0",
     isCompleted: false,
     importMode: "paste",
     // Last payload from /api/settings -- held so the Settings panel can
@@ -224,6 +229,7 @@ function cacheDomElements() {
     elements.settingsBtnSave = document.getElementById("settings-btn-save");
     elements.settingsBtnReset = document.getElementById("settings-btn-reset");
     elements.settingsStatus = document.getElementById("settings-status");
+    elements.settingShowGrid = document.getElementById("setting-show-grid");
 
     elements.progressBtnLogout = document.getElementById("progress-btn-logout");
     elements.btnSettings = document.getElementById("btn-settings");
@@ -282,6 +288,18 @@ function initEventListeners() {
     elements.progressTabs.forEach(tab => {
         tab.addEventListener("click", () => switchProgressTab(tab.dataset.progressTab));
     });
+
+    // Writing-grid toggle: purely a display preference, so it takes effect
+    // immediately and needs no Save button of its own.
+    if (elements.settingShowGrid) {
+        elements.settingShowGrid.checked = state.showGrid;
+        elements.settingShowGrid.addEventListener("change", () => {
+            state.showGrid = elements.settingShowGrid.checked;
+            localStorage.setItem("juzi_show_grid", state.showGrid ? "1" : "0");
+            applyGridPreference();
+        });
+    }
+    applyGridPreference();
 
     if (elements.settingsBtnSave) {
         elements.settingsBtnSave.addEventListener("click", saveSettings);
@@ -647,6 +665,20 @@ function renderAssemblyLine() {
         }
         elements.assemblyLine.appendChild(slot);
     });
+}
+
+/**
+ * Shows or hides the light 田字格 registration grid on the writing canvas
+ * per state.showGrid. A CSS class on the container itself (see #tian-zi-ge
+ * in style.css), not something drawn into it -- setupCurrentCharacterWriter
+ * replaces the container's contents with a fresh Hanzi Writer instance on
+ * every character, but never touches the container element's own class, so
+ * the grid survives that rebuild without needing to be reapplied per character.
+ */
+function applyGridPreference() {
+    if (elements.canvasContainer) {
+        elements.canvasContainer.classList.toggle("show-grid", state.showGrid);
+    }
 }
 
 /**

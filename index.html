@@ -200,12 +200,26 @@
                 </div>
             </div>
 
-            <!-- The one setting that does anything. daily_goal and strict_mode
-                 used to sit beside it in brain.json and were read by nothing;
-                 they are gone from the schema rather than shown here, since a
-                 control that does nothing is worse than no control. -->
+            <!-- daily_goal and strict_mode used to sit here and were read by
+                 nothing; they are gone from the schema rather than shown, since
+                 a control that does nothing is worse than no control. -->
             <div class="mode-panel" data-progress-panel="settings" hidden>
                 <div class="progress-body">
+                    <section class="progress-section">
+                        <h3 class="progress-title">Writing grid</h3>
+                        <p class="progress-note">
+                            Overlays a light 3&times;3 grid on the writing canvas so a
+                            character's proportions and stroke placement are easier to
+                            judge. Purely visual: it has no effect on grading. A
+                            per-device preference, not saved to your account.
+                        </p>
+
+                        <label class="setting-checkbox-row" for="setting-show-grid">
+                            <input type="checkbox" id="setting-show-grid">
+                            <span>Show writing grid</span>
+                        </label>
+                    </section>
+
                     <section class="progress-section">
                         <h3 class="progress-title">New characters per day</h3>
                         <p class="progress-note">
