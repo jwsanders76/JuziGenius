@@ -1303,6 +1303,17 @@ async function handleGenerateSession() {
             updateDueCounter();
             elements.importModal.style.display = "none";
             loadSession();
+            // A batch of entirely single-character items here means the
+            // unlocked pool is too small to form any real sentence, so the
+            // engine served character-only practice instead (see the
+            // Beginner Character-Only Phase / stranded-character-slot
+            // behavior in juzi_engine.py's pick_hsk_sentences). Without this,
+            // clicking "Get Sentences" and landing on the same-looking
+            // single-character practice reads as the button having done
+            // nothing.
+            if (result.sentences.every(s => s.chinese.length === 1)) {
+                alert("Not enough characters are unlocked yet to form a full sentence, so you're getting single-character practice instead. Unlock more characters (Suggest Characters or Paste Text) to start getting real sentences.");
+            }
         } else {
             alert("No matching sentences found. Try unlocking more characters first.");
         }
