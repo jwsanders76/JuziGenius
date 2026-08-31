@@ -1323,18 +1323,29 @@ const PREGENERATED_VOICES = { chaowen: "male", huayan: "female" };
  * it, same as before this feature existed. Fully offline for corpus
  * sentences; still network-dependent for pasted ones (see §1's TTS caveat
  * in project_state.md).
+ *
+ * A single-character item (the beginner character-only phase, or a stranded-
+ * character slot -- see project_state.md) is a deliberate exception: it always
+ * goes straight to the browser voice rather than the pre-generated models,
+ * per explicit user decision. Multi-character sentences are unaffected.
  */
 async function playNativeTTS(text) {
     if (!text) return;
 
     const token = stopSentenceAudio();
 
+    if (text.length === 1) {
+        playBrowserTTS(text);
+        return;
+    }
+
     const audioBlob = await fetchPregeneratedAudio(text);
-    // This await can outlast the item it was started for. A single character is
-    // ~half a second of audio and one click away from the next one, so
-    // completing 的 and advancing straight away used to resolve here with 一
-    // already on screen and play 的 over it -- reported by a user as "the audio
-    // for 一 was wrong, she said 的". A superseded playback is dropped, not heard.
+    // This await can outlast the item it was started for -- a fetch that
+    // resolves after the learner has already advanced to the next sentence
+    // would otherwise play stale audio over it (originally reported as a
+    // single-character mix-up, before single characters moved to the browser
+    // voice above and stopped taking this path). A superseded playback is
+    // dropped, not heard.
     if (token !== state.audioToken) return;
 
     if (audioBlob) {
@@ -1408,9 +1419,13 @@ function fetchPregeneratedAudio(text) {
  * as a sentence becomes current, well before the user gesture that will
  * eventually trigger playback. Fire-and-forget: a failed prefetch just means
  * playNativeTTS falls back to the browser voice, same as today.
+ *
+ * A single character never uses the pre-generated models (see playNativeTTS),
+ * so there's nothing worth prefetching for one -- skipping it avoids a fetch
+ * whose result will never be read.
  */
 function prefetchPregeneratedAudio(text) {
-    if (!text) return;
+    if (!text || text.length === 1) return;
     fetchPregeneratedAudio(text);
 }
 
