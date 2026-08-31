@@ -11,6 +11,11 @@ const state = {
     charMistakes: 0,
     writer: null,
     writerToken: 0,
+    // Same guard shape as writerToken, for sentence audio: bumped whenever
+    // playback is superseded, either by a new playback or by the practice item
+    // itself changing. A fetch that resolves after its bump is dropped rather
+    // than played over whatever is on screen by then (see stopSentenceAudio).
+    audioToken: 0,
     skippedIndices: new Set(),
     totalUnlockedCount: 0,
     totalDueCount: 0,
@@ -567,6 +572,9 @@ function loadSession() {
     state.isCompleted = false;
     toggleSidebarButtons(true);
     toggleSentenceAudioControls(false);
+    // Whatever was playing belonged to the item being left behind -- covers
+    // Next, Skip and Repeat alike, since all three arrive here.
+    stopSentenceAudio();
 
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
@@ -1317,15 +1325,16 @@ const PREGENERATED_VOICES = { chaowen: "male", huayan: "female" };
 async function playNativeTTS(text) {
     if (!text) return;
 
-    if (currentAudioEl) {
-        currentAudioEl.pause();
-        currentAudioEl = null;
-    }
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-    }
+    const token = stopSentenceAudio();
 
     const audioBlob = await fetchPregeneratedAudio(text);
+    // This await can outlast the item it was started for. A single character is
+    // ~half a second of audio and one click away from the next one, so
+    // completing 的 and advancing straight away used to resolve here with 一
+    // already on screen and play 的 over it -- reported by a user as "the audio
+    // for 一 was wrong, she said 的". A superseded playback is dropped, not heard.
+    if (token !== state.audioToken) return;
+
     if (audioBlob) {
         // Deliberately not folded into the fetch's own try/catch: a fetch
         // 404/network failure means "no pre-generated audio, use the
@@ -1339,6 +1348,25 @@ async function playNativeTTS(text) {
     }
 
     playBrowserTTS(text);
+}
+
+/**
+ * Silences whatever is playing and invalidates any playback still waiting on
+ * its audio, returning the new token. Called both when starting a fresh
+ * playback and when the practice item changes (loadSession) -- audio belongs to
+ * the item that was on screen when it started, and nothing else stops it: the
+ * clip plays to its end on its own, so advancing mid-clip used to leave the
+ * previous item audible over the new one.
+ */
+function stopSentenceAudio() {
+    if (currentAudioEl) {
+        currentAudioEl.pause();
+        currentAudioEl = null;
+    }
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+    return ++state.audioToken;
 }
 
 /**
