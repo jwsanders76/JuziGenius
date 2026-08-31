@@ -225,7 +225,7 @@ function cacheDomElements() {
     elements.settingsBtnReset = document.getElementById("settings-btn-reset");
     elements.settingsStatus = document.getElementById("settings-status");
 
-    elements.btnLogout = document.getElementById("btn-logout");
+    elements.progressBtnLogout = document.getElementById("progress-btn-logout");
     elements.btnSettings = document.getElementById("btn-settings");
 
     elements.resetSummary = document.getElementById("reset-summary");
@@ -299,14 +299,15 @@ function initEventListeners() {
 
     // Only meaningful for a real username/password account (API_BASE ""
     // with an actual session cookie behind it) -- a /u/<slug>/ visitor has
-    // no session to log out of, so this button stays hidden for them and
-    // the listener simply never fires.
-    if (API_BASE === "" && elements.btnLogout) {
-        elements.btnLogout.hidden = false;
+    // no session to log out of, so the label stays plain "Settings" and the
+    // Log Out button inside the modal stays hidden for them.
+    state.canLogout = API_BASE === "";
+    if (state.canLogout && elements.btnSettings) {
+        elements.btnSettings.textContent = "Settings / Log Out";
     }
-    if (elements.btnLogout) {
-        elements.btnLogout.addEventListener("click", async () => {
-            elements.btnLogout.disabled = true;
+    if (elements.progressBtnLogout) {
+        elements.progressBtnLogout.addEventListener("click", async () => {
+            elements.progressBtnLogout.disabled = true;
             try {
                 await fetch(`${API_BASE}/api/logout`, {
                     method: "POST",
@@ -1662,6 +1663,9 @@ function setProgressModalGroup(group) {
     });
     if (elements.progressModalTitle) {
         elements.progressModalTitle.textContent = group === "settings" ? "Settings" : "Your Progress";
+    }
+    if (elements.progressBtnLogout) {
+        elements.progressBtnLogout.hidden = !(group === "settings" && state.canLogout);
     }
 }
 

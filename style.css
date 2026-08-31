@@ -548,6 +548,13 @@ body {
     color: var(--text-primary);
 }
 
+.progress-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
 .modal-subtitle {
     font-size: 0.85rem;
     color: var(--text-secondary);

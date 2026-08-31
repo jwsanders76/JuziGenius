@@ -151,7 +151,10 @@
     <!-- Progress Overlay -->
     <div id="progress-modal" class="modal-overlay">
         <div class="modal-card progress-card">
-            <h2 id="progress-modal-title" class="modal-title">Your Progress</h2>
+            <div class="progress-modal-header">
+                <h2 id="progress-modal-title" class="modal-title">Your Progress</h2>
+                <button type="button" id="progress-btn-logout" class="top-btn" title="Log out" hidden>Log Out</button>
+            </div>
 
             <div class="mode-tabs">
                 <button type="button" class="mode-tab active" data-progress-tab="overview" data-tab-group="progress">Overview</button>
@@ -330,11 +333,10 @@
     <!-- Fixed to the corner of the viewport, not the practice card, so it
          stays put regardless of the card's own size or scroll position. -->
     <div id="corner-bar">
+        <!-- Label switches to "Settings / Log Out" for a real account (see
+             initEventListeners in app.js); a /u/<slug>/ link has no session
+             cookie to log out of, so it stays plain "Settings" there. -->
         <button type="button" id="btn-settings" class="top-btn" title="Settings">Settings</button>
-        <!-- Only shown for a real username/password account (see
-             initEventListeners in app.js) -- a /u/<slug>/ link has no
-             session cookie to log out of, so this stays hidden there. -->
-        <button type="button" id="btn-logout" class="top-btn" title="Log out" hidden>Log Out</button>
     </div>
 
     <!-- Main Controller Logic -->
