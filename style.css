@@ -445,16 +445,14 @@ body {
     margin-bottom: 10px;
 }
 
-/* Pronunciation controls, sitting under the assembly line with the sentence
-   they act on. Available from the moment a sentence loads, not gated behind
-   completion -- icon-only, with the label as a hover tooltip rather than
-   visible text, so they read as a small always-there toolbar. */
+/* Pronunciation controls, sitting in the action sidebar above Clear/Hint/Skip,
+   in a row across the sidebar's width. Available from the moment a sentence
+   loads, not gated behind completion -- icon-only, with the label as a hover
+   tooltip rather than visible text, so they read as a small always-there
+   toolbar rather than a fourth and fifth action button. */
 #sentence-audio-controls {
     display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-top: -8px;
-    margin-bottom: 16px;
+    gap: 10px;
 }
 
 #sentence-audio-controls[hidden] {
@@ -462,15 +460,15 @@ body {
 }
 
 .btn-audio-icon {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    height: 40px;
     background-color: var(--card-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    border-radius: 50%;
+    border-radius: 8px;
     font-size: 1.1rem;
     line-height: 1;
     cursor: pointer;

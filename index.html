@@ -57,22 +57,20 @@
         <!-- Assembly Line (Slots) -->
         <div id="assembly-line"></div>
 
-        <!-- Pronunciation controls for the item on screen. These sit with the
-             Chinese characters they act on, rather than in the victory card
-             next to the writing canvas, where "Replay" read as "redo this
-             character's quiz". Available from the moment a sentence loads,
-             not just after it's completed -- per explicit user decision, a
-             deliberate departure from "no predictive assistance" for audio
-             specifically. Icon-only; the label is a hover tooltip. -->
-        <div id="sentence-audio-controls" hidden>
-            <button id="btn-replay-audio" class="btn-audio-icon" title="Listen Again" aria-label="Listen Again">🔊</button>
-            <button id="btn-switch-voice" class="btn-audio-icon" title="Switch Voice" aria-label="Switch Voice">🔄</button>
-        </div>
-
         <!-- Main Workspace Area: Sidebar (Clear, Hint) + Central Canvas -->
         <div id="workspace-main">
             <!-- Action Sidebar (Vertical on the left) -->
             <div id="action-sidebar">
+                <!-- Pronunciation controls for the item on screen, sitting
+                     above Clear/Hint/Skip in a row. Available from the moment
+                     a sentence loads, not just after it's completed -- per
+                     explicit user decision, a deliberate departure from "no
+                     predictive assistance" for audio specifically. Icon-only;
+                     the label is a hover tooltip. -->
+                <div id="sentence-audio-controls" hidden>
+                    <button id="btn-replay-audio" class="btn-audio-icon" title="Listen Again" aria-label="Listen Again">🔊</button>
+                    <button id="btn-switch-voice" class="btn-audio-icon" title="Switch Voice" aria-label="Switch Voice">🔄</button>
+                </div>
                 <button id="btn-clear" class="action-btn">Clear</button>
                 <button id="btn-hint" class="action-btn">Hint</button>
                 <button id="btn-skip" class="action-btn">Skip</button>
