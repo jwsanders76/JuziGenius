@@ -25,6 +25,13 @@ const state = {
     // voice to fall back to for a user's own pasted sentences, which have no
     // pre-generated audio. Defaults to "huayan" (female) on a fresh install.
     ttsVoice: localStorage.getItem("juzi_tts_voice") || "huayan",
+    // Index into getOrderedChineseVoices() -- which installed browser voice to
+    // use for browser-TTS playback (single characters, and a user's own
+    // pasted sentences). Kept separate from ttsVoice: the browser's voice list
+    // has no reliable gender field, so switching voices here just steps
+    // through whatever the device actually has rather than pretending it can
+    // pick "the male one" (see getPreferredChineseVoice).
+    browserVoiceIndex: parseInt(localStorage.getItem("juzi_browser_voice_index"), 10) || 0,
     // Light 田字格 registration grid overlaid on the writing canvas, purely a
     // client-side display preference -- unlike ttsVoice/settings.daily_new_limit
     // it has no bearing on what gets served, so it lives only in localStorage.
@@ -1308,12 +1315,6 @@ async function handleGenerateSession() {
     }
 }
 
-// The two voices build_speech_audio.py pre-generates offline audio for, and
-// the gender each one is (measured by fundamental frequency -- see
-// project_state.md section 7 item 15). Kept in sync with SPEECH_VOICES in
-// server.py and VOICES in build_speech_audio.py.
-const PREGENERATED_VOICES = { chaowen: "male", huayan: "female" };
-
 /**
  * Sentence playback. Tries pre-generated audio for the corpus sentence first
  * (GET /api/speech) -- this is the offline path, and covers everything in
@@ -1483,9 +1484,12 @@ function isMandarinVoice(voice) {
 
 /**
  * All installed voices usable for Mandarin playback. Grouped with any
- * detected female voices first, then male, then ungendered/unknown ones, so
- * switchToNextVoice() and the initial pick both favor a clean female/male
- * split when the device actually has both.
+ * detected female voices first, then male, then ungendered/unknown ones,
+ * purely so the cycling order in getPreferredChineseVoice() is stable and
+ * puts any voices we *can* tell apart before the ones we can't -- gender is
+ * not used to pick a voice for playback (see below), since the Web Speech
+ * API exposes no real gender field and most devices report every Mandarin
+ * voice as unknown.
  */
 function getOrderedChineseVoices() {
     if (!('speechSynthesis' in window)) return [];
@@ -1497,48 +1501,53 @@ function getOrderedChineseVoices() {
 }
 
 /**
- * Returns the browser voice to speak a PASTED sentence with -- the fallback
- * path only, since a corpus sentence never reaches here (see playNativeTTS).
- * Picks a browser voice matching the gender of the pre-generated voice
- * currently selected (state.ttsVoice), so switching voices stays coherent
- * across both playback paths; falls back to the first available Mandarin
- * voice if the device has none of that gender or can't be told apart.
+ * Returns the browser voice for browser-TTS playback: a single-character
+ * item (see playNativeTTS) and a user's own pasted sentence, which has no
+ * pre-generated audio. Cycles by state.browserVoiceIndex rather than trying
+ * to match a gender -- most devices report every Mandarin voice as
+ * "unknown" gender, which made the old gender-matching lookup silently
+ * resolve to the same voice every time, so Switch Voice had no audible
+ * effect for either of these cases. Returns null if the device has no
+ * Mandarin voice at all.
  */
 function getPreferredChineseVoice() {
     const ordered = getOrderedChineseVoices();
     if (ordered.length === 0) return null;
-    const wantGender = PREGENERATED_VOICES[state.ttsVoice];
-    const matching = ordered.find(v => classifyVoiceGender(v) === wantGender);
-    if (matching) return matching;
-    return ordered.find(v => v.lang === 'zh-CN') || ordered[0];
+    return ordered[state.browserVoiceIndex % ordered.length];
 }
 
 /**
- * Toggles between the two pre-generated voices and persists the choice.
- * Unlike the old browser-voice cycling this replaced, this always has
- * exactly two real options on every device -- chaowen and huayan are shipped
- * pre-generated audio, not whatever the OS happens to expose (see
- * project_state.md section 7 item 15).
+ * Advances to the next voice for BOTH playback paths at once, so the same
+ * button and the same click always move things forward together: the
+ * pre-generated voice (chaowen/huayan) used for multi-character sentences,
+ * and the browser voice (see getPreferredChineseVoice) used for
+ * single-character items and pasted sentences. Persists both choices.
  */
 function switchToNextVoice() {
     state.ttsVoice = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
     localStorage.setItem("juzi_tts_voice", state.ttsVoice);
+
+    const voiceCount = getOrderedChineseVoices().length;
+    if (voiceCount > 0) {
+        state.browserVoiceIndex = (state.browserVoiceIndex + 1) % voiceCount;
+        localStorage.setItem("juzi_browser_voice_index", String(state.browserVoiceIndex));
+    }
+
     prefetchPregeneratedAudio(currentSentenceText());
 }
 
 /**
- * Icon-only button; the gender it would switch TO (and the one currently
- * playing) is stated in the hover tooltip rather than as visible text.
- * Always enabled: both pre-generated voices are always available, regardless
- * of what the device's own voice list looks like.
+ * Icon-only button. The tooltip deliberately just says "Switch Voice" --
+ * earlier it named the gender it would switch to, but the browser voice used
+ * for single characters and pasted sentences often can't be told apart by
+ * gender at all (see getPreferredChineseVoice), so a label promising "male"
+ * or "female" would frequently be wrong. Always enabled: whichever path a
+ * given item plays through has at least one voice to offer.
  */
 function updateSwitchVoiceButton(btn) {
-    const next = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
-    const nextGender = PREGENERATED_VOICES[next];
     btn.disabled = false;
-    const label = `Switch to ${nextGender} voice (currently ${PREGENERATED_VOICES[state.ttsVoice]})`;
-    btn.title = label;
-    btn.setAttribute("aria-label", label);
+    btn.title = "Switch Voice";
+    btn.setAttribute("aria-label", "Switch Voice");
 }
 
 /**
