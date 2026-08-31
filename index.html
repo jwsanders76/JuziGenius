@@ -48,13 +48,7 @@
                 </div>
             </div>
 
-            <div id="top-bar-right">
-                <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
-                <!-- Only shown for a real username/password account (see
-                     initEventListeners in app.js) -- a /u/<slug>/ link has no
-                     session cookie to log out of, so this stays hidden there. -->
-                <button type="button" id="btn-logout" class="top-btn" title="Log out" hidden>Log Out</button>
-            </div>
+            <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
         </header>
 
         <!-- Prompt Zone -->
@@ -161,8 +155,9 @@
 
             <div class="mode-tabs">
                 <button type="button" class="mode-tab active" data-progress-tab="overview">Overview</button>
-                <button type="button" class="mode-tab" data-progress-tab="characters">Characters</button>
-                <button type="button" class="mode-tab" data-progress-tab="settings">Settings</button>
+                <button type="button" class="mode-tab" data-progress-tab="characters">Character Bank</button>
+                <button type="button" class="mode-tab" data-progress-tab="words">Word Bank</button>
+                <button type="button" class="mode-tab" data-progress-tab="sentences">Sentence Bank</button>
                 <button type="button" class="mode-tab" data-progress-tab="reset">Start Over</button>
                 <button type="button" class="mode-tab" data-progress-tab="about">About JuziGenius</button>
             </div>
@@ -179,6 +174,24 @@
                  that panel is already long. -->
             <div class="mode-panel" data-progress-panel="characters" hidden>
                 <div id="progress-characters" class="progress-body">
+                    <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
+            <!-- Every unlocked compound word of 2+ characters (see
+                 analyze_text_compounds / add_word) -- separated from
+                 Character Bank since a word is a different practice unit. -->
+            <div class="mode-panel" data-progress-panel="words" hidden>
+                <div id="progress-words" class="progress-body">
+                    <p class="suggestions-empty">Loading…</p>
+                </div>
+            </div>
+
+            <!-- The live practice queue (see generate_fresh_session) -- what's
+                 actually queued up to write right now, not the full history
+                 of everything ever completed. -->
+            <div class="mode-panel" data-progress-panel="sentences" hidden>
+                <div id="progress-sentences" class="progress-body">
                     <p class="suggestions-empty">Loading…</p>
                 </div>
             </div>
@@ -311,6 +324,16 @@
                 <button id="progress-btn-close" class="modal-btn btn-primary">Close</button>
             </div>
         </div>
+    </div>
+
+    <!-- Fixed to the corner of the viewport, not the practice card, so it
+         stays put regardless of the card's own size or scroll position. -->
+    <div id="corner-bar">
+        <button type="button" id="btn-settings" class="top-btn" title="Settings">Settings</button>
+        <!-- Only shown for a real username/password account (see
+             initEventListeners in app.js) -- a /u/<slug>/ link has no
+             session cookie to log out of, so this stays hidden there. -->
+        <button type="button" id="btn-logout" class="top-btn" title="Log out" hidden>Log Out</button>
     </div>
 
     <!-- Main Controller Logic -->

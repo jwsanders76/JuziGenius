@@ -92,10 +92,13 @@ body {
     color: white;
 }
 
-#top-bar-right {
+#corner-bar {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
     display: flex;
-    align-items: center;
     gap: 8px;
+    z-index: 20;
 }
 
 /* --- Character Progress Counter & Mascot Avatar --- */
@@ -1098,6 +1101,70 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* --- Progress view: Word Bank tab --- */
+/* Wider than .char-grid's tiles: a compound word needs more room than a
+   single character before its pinyin/meaning start wrapping oddly. */
+.word-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+}
+
+.word-tile {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 6px;
+    text-align: center;
+    overflow: hidden;
+}
+
+.word-tile-hanzi {
+    font-size: 1.15rem;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.word-tile-pinyin {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.word-tile-meaning {
+    font-size: 0.62rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Progress view: Sentence Bank tab --- */
+.sentence-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sentence-row {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+.sentence-row-hanzi {
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.sentence-row-english {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
 }
 
 /* --- Progress view: Settings tab --- */

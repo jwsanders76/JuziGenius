@@ -1383,6 +1383,25 @@ class JuziEngine:
         completed = brain_data.get("completed_sentences", {}) or {}
         master = self.load_master_dictionary()
 
+        # Word Bank tab: every unlocked compound (see analyze_text_compounds
+        # and add_word), most-common-first. A single character never lands in
+        # unlocked_words -- that's what unlocked_chars is -- so no length
+        # filter is needed here, but one guards against any legacy entry.
+        word_list = sorted(
+            ({"word": w, "pinyin": m.get("pinyin", ""), "meaning": m.get("meaning", ""),
+              "rank": m.get("rank", 99999)}
+             for w, m in words.items() if len(w) >= 2),
+            key=lambda w: (w["rank"], w["word"])
+        )
+
+        # Sentence Bank tab: the live practice queue (see generate_fresh_session),
+        # not the full completed-sentences history -- "what's queued up right
+        # now," same as the practice screen itself shows.
+        sentence_queue = [
+            {"chinese": s.get("chinese", ""), "english": s.get("english", "")}
+            for s in brain_data.get("sentences", []) or []
+        ]
+
         today = date.today()
         due = self.get_due_characters(unlocked)
 
@@ -1478,6 +1497,8 @@ class JuziEngine:
             "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
                          for d in range(1, 15)],
             "characters": character_list,
+            "words": word_list,
+            "sentence_queue": sentence_queue,
         }
 
     def count_playable_sentences(self, unlocked_set: set) -> int:

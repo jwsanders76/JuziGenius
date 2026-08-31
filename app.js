@@ -211,6 +211,8 @@ function cacheDomElements() {
     elements.progressModal = document.getElementById("progress-modal");
     elements.progressBody = document.getElementById("progress-body");
     elements.progressCharacters = document.getElementById("progress-characters");
+    elements.progressWords = document.getElementById("progress-words");
+    elements.progressSentences = document.getElementById("progress-sentences");
     elements.progressTabs = elements.progressModal.querySelectorAll(".mode-tab");
     elements.progressPanels = elements.progressModal.querySelectorAll(".mode-panel");
     elements.progressBtnClose = document.getElementById("progress-btn-close");
@@ -223,6 +225,7 @@ function cacheDomElements() {
     elements.settingsStatus = document.getElementById("settings-status");
 
     elements.btnLogout = document.getElementById("btn-logout");
+    elements.btnSettings = document.getElementById("btn-settings");
 
     elements.resetSummary = document.getElementById("reset-summary");
     elements.resetBtnBegin = document.getElementById("reset-btn-begin");
@@ -256,6 +259,18 @@ function initEventListeners() {
 
     if (elements.btnProgress) {
         elements.btnProgress.addEventListener("click", openProgressView);
+    }
+    // Settings no longer has its own tab button in the Progress modal's tab
+    // row -- it's reached directly from this corner button instead. Calling
+    // switchProgressTab("settings") right after openProgressView overrides
+    // the "overview" tab that function switches to on open (both run
+    // synchronously before openProgressView's first await), landing on
+    // Settings without a visible flash of Overview first.
+    if (elements.btnSettings) {
+        elements.btnSettings.addEventListener("click", () => {
+            openProgressView();
+            switchProgressTab("settings");
+        });
     }
     if (elements.progressBtnClose) {
         elements.progressBtnClose.addEventListener("click", () => {
@@ -1644,10 +1659,18 @@ async function openProgressView() {
         const data = await response.json();
         renderProgress(data);
         renderProgressCharacters(data.characters || []);
+        renderProgressWords(data.words || []);
+        renderProgressSentences(data.sentence_queue || []);
         renderResetSummary(data);
     } catch (err) {
         console.error(err);
         elements.progressBody.innerHTML = `<p class="suggestions-empty">Could not load your progress.</p>`;
+        if (elements.progressWords) {
+            elements.progressWords.innerHTML = `<p class="suggestions-empty">Could not load your word bank.</p>`;
+        }
+        if (elements.progressSentences) {
+            elements.progressSentences.innerHTML = `<p class="suggestions-empty">Could not load your sentence bank.</p>`;
+        }
         // Otherwise the Start Over tab sits on "Loading…" indefinitely while
         // its buttons still work -- a reset offered without saying what it
         // would destroy, which is the one thing this panel exists to say.
@@ -2107,6 +2130,58 @@ function renderProgressCharacters(characters) {
     elements.progressCharacters.innerHTML = `
         <p class="progress-note">${characters.length.toLocaleString()} character${characters.length === 1 ? "" : "s"} unlocked, most common first.</p>
         <div class="char-grid">${tiles}</div>
+    `;
+}
+
+/**
+ * Word Bank tab: every unlocked compound of 2+ characters (see
+ * analyze_text_compounds/add_word in juzi_engine.py), most-common-first.
+ */
+function renderProgressWords(words) {
+    if (!elements.progressWords) return;
+
+    if (words.length === 0) {
+        elements.progressWords.innerHTML = `<p class="suggestions-empty">No compound words yet -- paste some text or add one from Suggest Words.</p>`;
+        return;
+    }
+
+    const tiles = words.map(w => {
+        const title = `${w.word}${w.pinyin ? ` — ${w.pinyin}` : ""}${w.meaning ? ` — ${w.meaning}` : ""}`;
+        return `<div class="word-tile" title="${escapeAttr(title)}">
+            <div class="word-tile-hanzi">${escapeHtml(w.word)}</div>
+            <div class="word-tile-pinyin">${escapeHtml(w.pinyin || "")}</div>
+            <div class="word-tile-meaning">${escapeHtml(w.meaning || "")}</div>
+        </div>`;
+    }).join("");
+
+    elements.progressWords.innerHTML = `
+        <p class="progress-note">${words.length.toLocaleString()} word${words.length === 1 ? "" : "s"} unlocked, most common first.</p>
+        <div class="word-grid">${tiles}</div>
+    `;
+}
+
+/**
+ * Sentence Bank tab: the live practice queue (see generate_fresh_session) --
+ * what's actually queued up to write right now, not completed history.
+ */
+function renderProgressSentences(sentences) {
+    if (!elements.progressSentences) return;
+
+    if (sentences.length === 0) {
+        elements.progressSentences.innerHTML = `<p class="suggestions-empty">No sentences queued right now.</p>`;
+        return;
+    }
+
+    const rows = sentences.map(s => `
+        <div class="sentence-row">
+            <div class="sentence-row-hanzi">${escapeHtml(s.chinese || "")}</div>
+            <div class="sentence-row-english">${escapeHtml(s.english || "")}</div>
+        </div>
+    `).join("");
+
+    elements.progressSentences.innerHTML = `
+        <p class="progress-note">${sentences.length.toLocaleString()} sentence${sentences.length === 1 ? "" : "s"} in the current practice queue.</p>
+        <div class="sentence-list">${rows}</div>
     `;
 }
 
