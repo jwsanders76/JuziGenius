@@ -29,6 +29,21 @@ SENTENCE_SOURCE_FILES = HSK_SOURCE_FILES + EXTRA_SENTENCE_FILES
 # count, not a one-time tier choice.
 CHARACTER_ONLY_UNLOCK_THRESHOLD = 20
 
+# Stand-in stroke count for a character missing one in master_dictionary.json
+# (a small handful are). Used only by suggest_new_characters' character-only
+# ordering, matching seed_brain.FALLBACK_STROKE_COUNT's reasoning: set above
+# the median so an unmeasured character sorts as moderately complex rather
+# than winning ties by default as if it were trivially simple.
+FALLBACK_STROKE_COUNT = 15
+
+# Same cutoff and reasoning as seed_brain.BEGINNER_RANK_CUTOFF: sorting
+# suggest_new_characters' character-only phase by stroke count alone would
+# surface a rare-but-simple radical like 匕 (2 strokes, frequency rank
+# ~3250) or 卜 (2 strokes, ~1980) ahead of everyday characters that just
+# happen to have one or two more strokes. This keeps the pool to characters
+# actually worth learning, then lets stroke count break ties among those.
+BEGINNER_RANK_CUTOFF = 1500
+
 # Most characters one character-only batch may hold.
 #
 # A batch of real sentences is deliberately small (server.py asks for 3): the
@@ -1172,11 +1187,25 @@ class JuziEngine:
         practice today, while a rarer one that completes forty is immediately
         useful. Showing both lets the learner choose rather than hiding the
         trade-off behind a single opaque score.
+
+        Below CHARACTER_ONLY_UNLOCK_THRESHOLD, `unlocks` is not actually a
+        signal of anything -- pick_hsk_sentences won't show a single sentence
+        until the pool crosses that threshold (finding: a Tier 1 account
+        chasing the "completes a sentence" bonus was getting handed rare,
+        high-stroke characters like 睏 (12 strokes, frequency rank ~7300)
+        ahead of 的 (8 strokes, rank 1), because 睏 happened to complete one
+        of the few short sentences reachable from a five-character pool -- a
+        sentence that couldn't be played yet regardless. Simplicity and
+        frequency are what actually matter while the user is still in
+        character-only practice, so this phase sorts by stroke count first,
+        the same philosophy select_beginner_characters uses for Tier 1's
+        initial five.
         """
         master = self.load_master_dictionary()
         brain_data = self._read_brain()
         unlocked = brain_data.get("unlocked_chars", {})
         unlocked_set = set(unlocked)
+        character_only_phase = len(unlocked_set) < CHARACTER_ONLY_UNLOCK_THRESHOLD
 
         credit = self.sentences_unlocked_by(unlocked_set)
 
@@ -1197,9 +1226,18 @@ class JuziEngine:
                 "unlocks": credit.get(char, 0),
             })
 
-        # Frequency order, but a character that immediately opens up practice
-        # sentences is surfaced ahead of an equally-ranked one that doesn't.
-        candidates.sort(key=lambda c: (c["unlocks"] == 0, c["freq"]))
+        if character_only_phase:
+            # Simplicity first, same as Tier 1's initial five -- no sentence
+            # is playable yet regardless of `unlocks`. Restricted to
+            # BEGINNER_RANK_CUTOFF first so a rare-but-simple character can't
+            # outrank a common one just for being easy to draw.
+            candidates = [c for c in candidates if c["freq"] <= BEGINNER_RANK_CUTOFF]
+            candidates.sort(key=lambda c: (c["strokes"] or FALLBACK_STROKE_COUNT, c["freq"]))
+        else:
+            # Frequency order, but a character that immediately opens up
+            # practice sentences is surfaced ahead of an equally-ranked one
+            # that doesn't.
+            candidates.sort(key=lambda c: (c["unlocks"] == 0, c["freq"]))
         return candidates[:count]
 
     def add_characters(self, chars: list) -> dict:
