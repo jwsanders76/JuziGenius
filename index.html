@@ -151,15 +151,16 @@
     <!-- Progress Overlay -->
     <div id="progress-modal" class="modal-overlay">
         <div class="modal-card progress-card">
-            <h2 class="modal-title">Your Progress</h2>
+            <h2 id="progress-modal-title" class="modal-title">Your Progress</h2>
 
             <div class="mode-tabs">
-                <button type="button" class="mode-tab active" data-progress-tab="overview">Overview</button>
-                <button type="button" class="mode-tab" data-progress-tab="characters">Character Bank</button>
-                <button type="button" class="mode-tab" data-progress-tab="words">Word Bank</button>
-                <button type="button" class="mode-tab" data-progress-tab="sentences">Sentence Bank</button>
-                <button type="button" class="mode-tab" data-progress-tab="reset">Start Over</button>
-                <button type="button" class="mode-tab" data-progress-tab="about">About JuziGenius</button>
+                <button type="button" class="mode-tab active" data-progress-tab="overview" data-tab-group="progress">Overview</button>
+                <button type="button" class="mode-tab" data-progress-tab="characters" data-tab-group="progress">Character Bank</button>
+                <button type="button" class="mode-tab" data-progress-tab="words" data-tab-group="progress">Word Bank</button>
+                <button type="button" class="mode-tab" data-progress-tab="sentences" data-tab-group="progress">Sentence Bank</button>
+                <button type="button" class="mode-tab" data-progress-tab="settings" data-tab-group="settings">Settings</button>
+                <button type="button" class="mode-tab" data-progress-tab="reset" data-tab-group="settings">Start Over</button>
+                <button type="button" class="mode-tab" data-progress-tab="about" data-tab-group="settings">About JuziGenius</button>
             </div>
 
             <!-- Stats, coverage, forecast -- the existing progress view. -->

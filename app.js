@@ -209,6 +209,7 @@ function cacheDomElements() {
     elements.backlogNote = document.getElementById("backlog-note");
     elements.btnProgress = document.getElementById("btn-progress");
     elements.progressModal = document.getElementById("progress-modal");
+    elements.progressModalTitle = document.getElementById("progress-modal-title");
     elements.progressBody = document.getElementById("progress-body");
     elements.progressCharacters = document.getElementById("progress-characters");
     elements.progressWords = document.getElementById("progress-words");
@@ -269,6 +270,7 @@ function initEventListeners() {
     if (elements.btnSettings) {
         elements.btnSettings.addEventListener("click", () => {
             openProgressView();
+            setProgressModalGroup("settings");
             switchProgressTab("settings");
         });
     }
@@ -1647,9 +1649,26 @@ const STAGE_STYLE = [
 const COVERAGE_COLOR = "#f39c12";   // 6.83:1 on the card surface
 const FORECAST_COLOR = "#d95926";   // 3.86:1
 
+/**
+ * Shows only the tab buttons belonging to the given group -- "progress"
+ * (Overview / Character Bank / Word Bank / Sentence Bank) or "settings"
+ * (Settings / Start Over / About JuziGenius) -- so the two entry points
+ * (the Progress button and the corner Settings button) each present their
+ * own menu instead of both showing every tab.
+ */
+function setProgressModalGroup(group) {
+    elements.progressTabs.forEach(t => {
+        t.hidden = t.dataset.tabGroup !== group;
+    });
+    if (elements.progressModalTitle) {
+        elements.progressModalTitle.textContent = group === "settings" ? "Settings" : "Your Progress";
+    }
+}
+
 async function openProgressView() {
     if (!elements.progressModal) return;
     elements.progressModal.style.display = "flex";
+    setProgressModalGroup("progress");
     switchProgressTab("overview");
     elements.progressBody.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
 
