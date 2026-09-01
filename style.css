@@ -137,8 +137,8 @@ body {
     font-weight: bold;
 }
 
-/* A playful "still cooking" marker -- rotated like a rubber stamp and
-   given a little idle wiggle so it reads as a badge, not an error state. */
+/* A playful "still cooking" marker -- rotated like a rubber stamp so it
+   reads as a badge, not an error state. */
 #beta-badge {
     display: inline-block;
     color: #ff8c00;
@@ -149,15 +149,7 @@ body {
     padding: 1px 7px;
     border-radius: 999px;
     transform: rotate(-8deg);
-    animation: beta-wiggle 4s ease-in-out infinite;
     cursor: default;
-}
-
-@keyframes beta-wiggle {
-    0%, 80%, 100% { transform: rotate(-8deg); }
-    85% { transform: rotate(6deg); }
-    90% { transform: rotate(-10deg); }
-    95% { transform: rotate(4deg); }
 }
 
 /* --- Due-for-Review Counter (SM-2) --- */
