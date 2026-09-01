@@ -1058,8 +1058,8 @@ function showPinyinPush(char, sentenceObj, charIndex) {
     // "pīn yīn", which reads as a real answer and teaches a nonsense one;
     // saying so plainly is the honest degradation.
     hintContainer.textContent = pinyinResult
-        ? `Hint (Tier 1 Pinyin): ${pinyinResult}`
-        : "Hint (Tier 1 Pinyin): unavailable for this character";
+        ? `Pinyin: ${pinyinResult}`
+        : "Pinyin: unavailable for this character";
 }
 
 /**
