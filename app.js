@@ -1257,6 +1257,10 @@ async function handleTextImport() {
         alert("Please paste some Chinese text first.");
         return;
     }
+    if (!translation) {
+        alert("Please add the matching English translation.");
+        return;
+    }
 
     elements.modalBtnSubmit.textContent = "Processing...";
     elements.modalBtnSubmit.disabled = true;

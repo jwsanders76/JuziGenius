@@ -951,6 +951,18 @@ class JuziEngine:
                     ),
                 }
 
+            # The translation used to be optional -- unlocking characters
+            # didn't need one, only saving a practice sentence did. Per
+            # explicit user decision it's now required for any Chinese paste,
+            # enforced here (not just in the UI) so a direct API call can't
+            # unlock characters without one either.
+            if chinese_chars and not translation_text.strip():
+                return {
+                    "added_count": 0,
+                    "total_unlocked_count": len(unlocked),
+                    "message": "Please include the matching English translation for this text.",
+                }
+
             pruned_word_count = self.prune_single_char_words(unlocked_words)
             master = self.load_master_dictionary()
 
