@@ -98,13 +98,14 @@
                 <button type="button" class="mode-tab" data-mode="hsk">HSK Sentences</button>
             </div>
 
-            <!-- Paste Text: unlock characters from your own text -->
+            <!-- Paste Text: unlock characters from your own text. One box --
+                 Chinese and English go in together, and the English right
+                 after each word/sentence (same line or the line below) gets
+                 auto-paired and saved as a practice sentence. -->
             <div class="mode-panel" data-mode-panel="paste">
-                <p class="modal-subtitle">Paste Chinese sentences, stories, or vocabulary below to unlock characters and discover words.</p>
-                <textarea id="import-textarea" maxlength="2000" placeholder="例如：我喜欢在每天早上喝热茶。"></textarea>
-                <label class="import-translation-label" for="import-translation-textarea">English translation (required)</label>
-                <textarea id="import-translation-textarea" class="import-translation-textarea" maxlength="6000" placeholder="e.g. I like to drink hot tea every morning." required></textarea>
-                <p class="import-translation-note">Saved alongside the Chinese as a practice sentence you can revisit later &mdash; fully offline, no AI needed.</p>
+                <p class="modal-subtitle">Paste Chinese below to unlock characters and discover words. Include the English right after each word or sentence -- same line ("你好 - hello") or the line below -- and it's saved as a practice sentence too.</p>
+                <textarea id="import-textarea" maxlength="8000" placeholder="你好 - hello&#10;再见 - goodbye&#10;我喜欢在每天早上喝热茶。&#10;I like to drink hot tea every morning."></textarea>
+                <p class="import-translation-note">Fully offline, no AI needed &mdash; the English/Chinese split is detected locally from the text you paste.</p>
             </div>
 
             <!-- Suggest Characters: the most frequent characters not yet unlocked.

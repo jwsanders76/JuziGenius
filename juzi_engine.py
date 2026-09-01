@@ -194,23 +194,34 @@ def _freshness(chinese: str, completed: dict, today: str) -> int:
 # text far too long to be a "sentence" worth practicing, bloating brain.json
 # and tying up this account's brain_lock while segment_compounds scans it.
 # Counted in characters (not bytes) so it reads the same regardless of
-# encoding. English text naturally runs longer per idea than Chinese, hence
-# the larger translation allowance.
-MAX_IMPORT_CHINESE_CHARS = 2000
-MAX_IMPORT_TRANSLATION_CHARS = 6000
+# encoding. One combined limit, not a separate Chinese/translation cap each,
+# now that Paste Text is a single box carrying both.
+MAX_IMPORT_TOTAL_CHARS = 8000
 
 # Longest single sentence that may be saved into pasted_sentences, in hanzi.
 # Finding 19: the caps above bound a whole *import*, not one practice item,
-# and _split_lines splits on newlines only -- deliberately, so a paragraph the
-# user chose not to break up stays one thought. Combined with pick_hsk_sentences
-# always ranking personal sentences ahead of corpus ones, a 2,000-character
-# paragraph pasted without line breaks became a single top-priority practice
-# item: 2,000 characters to hand-write, one at a time, before the victory card.
-# The three behaviours are each right on their own and only compose badly.
-# 30 is drawn from the corpus the app already serves, whose longest sentence is
-# 29 hanzi (p50 is 9, p99 is 20) -- so this refuses to ask of the learner
-# anything longer than the longest thing they are already asked to write.
+# and _pair_vocab_lines splits on newlines only -- deliberately, so a paragraph
+# the user chose not to break up stays one thought. Combined with
+# pick_hsk_sentences always ranking personal sentences ahead of corpus ones, a
+# 2,000-character paragraph pasted without line breaks became a single
+# top-priority practice item: 2,000 characters to hand-write, one at a time,
+# before the victory card. The three behaviours are each right on their own
+# and only compose badly. 30 is drawn from the corpus the app already serves,
+# whose longest sentence is 29 hanzi (p50 is 9, p99 is 20) -- so this refuses
+# to ask of the learner anything longer than the longest thing they are
+# already asked to write.
 MAX_PASTED_SENTENCE_CHARS = 30
+
+# Used by _split_vocab_line/_pair_vocab_lines (Paste Text's single-box
+# auto-pairing) to tell Chinese from English by Unicode range rather than by
+# any dictionary lookup, so it works for text outside master_dictionary too.
+_CJK_CHAR_RE = re.compile(r'[一-龥]')
+_LATIN_LETTER_RE = re.compile(r'[A-Za-z]')
+# A leading list marker ("1.", "2)", "a.") that vocab lists are commonly
+# numbered or lettered with.
+_LEADING_LIST_MARKER_RE = re.compile(r'^\s*(?:[0-9]+|[a-zA-Z])[.\)、]\s*')
+_TRAILING_SEPARATOR_RE = re.compile(r'[\s\-–—:|,]+$')
+_LEADING_SEPARATOR_RE = re.compile(r'^[\s\-–—:|,]+')
 
 
 class JuziEngine:
@@ -888,35 +899,103 @@ class JuziEngine:
         return found_words
 
     @staticmethod
-    def _split_lines(text: str) -> list:
+    def _split_vocab_line(line: str):
         """
-        Splits into non-empty, stripped lines. A paste with no newline is a
-        single paragraph and stays one entry (this returns a 1-item list);
-        a paste with one sentence per line is a list, and each line becomes
-        its own entry. This intentionally ignores sentence-ending punctuation
-        (\u3002\uff01\uff1f.!?) as a split point -- a paragraph like "\u6211\u559d\u8336\u3002\u7136\u540e\u6211\u4e0a\u73ed\u3002"
-        is one continuous thought the user chose not to break onto separate
-        lines, so it's saved as one sentence rather than fragmented.
+        Splits one line that carries both Chinese and English on it -- with a
+        separator ("\u4f60\u597d - hello", "\u4f60\u597d: hello") or without one ("\u4f60\u597d hello") -- into
+        (chinese, english). Splits at the line's first Latin letter: unlike
+        looking for a specific delimiter, that works regardless of which
+        punctuation (if any) a given list happens to use. Everything before
+        the split is stripped of a leading list marker ("1.", "b)") and any
+        trailing separator punctuation; everything from the split onward is
+        stripped of a leading separator. Returns None if the line doesn't
+        actually carry both scripts, or if either side is empty once
+        stripped (a bare list marker, or trailing punctuation with nothing
+        after it).
         """
-        return [line.strip() for line in text.strip().splitlines() if line.strip()]
+        if not (_CJK_CHAR_RE.search(line) and _LATIN_LETTER_RE.search(line)):
+            return None
+        split_at = _LATIN_LETTER_RE.search(line).start()
+        chinese_part = _LEADING_LIST_MARKER_RE.sub("", line[:split_at])
+        chinese_part = _TRAILING_SEPARATOR_RE.sub("", chinese_part).strip()
+        english_part = _LEADING_SEPARATOR_RE.sub("", line[split_at:]).strip()
+        if not chinese_part or not english_part:
+            return None
+        return (chinese_part, english_part)
 
-    def import_text_locally(self, raw_text: str, translation_text: str = "") -> dict:
+    def _pair_vocab_lines(self, raw_text: str):
         """
-        Parses raw text/sentences, extracts unique Chinese characters, pulls their
-        pinyin/meanings instantly from the local master_dictionary, and updates brain.json.
-        Also scans for compound words via the static word frequency database.
+        Turns one combined Chinese/English paste into (chinese, english)
+        pairs, the way a vocab list or set of example sentences actually
+        arrives: Chinese and English sharing a line (see _split_vocab_line),
+        or Chinese on its own line immediately followed by its English on
+        the next non-blank line. A Chinese-only line with no recognizable
+        English anywhere nearby is reported back in the second return value
+        rather than guessed at -- its characters still get unlocked by
+        import_text_locally's separate character scan, it just isn't saved
+        as a practice sentence.
 
-        If translation_text is given, also saves the pasted Chinese as practice
-        sentences paired with it, into brain.json's pasted_sentences -- a
-        persistent personal corpus (unlike the ephemeral `sentences` bank,
-        which generate_fresh_session overwrites wholesale on every new batch)
-        that pick_hsk_sentences draws from alongside the built-in corpora, so
-        a user's own imported material keeps resurfacing in practice. Both
-        texts are split by newline and paired by position -- a paragraph with
-        no line breaks stays one entry, while a list with one sentence per
-        line becomes one entry per line. If the line counts don't match
-        between the two texts, pairing is ambiguous, so the whole paste is
-        saved as one sentence instead of guessing an alignment.
+        Returns (pairs, unpaired_chinese_lines).
+        """
+        lines = raw_text.splitlines()
+        pairs = []
+        unpaired = []
+        i, n = 0, len(lines)
+        while i < n:
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+
+            same_line = self._split_vocab_line(line)
+            if same_line:
+                pairs.append(same_line)
+                i += 1
+                continue
+
+            if _CJK_CHAR_RE.search(line) and not _LATIN_LETTER_RE.search(line):
+                j = i + 1
+                while j < n and not lines[j].strip():
+                    j += 1
+                next_line = lines[j].strip() if j < n else ""
+                if next_line and _LATIN_LETTER_RE.search(next_line) and not _CJK_CHAR_RE.search(next_line):
+                    chinese_part = _LEADING_LIST_MARKER_RE.sub("", line).strip()
+                    if chinese_part:
+                        pairs.append((chinese_part, next_line))
+                        i = j + 1
+                        continue
+                unpaired.append(line)
+                i += 1
+                continue
+
+            # Latin-only, or otherwise unclassifiable, with no preceding
+            # Chinese-only line waiting for it -- nothing to pair it against.
+            i += 1
+
+        return pairs, unpaired
+
+    def import_text_locally(self, raw_text: str) -> dict:
+        """
+        Parses one combined Chinese/English paste, extracts unique Chinese
+        characters, pulls their pinyin/meanings instantly from the local
+        master_dictionary, and updates brain.json. Also scans for compound
+        words via the static word frequency database.
+
+        Also saves whatever Chinese/English pairs _pair_vocab_lines can find
+        in the same paste as practice sentences, into brain.json's
+        pasted_sentences -- a persistent personal corpus (unlike the
+        ephemeral `sentences` bank, which generate_fresh_session overwrites
+        wholesale on every new batch) that pick_hsk_sentences draws from
+        alongside the built-in corpora, so a user's own imported material
+        keeps resurfacing in practice.
+
+        There used to be a second, separate translation textarea, paired with
+        this one by line position. It was replaced (per explicit user
+        decision) with a single box plus automatic pairing, because the
+        realistic input -- a vocab list or a set of example sentences pasted
+        from somewhere else -- already carries the English right next to each
+        Chinese entry, either on the same line or the line directly below it,
+        and making the user copy it into a second box was pure friction.
         """
         chinese_chars = set(re.findall(r'[\u4e00-\u9fa5]', raw_text))
 
@@ -940,27 +1019,14 @@ class JuziEngine:
             # Rejected before pruning/compound-scanning (the expensive, input-
             # length-proportional work below) so an oversized paste costs
             # only this cheap length check, not a scan of the whole thing.
-            if len(raw_text) > MAX_IMPORT_CHINESE_CHARS or len(translation_text) > MAX_IMPORT_TRANSLATION_CHARS:
+            if len(raw_text) > MAX_IMPORT_TOTAL_CHARS:
                 return {
                     "added_count": 0,
                     "total_unlocked_count": len(unlocked),
                     "message": (
-                        f"That's too much to paste at once (max {MAX_IMPORT_CHINESE_CHARS} Chinese "
-                        f"characters / {MAX_IMPORT_TRANSLATION_CHARS} translation characters). "
-                        "Try a few paragraphs at a time instead."
+                        f"That's too much to paste at once (max {MAX_IMPORT_TOTAL_CHARS} characters "
+                        "total, Chinese and English combined). Try a few paragraphs at a time instead."
                     ),
-                }
-
-            # The translation used to be optional -- unlocking characters
-            # didn't need one, only saving a practice sentence did. Per
-            # explicit user decision it's now required for any Chinese paste,
-            # enforced here (not just in the UI) so a direct API call can't
-            # unlock characters without one either.
-            if chinese_chars and not translation_text.strip():
-                return {
-                    "added_count": 0,
-                    "total_unlocked_count": len(unlocked),
-                    "message": "Please include the matching English translation for this text.",
                 }
 
             pruned_word_count = self.prune_single_char_words(unlocked_words)
@@ -1007,48 +1073,41 @@ class JuziEngine:
                     }
                     added_word_count += 1
 
-            # If a translation was pasted alongside the Chinese, save real
-            # sentence pairs from it into the user's persistent pasted_sentences.
+            # Auto-detect Chinese/English pairs directly out of the single
+            # pasted blob and save them into the user's persistent
+            # pasted_sentences. See _pair_vocab_lines for the two shapes it
+            # recognizes (same line, or Chinese then English on the next).
             saved_sentence_count = 0
             skipped_sentence_count = 0
             oversized_sentence_count = 0
-            sentence_pairing_matched = None
-            if translation_text and translation_text.strip():
-                chinese_sentences = self._split_lines(raw_text)
-                english_sentences = self._split_lines(translation_text)
-                sentence_pairing_matched = bool(chinese_sentences) and len(chinese_sentences) == len(english_sentences)
+            pairs, unpaired_lines = self._pair_vocab_lines(raw_text)
 
-                if sentence_pairing_matched:
-                    pairs = list(zip(chinese_sentences, english_sentences))
-                else:
-                    pairs = [(raw_text.strip(), translation_text.strip())]
+            pasted_sentences = brain_data.setdefault("pasted_sentences", [])
+            existing_chinese = {s.get("chinese") for s in pasted_sentences}
 
-                pasted_sentences = brain_data.setdefault("pasted_sentences", [])
-                existing_chinese = {s.get("chinese") for s in pasted_sentences}
-
-                for chi, eng in pairs:
-                    chi = re.sub(r'\s+', '', chi)
-                    eng = eng.strip()
-                    if not chi or not eng or chi in existing_chinese:
-                        continue
-                    # A practice item is written by hand one character at a
-                    # time, so an over-long one is not a hard sentence, it is
-                    # an unfinishable one -- and personal sentences outrank the
-                    # whole corpus, so it would be served first (finding 19).
-                    if len(re.findall(r'[一-龥]', chi)) > MAX_PASTED_SENTENCE_CHARS:
-                        oversized_sentence_count += 1
-                        continue
-                    # Every Chinese character in the sentence must already be
-                    # unlockable (present in unlocked, which by now holds every
-                    # character from raw_text that's in master_dictionary) --
-                    # otherwise it can never be shown on the canvas with real
-                    # pinyin/meaning, so the pair isn't worth saving.
-                    if not all(c in unlocked for c in re.findall(r'[一-龥]', chi)):
-                        skipped_sentence_count += 1
-                        continue
-                    pasted_sentences.append({"chinese": chi, "english": eng})
-                    existing_chinese.add(chi)
-                    saved_sentence_count += 1
+            for chi, eng in pairs:
+                chi = re.sub(r'\s+', '', chi)
+                eng = eng.strip()
+                if not chi or not eng or chi in existing_chinese:
+                    continue
+                # A practice item is written by hand one character at a
+                # time, so an over-long one is not a hard sentence, it is
+                # an unfinishable one -- and personal sentences outrank the
+                # whole corpus, so it would be served first (finding 19).
+                if len(re.findall(r'[一-龥]', chi)) > MAX_PASTED_SENTENCE_CHARS:
+                    oversized_sentence_count += 1
+                    continue
+                # Every Chinese character in the sentence must already be
+                # unlockable (present in unlocked, which by now holds every
+                # character from raw_text that's in master_dictionary) --
+                # otherwise it can never be shown on the canvas with real
+                # pinyin/meaning, so the pair isn't worth saving.
+                if not all(c in unlocked for c in re.findall(r'[一-龥]', chi)):
+                    skipped_sentence_count += 1
+                    continue
+                pasted_sentences.append({"chinese": chi, "english": eng})
+                existing_chinese.add(chi)
+                saved_sentence_count += 1
 
             # Save updates back to brain.json
             with open(self.brain_path, "w", encoding="utf-8") as f:
@@ -1072,8 +1131,13 @@ class JuziEngine:
                     f"{MAX_PASTED_SENTENCE_CHARS} characters, which is more than anyone "
                     "should hand-write as one practice item. Put each sentence on its "
                     "own line to save them separately.)")
-        if sentence_pairing_matched is False:
-            msg += " (Couldn't line up sentence boundaries between the two texts, so they were saved as one combined sentence.)"
+        if unpaired_lines:
+            preview = "、".join(unpaired_lines[:5])
+            if len(unpaired_lines) > 5:
+                preview += f", and {len(unpaired_lines) - 5} more"
+            msg += (f" Characters were unlocked, but no English translation was found for: {preview} "
+                    "-- so these weren't saved as practice sentences. Put the English right after "
+                    "each one (same line or the line below) to have them saved too.")
 
         return {
             "added_count": added_count,
@@ -1084,6 +1148,7 @@ class JuziEngine:
             "saved_sentence_count": saved_sentence_count,
             "skipped_sentence_count": skipped_sentence_count,
             "oversized_sentence_count": oversized_sentence_count,
+            "unpaired_line_count": len(unpaired_lines),
             "message": msg
         }
 

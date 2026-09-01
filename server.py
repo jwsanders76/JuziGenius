@@ -1236,9 +1236,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return True
 
         # Intercept POST requests for importing raw text/sentences locally.
-        # Body: { "text": "<chinese>", "translation": "<optional english>" }
-        # When translation is given, matching sentences are also saved to
-        # the user's persistent pasted_sentences for future practice.
+        # Body: { "text": "<chinese and english, combined>" }
+        # import_text_locally auto-detects Chinese/English pairs within the
+        # single blob and saves what it finds to the user's persistent
+        # pasted_sentences for future practice.
         if path == "/api/import":
             try:
                 body = self._read_json_body_or_reject()
@@ -1246,10 +1247,9 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     return True
                 data = json.loads(body)
                 raw_text = data.get("text", "")
-                translation_text = data.get("translation", "")
 
                 # Call the local master dictionary import method on the engine
-                result = engine.import_text_locally(raw_text, translation_text=translation_text)
+                result = engine.import_text_locally(raw_text)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
