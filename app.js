@@ -60,6 +60,9 @@ const API_BASE = (() => {
 // rather than passed to animateCharacter(), which ignores per-call speed.
 const HINT_WALKTHROUGH_SPEED = 4.5;
 
+// Number of hint tiers in the staircase (pinyin push / outline / walkthrough).
+const MAX_HINT_TIER = 3;
+
 // Upstream stroke data, used only for characters this install didn't vendor
 // (see loadCharacterStrokes). Pinned to the version fetch_stroke_data.py
 // vendored from, so an online fallback can't quietly serve different data.
@@ -137,6 +140,7 @@ function skipCurrentCharacter() {
     state.charIndex++;
     state.hintTier = 0;
     state.charMistakes = 0;
+    updateHintButtonLabel();
     setupCurrentCharacterWriter();
 }
 
@@ -591,6 +595,7 @@ function loadSession() {
     state.hintTier = 0;
     state.charMistakes = 0;
     state.skippedIndices = new Set();
+    updateHintButtonLabel();
 
     prefetchPregeneratedAudio(currentSentence.chinese);
 
@@ -635,8 +640,21 @@ function updateDueCounter() {
 
 function toggleSidebarButtons(enabled) {
     if (elements.btnClear) elements.btnClear.disabled = !enabled;
-    if (elements.btnHint) elements.btnHint.disabled = !enabled;
+    updateHintButtonLabel(enabled);
     if (elements.btnSkip) elements.btnSkip.disabled = !enabled;
+}
+
+/**
+ * Reflects hints already spent on the current character: "Hints (N)" counting
+ * down from MAX_HINT_TIER, greyed out once exhausted. `sidebarEnabled` carries
+ * the broader enabled/disabled state toggleSidebarButtons manages (mid-transition,
+ * sentence completed) so hint math alone can't re-enable the button early.
+ */
+function updateHintButtonLabel(sidebarEnabled = true) {
+    if (!elements.btnHint) return;
+    const remaining = Math.max(0, MAX_HINT_TIER - state.hintTier);
+    elements.btnHint.textContent = `Hints (${remaining})`;
+    elements.btnHint.disabled = !sidebarEnabled || remaining === 0;
 }
 
 /**
@@ -808,6 +826,7 @@ function handleCharacterSuccess(char) {
     state.charIndex++;
     state.hintTier = 0;
     state.charMistakes = 0;
+    updateHintButtonLabel();
     setTimeout(setupCurrentCharacterWriter, 200);
 }
 
@@ -982,6 +1001,7 @@ function handleHintEscalation() {
     if (state.charIndex >= chineseChars.length) return;
 
     state.hintTier++;
+    updateHintButtonLabel();
     const targetChar = chineseChars[state.charIndex];
 
     if (state.hintTier === 1) {
@@ -2052,6 +2072,7 @@ async function performAccountReset() {
         state.charMistakes = 0;
         state.skippedIndices = new Set();
         state.isCompleted = false;
+        updateHintButtonLabel();
         // Bump the token so any in-flight stroke animation or character-data
         // load from the old sentence is treated as superseded (see
         // setupCurrentCharacterWriter's writerToken guard).
