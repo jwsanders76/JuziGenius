@@ -1471,19 +1471,51 @@ class JuziEngine:
             key=lambda w: (w["rank"], w["word"])
         )
 
-        # Sentence Bank tab: the live practice queue (see generate_fresh_session),
-        # not the full completed-sentences history -- "what's queued up right
-        # now," same as the practice screen itself shows. Excludes the
-        # one-character stand-ins _character_candidate produces (beginner-phase
-        # character-only batches, and the stranded-character slot a sentence
-        # batch reserves -- see _stranded_character_picks) -- those are real
-        # practice items on the writing screen, but a bank labelled "Sentence
-        # Bank" showing a lone 力 or 十 reads as a data bug, not a feature.
-        sentence_queue = [
-            {"chinese": s.get("chinese", ""), "english": s.get("english", "")}
-            for s in brain_data.get("sentences", []) or []
-            if len(s.get("chinese", "")) >= 2
-        ]
+        # Sentence Bank tab: everything accrued, not the live practice queue
+        # (see generate_fresh_session) -- a "bank" should read like Character
+        # Bank and Word Bank, a permanent record of what's been learned, not a
+        # view that empties out the moment a new batch is generated (a Paste
+        # Text import used to look like it vanished for exactly this reason,
+        # since a fresh sentence sits in pasted_sentences long before it's
+        # ever pulled into the queue). Two sources, merged: every personal
+        # sentence the learner saved via Paste Text (real content they chose
+        # to study, shown whether or not they've practiced it yet -- same
+        # treatment as an unlocked word that hasn't come up in a session), and
+        # every corpus sentence recorded in completed_sentences, most
+        # recently finished first. Excludes the one-character stand-ins
+        # _character_candidate produces (beginner-phase character-only
+        # batches, and the stranded-character slot a sentence batch reserves
+        # -- see _stranded_character_picks) -- those are real practice items
+        # on the writing screen, but a bank labelled "Sentence Bank" showing a
+        # lone 力 or 十 reads as a data bug, not a feature.
+        pasted_for_bank = brain_data.get("pasted_sentences", []) or []
+        sentence_bank = []
+        seen_chinese = set()
+        for item in pasted_for_bank:
+            chinese = (item.get("chinese") or "").strip()
+            english = (item.get("english") or "").strip()
+            if not chinese or not english or chinese in seen_chinese or len(chinese) < 2:
+                continue
+            seen_chinese.add(chinese)
+            record = completed.get(chinese) or {}
+            sentence_bank.append({
+                "chinese": chinese, "english": english, "personal": True,
+                "times_completed": record.get("count", 0),
+                "last_completed": record.get("last"),
+            })
+
+        remaining_completed = {c: m for c, m in completed.items() if c not in seen_chinese}
+        corpus_english = self._corpus_english_lookup(set(remaining_completed))
+        for chinese, meta in sorted(remaining_completed.items(),
+                                     key=lambda kv: kv[1].get("last") or "", reverse=True):
+            english = corpus_english.get(chinese)
+            if not english or len(chinese) < 2:
+                continue
+            sentence_bank.append({
+                "chinese": chinese, "english": english, "personal": False,
+                "times_completed": meta.get("count", 0),
+                "last_completed": meta.get("last"),
+            })
 
         today = date.today()
         due = self.get_due_characters(unlocked)
@@ -1581,8 +1613,38 @@ class JuziEngine:
                          for d in range(1, 15)],
             "characters": character_list,
             "words": word_list,
-            "sentence_queue": sentence_queue,
+            "sentence_bank": sentence_bank,
         }
+
+    def _corpus_english_lookup(self, chinese_set: set) -> dict:
+        """
+        Chinese sentence text -> English translation, scanned once from the
+        built-in corpora, for just the sentences named in chinese_set.
+
+        Used to give completed_sentences (which stores only the Chinese text,
+        a count, and a date -- see record_sentence_completion) an English
+        side to display in the Sentence Bank. Stops scanning a file early
+        once every requested sentence has been found.
+        """
+        found = {}
+        if not chinese_set:
+            return found
+        remaining = set(chinese_set)
+        for filename in SENTENCE_SOURCE_FILES:
+            if not remaining or not os.path.exists(filename):
+                continue
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    for row in csv.DictReader(f, delimiter="\t"):
+                        chinese = (row.get("sentence") or "").replace(" ", "").strip()
+                        if chinese in remaining:
+                            english = (row.get("sentence_meaning") or "").strip()
+                            if english:
+                                found[chinese] = english
+                                remaining.discard(chinese)
+            except Exception as e:
+                print(f"Warning: could not read {filename}: {e}")
+        return found
 
     def count_playable_sentences(self, unlocked_set: set) -> int:
         """

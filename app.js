@@ -1798,7 +1798,7 @@ async function openProgressView() {
         renderProgress(data);
         renderProgressCharacters(data.characters || []);
         renderProgressWords(data.words || []);
-        renderProgressSentences(data.sentence_queue || []);
+        renderProgressSentences(data.sentence_bank || []);
         renderResetSummary(data);
     } catch (err) {
         console.error(err);
@@ -2300,26 +2300,28 @@ function renderProgressWords(words) {
 }
 
 /**
- * Sentence Bank tab: the live practice queue (see generate_fresh_session) --
- * what's actually queued up to write right now, not completed history.
+ * Sentence Bank tab: everything accrued -- personal sentences saved via
+ * Paste Text plus every corpus sentence ever completed -- not the live
+ * practice queue, which empties out on every new batch (see
+ * generate_fresh_session / progress_summary).
  */
 function renderProgressSentences(sentences) {
     if (!elements.progressSentences) return;
 
     if (sentences.length === 0) {
-        elements.progressSentences.innerHTML = `<p class="suggestions-empty">No sentences queued right now.</p>`;
+        elements.progressSentences.innerHTML = `<p class="suggestions-empty">No sentences learned yet -- paste some text or practice an HSK sentence to add one.</p>`;
         return;
     }
 
     const rows = sentences.map(s => `
         <div class="sentence-row">
-            <div class="sentence-row-hanzi">${escapeHtml(s.chinese || "")}</div>
+            <div class="sentence-row-hanzi">${escapeHtml(s.chinese || "")}${s.personal ? ' <span class="sentence-row-tag">Personal</span>' : ""}</div>
             <div class="sentence-row-english">${escapeHtml(s.english || "")}</div>
         </div>
     `).join("");
 
     elements.progressSentences.innerHTML = `
-        <p class="progress-note">${sentences.length.toLocaleString()} sentence${sentences.length === 1 ? "" : "s"} in the current practice queue.</p>
+        <p class="progress-note">${sentences.length.toLocaleString()} sentence${sentences.length === 1 ? "" : "s"} learned.</p>
         <div class="sentence-list">${rows}</div>
     `;
 }

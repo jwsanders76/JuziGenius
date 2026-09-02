@@ -1186,6 +1186,16 @@ body {
     margin-top: 2px;
 }
 
+.sentence-row-tag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+    border: 1px solid var(--accent-blue);
+    border-radius: 4px;
+    padding: 1px 5px;
+    vertical-align: middle;
+}
+
 /* --- Progress view: Settings tab --- */
 .setting-row {
     display: flex;
