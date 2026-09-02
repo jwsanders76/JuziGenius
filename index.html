@@ -39,14 +39,11 @@
                     <img src="/avatar-nobg-128.png" alt="Juzi Mascot" class="mascot-avatar-small" />
                     <span>Unlocked: <strong id="counter-value">0</strong></span>
                 </div>
-
-                <div id="due-counter" title="Characters due for spaced-repetition review right now">
-                    <span>Due: <strong id="due-counter-value">0</strong></span>
-                    <!-- Characters unlocked but held behind the daily intake cap.
-                         Shown beside the due count so a big import reads as a
-                         queue with a plan rather than an alarming "Due: 400". -->
-                    <span id="backlog-note" class="backlog-note" hidden></span>
-                </div>
+                <!-- The "Due" badge moved into the Progress modal's Overview
+                     tab (see the "due today" / "waiting" stat tiles built by
+                     renderProgress in app.js) rather than living in the top
+                     bar -- the two numbers were already computed and shown
+                     there, so this just drops the redundant header copy. -->
             </div>
 
             <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
