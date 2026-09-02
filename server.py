@@ -1283,8 +1283,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 # for any sentence yet (finding 18) -- app.js's
                 # handleGenerateSession already tells the user why when that
                 # happens, so it never reads as ignoring their toggle.
+                # restrict_sentences_to_bank=False: ordinary practice sessions
+                # only ever serve sentences already in the learner's own
+                # Sentence Bank (per explicit user request), but this button's
+                # whole purpose is pulling in new corpus sentences, so it's
+                # the one deliberate exception.
                 result = engine.generate_fresh_session(
-                    count=3, styles={"sentences"}, allow_character_fallback=True)
+                    count=3, styles={"sentences"}, allow_character_fallback=True,
+                    restrict_sentences_to_bank=False)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")

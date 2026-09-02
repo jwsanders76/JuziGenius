@@ -2204,7 +2204,8 @@ class JuziEngine:
         return picks[:STRANDED_CHARACTER_SLOTS]
 
     def pick_hsk_sentences(self, count: int = 5,
-                            allow_character_fallback: bool = True) -> list:
+                            allow_character_fallback: bool = True,
+                            restrict_to_bank: bool = False) -> list:
         """
         Picks real example sentences -- from the hand-curated HSK corpora, the
         larger Tatoeba-derived corpus, and the user's own saved pasted
@@ -2267,6 +2268,24 @@ class JuziEngine:
         button already means something different: an explicit one-off
         request for sentences that, per finding 18, still shouldn't hand
         back a blank screen just because the pool is small right now.
+
+        `restrict_to_bank=True` (Sept 1, 2026, per explicit user request)
+        limits candidates to the learner's own accrued Sentence Bank --
+        pasted_sentences plus corpus sentences already recorded in
+        completed_sentences -- instead of scanning the full ~17,000-sentence
+        corpus for anything newly playable. Reported directly: unlocking new
+        characters was surfacing corpus sentences the learner had never seen
+        before, during ordinary "Sentences"-style practice, which read as
+        the practice pool silently growing on its own rather than staying
+        "what's in my sentence bank." generate_fresh_session's normal,
+        account-driven session composition always passes True now; only the
+        Import modal's "Get Sentences" button -- whose entire purpose is
+        discovering new corpus sentences -- passes False, so new sentences
+        still enter a learner's bank, just by explicit action (pasting text,
+        or that button) rather than automatically during regular practice.
+        A completed-but-now-unplayable sentence can't occur (characters are
+        never re-locked), but playability is still checked here rather than
+        assumed, the same as every other sentence source is.
         """
         brain_data = self._read_brain()
         unlocked_chars = brain_data.get("unlocked_chars", {})
@@ -2315,21 +2334,27 @@ class JuziEngine:
             if all(c in unlocked_set or c in allowed_punct for c in chinese):
                 add_candidate(chinese, english, True)
 
-        for filename in SENTENCE_SOURCE_FILES:
-            if not os.path.exists(filename):
-                continue
-            try:
-                with open(filename, "r", encoding="utf-8") as f:
-                    reader = csv.DictReader(f, delimiter="\t")
-                    for row in reader:
-                        chinese = (row.get("sentence") or "").replace(" ", "").strip()
-                        english = (row.get("sentence_meaning") or "").strip()
-                        if not chinese or not english or chinese in seen_chinese:
-                            continue
-                        if all(c in unlocked_set or c in allowed_punct for c in chinese):
-                            add_candidate(chinese, english, False)
-            except Exception as e:
-                print(f"Warning: could not read {filename}: {e}")
+        if restrict_to_bank:
+            bank_chinese = {c for c in completed if c not in seen_chinese}
+            for chinese, english in self._corpus_english_lookup(bank_chinese).items():
+                if all(c in unlocked_set or c in allowed_punct for c in chinese):
+                    add_candidate(chinese, english, False)
+        else:
+            for filename in SENTENCE_SOURCE_FILES:
+                if not os.path.exists(filename):
+                    continue
+                try:
+                    with open(filename, "r", encoding="utf-8") as f:
+                        reader = csv.DictReader(f, delimiter="\t")
+                        for row in reader:
+                            chinese = (row.get("sentence") or "").replace(" ", "").strip()
+                            english = (row.get("sentence_meaning") or "").strip()
+                            if not chinese or not english or chinese in seen_chinese:
+                                continue
+                            if all(c in unlocked_set or c in allowed_punct for c in chinese):
+                                add_candidate(chinese, english, False)
+                except Exception as e:
+                    print(f"Warning: could not read {filename}: {e}")
 
         # Finding 18: a pool past the threshold that still closes over no
         # sentence gets character practice rather than nothing.
@@ -2350,7 +2375,8 @@ class JuziEngine:
         return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
     def generate_fresh_session(self, count: int = 5, styles: set = None,
-                                allow_character_fallback: bool = None) -> dict:
+                                allow_character_fallback: bool = None,
+                                restrict_sentences_to_bank: bool = True) -> dict:
         """
         Picks a brand new practice batch -- real example sentences from the
         local HSK/Tatoeba corpora and the user's own saved pasted sentences,
@@ -2393,6 +2419,14 @@ class JuziEngine:
         True explicitly regardless of the account's own toggle, since that
         button is a one-off "give me sentences" request that should still
         never hand back a blank screen for a small pool.
+
+        `restrict_sentences_to_bank` (default True) is threaded straight
+        into pick_hsk_sentences' restrict_to_bank -- see its docstring.
+        Every caller of generate_fresh_session gets bank-only sentence
+        practice except the "Get Sentences" button, which passes False:
+        that button exists specifically to pull in new corpus sentences,
+        the one deliberate exception to "practice only ever draws from what
+        I've already saved or completed."
         """
         with self.brain_lock:
             brain_data = {"unlocked_chars": {}, "sentences": []}
@@ -2417,7 +2451,8 @@ class JuziEngine:
             if "sentences" in styles:
                 raw_items += self.pick_hsk_sentences(
                     count=per_style_count,
-                    allow_character_fallback=allow_character_fallback)
+                    allow_character_fallback=allow_character_fallback,
+                    restrict_to_bank=restrict_sentences_to_bank)
             if "characters" in styles:
                 raw_items += self.pick_character_practice(count=per_style_count)
             if "words" in styles:
