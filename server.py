@@ -1276,8 +1276,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 # overrides the account's general study-styles setting: this
                 # button is an explicit "give me sentences" request, not the
                 # general session bootstrap the toggle is meant to govern
-                # (see generate_fresh_session).
-                result = engine.generate_fresh_session(count=3, styles={"sentences"})
+                # (see generate_fresh_session). allow_character_fallback=True
+                # is likewise explicit rather than derived from styles: even
+                # with "Individual characters" unchecked in Settings, this
+                # button still falls back to characters for a pool too small
+                # for any sentence yet (finding 18) -- app.js's
+                # handleGenerateSession already tells the user why when that
+                # happens, so it never reads as ignoring their toggle.
+                result = engine.generate_fresh_session(
+                    count=3, styles={"sentences"}, allow_character_fallback=True)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")

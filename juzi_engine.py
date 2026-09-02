@@ -2203,7 +2203,8 @@ class JuziEngine:
         picks.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
         return picks[:STRANDED_CHARACTER_SLOTS]
 
-    def pick_hsk_sentences(self, count: int = 5) -> list:
+    def pick_hsk_sentences(self, count: int = 5,
+                            allow_character_fallback: bool = True) -> list:
         """
         Picks real example sentences -- from the hand-curated HSK corpora, the
         larger Tatoeba-derived corpus, and the user's own saved pasted
@@ -2251,6 +2252,21 @@ class JuziEngine:
         left the learner with an empty session, having had working character
         practice at nineteen. Falling back on the actual corpus result rather
         than on the count closes the gap in both directions.
+
+        `allow_character_fallback=False` (see study_styles/generate_fresh_session,
+        Sept 1 2026) suppresses both of those character fallbacks -- and the
+        stranded-character slot below -- entirely, rather than serving a
+        "character" kind item after the learner has explicitly unchecked
+        "Individual characters" in Settings. That can mean this returns
+        genuinely nothing for a small or fully-stranded pool, which is the
+        honest consequence of that combination (sentences aren't playable
+        yet, and the one style still enabled can't produce anything) rather
+        than silently overriding the toggle. The Import modal's "Get
+        Sentences" button always passes True regardless of the account's
+        setting -- see server.py's /api/session/generate -- since that
+        button already means something different: an explicit one-off
+        request for sentences that, per finding 18, still shouldn't hand
+        back a blank screen just because the pool is small right now.
         """
         brain_data = self._read_brain()
         unlocked_chars = brain_data.get("unlocked_chars", {})
@@ -2264,6 +2280,8 @@ class JuziEngine:
             unlocked_chars, brain_data, today_iso)
 
         def beginner_batch():
+            if not allow_character_fallback:
+                return []
             return self._pick_beginner_characters(
                 unlocked_chars, due_set, completed, today_iso, count,
                 never_graded, budget)
@@ -2318,9 +2336,10 @@ class JuziEngine:
         if not candidates:
             return beginner_batch()
 
-        candidates.extend(self._stranded_character_picks(
-            unlocked_chars, candidates, due_set, completed, today_iso,
-            never_graded, budget))
+        if allow_character_fallback:
+            candidates.extend(self._stranded_character_picks(
+                unlocked_chars, candidates, due_set, completed, today_iso,
+                never_graded, budget))
 
         # Shuffle first so that sentences tying on the sort key come back in a
         # different order each time rather than in corpus order.
@@ -2330,7 +2349,8 @@ class JuziEngine:
             reverse=True)
         return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
-    def generate_fresh_session(self, count: int = 5, styles: set = None) -> dict:
+    def generate_fresh_session(self, count: int = 5, styles: set = None,
+                                allow_character_fallback: bool = None) -> dict:
         """
         Picks a brand new practice batch -- real example sentences from the
         local HSK/Tatoeba corpora and the user's own saved pasted sentences,
@@ -2361,6 +2381,18 @@ class JuziEngine:
         `count` is split evenly across whichever styles are enabled, with a
         floor of 1 each, so turning on all three doesn't triple the batch
         size.
+
+        `allow_character_fallback`, if given, overrides whether
+        pick_hsk_sentences may fall back to serving individual characters
+        when no sentence is playable yet (see its own docstring) --
+        otherwise it's derived from whether "characters" is one of the
+        effective `styles`, so unchecking "Individual characters" in
+        Settings actually stops lone-character items from appearing via
+        that fallback too, not just via pick_character_practice. The
+        "Get Sentences" button (server.py's /api/session/generate) passes
+        True explicitly regardless of the account's own toggle, since that
+        button is a one-off "give me sentences" request that should still
+        never hand back a blank screen for a small pool.
         """
         with self.brain_lock:
             brain_data = {"unlocked_chars": {}, "sentences": []}
@@ -2373,6 +2405,8 @@ class JuziEngine:
             unlocked_chars = brain_data.get("unlocked_chars", {})
             if styles is None:
                 styles = self.study_styles(brain_data)
+            if allow_character_fallback is None:
+                allow_character_fallback = "characters" in styles
 
             # These reacquire brain_lock through their own helpers, which is
             # safe since it's an RLock, and are fast local reads with no
@@ -2381,7 +2415,9 @@ class JuziEngine:
             per_style_count = max(1, -(-count // max(1, len(styles))))  # ceil division
             raw_items = []
             if "sentences" in styles:
-                raw_items += self.pick_hsk_sentences(count=per_style_count)
+                raw_items += self.pick_hsk_sentences(
+                    count=per_style_count,
+                    allow_character_fallback=allow_character_fallback)
             if "characters" in styles:
                 raw_items += self.pick_character_practice(count=per_style_count)
             if "words" in styles:
