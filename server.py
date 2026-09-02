@@ -1304,6 +1304,37 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
                 return True
 
+        # Regenerates the practice batch using the account's own settings --
+        # study_styles and bank-restricted sentences -- the same call
+        # /api/session's bootstrap uses, with no overrides. Called by the
+        # client once it has cycled through every item in the current batch
+        # (see nextSentence in app.js), so ordinary practice picks up newly
+        # completed/pasted sentences and newly unlocked characters instead of
+        # looping the exact same fixed batch forever between page loads.
+        # Unlike /api/session/generate (the explicit "Get Sentences" button,
+        # which deliberately pulls in new corpus sentences), this always
+        # stays bank-restricted -- it's the automatic path, not an explicit
+        # "discover new material" request.
+        if path == "/api/session/refresh":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+
+                result = engine.generate_fresh_session(count=5)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return True
+            except Exception as e:
+                self.send_response(502)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return True
+
         # Adds user-selected words from the "Suggest Words" tab to brain.json.
         # Body: { "words": ["谢谢", "再见", ...] }
         if path == "/api/suggestions/add":

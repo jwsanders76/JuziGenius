@@ -1025,14 +1025,53 @@ function currentSentenceText() {
 }
 
 /**
- * Advances to the next sentence in the session, looping back to the start
- * once the bank is exhausted. Getting a new batch is a deliberate user
- * action via the Import modal (Paste / Suggest Words / HSK), not automatic.
+ * Advances to the next sentence in the session. Once the batch has been
+ * fully cycled (the index wraps back to the start), fetches a freshly
+ * regenerated batch from the account's own bank/settings first -- a batch
+ * loaded once at page load otherwise just looped the exact same fixed set
+ * forever, never picking up sentences completed or pasted, or characters
+ * unlocked, mid-session. See refreshSessionBatch.
  */
-function nextSentence() {
+async function nextSentence() {
     if (!state.sentences || state.sentences.length === 0) return;
+    const wrapped = state.currentIndex + 1 >= state.sentences.length;
     state.currentIndex = (state.currentIndex + 1) % state.sentences.length;
+    if (wrapped) {
+        await refreshSessionBatch();
+    }
     loadSession();
+}
+
+/**
+ * Regenerates the practice batch from the account's own bank/settings
+ * (bank-restricted sentences, current study styles) via
+ * /api/session/refresh and swaps it in, resetting to the first item.
+ * Never leaves the screen blank: a failed fetch, or a response with no
+ * items (generate_fresh_session leaves an unchanged bank in place when it
+ * has nothing new to offer), just continues with the existing batch.
+ */
+async function refreshSessionBatch() {
+    try {
+        const response = await fetch(`${API_BASE}/api/session/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        if (!response.ok) return;
+
+        const result = await response.json();
+        if (Array.isArray(result.sentences) && result.sentences.length > 0) {
+            state.sentences = result.sentences;
+            state.currentIndex = 0;
+            state.totalUnlockedCount = result.total_unlocked_count ?? state.totalUnlockedCount;
+            state.totalDueCount = result.total_due_count ?? state.totalDueCount;
+            state.newBacklog = result.new_backlog ?? state.newBacklog;
+            updateCharacterCounter();
+            updateDueCounter();
+        }
+    } catch (err) {
+        console.error("Session refresh failed, continuing with existing batch:", err);
+    }
 }
 
 /**
