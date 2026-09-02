@@ -59,6 +59,24 @@ const API_BASE = (() => {
     return match ? `/u/${match[1]}` : "";
 })();
 
+/**
+ * Every write the app makes goes through here: same method, same JSON
+ * content type, same body encoding. The content type is not cosmetic -- the
+ * server rejects a POST that doesn't declare application/json as a
+ * cross-origin forgery (see _csrf_check_failed), since that's a header a
+ * simple cross-site request can't set.
+ *
+ * Returns the raw Response, so each caller keeps its own error handling:
+ * some must surface a failure to the user, others are fire-and-forget.
+ */
+function apiPost(path, body = {}) {
+    return fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+}
+
 // Speed of the tier-3 stroke walkthrough. Set on the writer at creation time
 // rather than passed to animateCharacter(), which ignores per-call speed.
 const HINT_WALKTHROUGH_SPEED = 4.5;
@@ -106,10 +124,9 @@ function loadCharacterStrokes(char, onComplete, onError) {
 
 /**
  * Shown when a character's stroke data can't be loaded at all -- it isn't
- * vendored and the CDN is unreachable or doesn't have it. Previously this
- * left an empty canvas with no explanation and no way forward: the quiz could
- * never complete, and Clear just rebuilt the same broken writer. Offer the
- * only useful action instead.
+ * vendored and the CDN is unreachable or doesn't have it. Without this the
+ * canvas is simply blank: the quiz can never complete, and Clear just
+ * rebuilds the same broken writer. Offer the only useful action instead.
  */
 function showStrokeDataError(char, token) {
     if (token !== state.writerToken) return;
@@ -291,8 +308,8 @@ function initEventListeners() {
     if (elements.btnProgress) {
         elements.btnProgress.addEventListener("click", openProgressView);
     }
-    // Settings no longer has its own tab button in the Progress modal's tab
-    // row -- it's reached directly from this corner button instead. Calling
+    // Settings has no tab button of its own in the Progress modal's tab row
+    // -- it's reached directly from this corner button. Calling
     // switchProgressTab("settings") right after openProgressView overrides
     // the "overview" tab that function switches to on open (both run
     // synchronously before openProgressView's first await), landing on
@@ -354,11 +371,7 @@ function initEventListeners() {
         elements.progressBtnLogout.addEventListener("click", async () => {
             elements.progressBtnLogout.disabled = true;
             try {
-                await fetch(`${API_BASE}/api/logout`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: "{}"
-                });
+                await apiPost("/api/logout");
             } catch (err) {
                 console.error("Logout request failed.", err);
             }
@@ -570,11 +583,7 @@ async function chooseOnboardingTier(size) {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/onboarding/seed`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ size })
-        });
+        const response = await apiPost("/api/onboarding/seed", { size });
         if (!response.ok) throw new Error(`Onboarding seed failed (${response.status}).`);
         fetchNewSession();
     } catch (err) {
@@ -884,11 +893,7 @@ function characterQuality(hintTier, mistakes = 0) {
  * Fire-and-forget -- a failed request shouldn't block practice.
  */
 function submitCharacterReview(char, quality) {
-    fetch(`${API_BASE}/api/character/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ char, quality })
-    })
+    apiPost("/api/character/review", { char, quality })
         .then(response => response.ok ? response.json() : null)
         .then(result => {
             if (result && result.due_count !== undefined) {
@@ -909,14 +914,11 @@ function triggerSentenceCompletion() {
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
 
-    // Tell the server this sentence is done, so future batches prefer material
-    // the user hasn't written yet (finding 12). Fire-and-forget: a failed
+    // Tell the server this sentence is done, so future batches prefer
+    // material the user hasn't written yet. Fire-and-forget: a failed
     // request must never interrupt the celebration.
-    fetch(`${API_BASE}/api/sentence/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chinese: currentSentence.chinese })
-    }).catch(err => console.error("Could not record sentence completion.", err));
+    apiPost("/api/sentence/complete", { chinese: currentSentence.chinese })
+        .catch(err => console.error("Could not record sentence completion.", err));
 
     // A "word" kind item also carries its own independent SM-2 schedule
     // (see review_word) -- additional to, not instead of, the per-character
@@ -926,11 +928,7 @@ function triggerSentenceCompletion() {
     // (mistakePenalty/characterQuality) rather than averaging it away.
     if (currentSentence.kind === "word" && state.itemQualities.length) {
         const wordQuality = Math.min(...state.itemQualities);
-        fetch(`${API_BASE}/api/word/review`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ word: currentSentence.chinese, quality: wordQuality })
-        })
+        apiPost("/api/word/review", { word: currentSentence.chinese, quality: wordQuality })
             .then(response => response.ok ? response.json() : null)
             .then(result => {
                 if (result && result.due_count !== undefined) {
@@ -1052,11 +1050,7 @@ async function nextSentence() {
  */
 async function refreshSessionBatch() {
     try {
-        const response = await fetch(`${API_BASE}/api/session/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-        });
+        const response = await apiPost("/api/session/refresh");
         if (!response.ok) return;
 
         const result = await response.json();
@@ -1297,11 +1291,7 @@ async function handleAddSuggestedWords() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE}/api/suggestions/add`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ words })
-        });
+        const response = await apiPost("/api/suggestions/add", { words });
 
         if (!response.ok) throw new Error("Failed to add selected words.");
 
@@ -1347,11 +1337,7 @@ async function handleTextImport() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE}/api/import`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
-        });
+        const response = await apiPost("/api/import", { text });
 
         if (!response.ok) throw new Error("Import failed on backend server.");
 
@@ -1385,11 +1371,7 @@ async function handleGenerateSession() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE}/api/session/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-        });
+        const response = await apiPost("/api/session/generate");
 
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Sentence generation failed.");
@@ -1483,10 +1465,10 @@ async function playNativeTTS(text) {
 /**
  * Silences whatever is playing and invalidates any playback still waiting on
  * its audio, returning the new token. Called both when starting a fresh
- * playback and when the practice item changes (loadSession) -- audio belongs to
- * the item that was on screen when it started, and nothing else stops it: the
- * clip plays to its end on its own, so advancing mid-clip used to leave the
- * previous item audible over the new one.
+ * playback and when the practice item changes (loadSession) -- audio belongs
+ * to the item that was on screen when it started, and nothing else stops it:
+ * the clip plays to its end on its own, so advancing mid-clip would otherwise
+ * leave the previous item audible over the new one.
  */
 function stopSentenceAudio() {
     if (currentAudioEl) {
@@ -1567,9 +1549,9 @@ function playBrowserTTS(text) {
 }
 
 // Name substrings from known TTS voice packs (Microsoft/Apple/Amazon Mandarin
-// voices) used to guess a voice's gender, since the Web Speech API exposes no
-// real gender field. Voices that don't match either list are "unknown" and
-// still selectable -- they just can't be labeled Male/Female in the UI.
+// voices) that guess a voice's gender, since the Web Speech API exposes no
+// real gender field. Voices matching neither list are "unknown" and still
+// selectable -- they just can't be labeled Male/Female in the UI.
 const FEMALE_VOICE_NAME_HINTS = [
     "female", "ting-ting", "tingting", "mei-jia", "meijia", "sin-ji", "sinji",
     "yaoyao", "huihui", "xiaoxiao", "xiaoyi", "xiaomo", "xiaoxuan", "xiaohan", "xiaorui"
@@ -1793,11 +1775,7 @@ async function handleAddSuggestedCharacters() {
     elements.modalBtnSubmit.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE}/api/characters/add`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chars })
-        });
+        const response = await apiPost("/api/characters/add", { chars });
         if (!response.ok) throw new Error("Failed to unlock the selected characters.");
         const result = await response.json();
 
@@ -2020,11 +1998,7 @@ async function saveStudyStyles() {
     setSettingsControlsEnabled(false);
     showStudyStylesStatus("Saving…");
     try {
-        const response = await fetch(`${API_BASE}/api/settings`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ study_styles: styles })
-        });
+        const response = await apiPost("/api/settings", { study_styles: styles });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
 
@@ -2063,11 +2037,7 @@ async function saveSettings() {
     setSettingsControlsEnabled(false);
     showSettingsStatus("Saving…");
     try {
-        const response = await fetch(`${API_BASE}/api/settings`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ daily_new_limit: limit })
-        });
+        const response = await apiPost("/api/settings", { daily_new_limit: limit });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
 
@@ -2200,11 +2170,7 @@ async function performAccountReset() {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/account/reset`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ confirm: RESET_CONFIRMATION })
-        });
+        const response = await apiPost("/api/account/reset", { confirm: RESET_CONFIRMATION });
         if (!response.ok) throw new Error(`Reset failed (${response.status}).`);
 
         state.sentences = [];

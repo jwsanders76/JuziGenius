@@ -14,26 +14,20 @@ users/invite_codes.json, gitignored alongside the rest of users/:
     {code: {created, used_by, used_at}}
 """
 import datetime
-import json
 import os
 import secrets
 
-from user_registry import USERS_DIR
+from user_registry import USERS_DIR, load_index, save_index
 
 INVITE_CODES_PATH = os.path.join(USERS_DIR, "invite_codes.json")
 
 
 def load_invite_codes():
-    if not os.path.exists(INVITE_CODES_PATH):
-        return {}
-    with open(INVITE_CODES_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_index(INVITE_CODES_PATH)
 
 
 def save_invite_codes(codes):
-    os.makedirs(USERS_DIR, exist_ok=True)
-    with open(INVITE_CODES_PATH, "w", encoding="utf-8") as f:
-        json.dump(codes, f, ensure_ascii=False, indent=4)
+    save_index(INVITE_CODES_PATH, codes)
 
 
 def create_invite_code():

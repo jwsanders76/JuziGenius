@@ -43,11 +43,11 @@ Usage:
                                                   # reseed from scratch at 50
 """
 import argparse
-import csv
 import json
 import os
 
-from juzi_engine import DEFAULT_DAILY_NEW_LIMIT, SENTENCE_SOURCE_FILES
+from juzi_engine import (ALLOWED_PUNCT, DEFAULT_DAILY_NEW_LIMIT,
+                         load_sentence_corpus)
 
 MASTER_DICT_PATH = "master_dictionary.json"
 BRAIN_PATH = "brain.json"
@@ -109,35 +109,22 @@ TIER_INFO = {
 }
 TIER_NAMES = {size: info["name"] for size, info in TIER_INFO.items()}
 
-# Punctuation the practice modes render as auto-filled slots rather than
-# characters to write, so it costs nothing to "unlock". Kept in sync with
-# JuziEngine.pick_hsk_sentences().
-ALLOWED_PUNCT = "，。！？、；：“”‘’—…"
-
-
 def load_hsk_sentences(master):
     """
-    Every distinct sentence from SENTENCE_SOURCE_FILES (the hand-curated HSK
-    sentences plus the larger Tatoeba-derived corpus), as the set of
-    characters it would require the user to have unlocked. Sentences
-    containing a character missing from master_dictionary.json are dropped --
-    they could never be seeded with pinyin/meaning, so they'd be unplayable
-    anyway.
+    Every distinct sentence in the corpus, as the set of characters it would
+    require the user to have unlocked. Sentences containing a character
+    missing from master_dictionary.json are dropped -- they could never be
+    seeded with pinyin/meaning, so they'd be unplayable anyway.
     """
     sentences = []
     seen = set()
-    for filename in SENTENCE_SOURCE_FILES:
-        if not os.path.exists(filename):
+    for chinese, _english in load_sentence_corpus():
+        if chinese in seen:
             continue
-        with open(filename, "r", encoding="utf-8") as f:
-            for row in csv.DictReader(f, delimiter="\t"):
-                chinese = (row.get("sentence") or "").replace(" ", "").strip()
-                if not chinese or chinese in seen:
-                    continue
-                seen.add(chinese)
-                needed = {c for c in chinese if c not in ALLOWED_PUNCT}
-                if needed and all(c in master for c in needed):
-                    sentences.append((chinese, needed))
+        seen.add(chinese)
+        needed = {c for c in chinese if c not in ALLOWED_PUNCT}
+        if needed and all(c in master for c in needed):
+            sentences.append((chinese, needed))
     return sentences
 
 

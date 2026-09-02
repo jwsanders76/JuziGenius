@@ -13,17 +13,31 @@ USERS_DIR = "users"
 REGISTRY_PATH = os.path.join(USERS_DIR, "registry.json")
 
 
-def load_registry():
-    if not os.path.exists(REGISTRY_PATH):
+def load_index(path):
+    """
+    One of the users/ JSON index files, or {} if it doesn't exist yet.
+    Shared with accounts.py and invites.py, which keep their own indexes in
+    the same directory under the same conventions.
+    """
+    if not os.path.exists(path):
         return {}
-    with open(REGISTRY_PATH, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_registry(registry):
+def save_index(path, data):
+    """Writes one of those index files, creating users/ if it's not there."""
     os.makedirs(USERS_DIR, exist_ok=True)
-    with open(REGISTRY_PATH, "w", encoding="utf-8") as f:
-        json.dump(registry, f, ensure_ascii=False, indent=4)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+def load_registry():
+    return load_index(REGISTRY_PATH)
+
+
+def save_registry(registry):
+    save_index(REGISTRY_PATH, registry)
 
 
 def find_by_name(registry, name):

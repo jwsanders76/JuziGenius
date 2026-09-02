@@ -113,13 +113,12 @@ def build_manifest(start_url="/"):
         ],
     }
 
-# JuziGenius is a hosted service. The bare domain is a landing page (and will
-# become the login screen when real accounts land); practice happens behind a
-# /u/<slug>/ link, against that account's own brain.json. There is no
-# single-user mode reachable over HTTP any more: previously the apex URL
-# served a default account straight from the top-level brain.json, so anyone
-# who found the domain landed on -- and could read and write -- whoever's data
-# happened to be there.
+# JuziGenius is a hosted service. The bare domain is a landing page; practice
+# happens behind a /u/<slug>/ link or a login session, against that account's
+# own brain.json. There is deliberately no single-user mode reachable over
+# HTTP: an apex URL serving a default account straight from the top-level
+# brain.json means anyone who finds the domain can read and write whoever's
+# data happens to be there.
 #
 # On by default, and the escape hatch is deliberately awkward to reach by
 # accident: JUZI_ALLOW_DEFAULT_ACCOUNT=1 restores the old behaviour for local
@@ -196,12 +195,12 @@ def get_engine_for_id(account_id):
 # missing, /api/strokes 404s and app.js falls back to the CDN rather than
 # failing outright.
 #
-# Finding 20: this file is 29.4 MB, and parsing it into one dict cost 137 MB
-# resident (195 MB peak) held for the process lifetime -- to serve what are
-# only ever single-key lookups. fetch_stroke_data.py now writes a byte-offset
-# index beside it, so a character's stroke data is read as one ~3 KB span and
-# the rest is never materialised. The span is already JSON, so it goes to the
-# socket verbatim: no parse on the way in, no re-encode on the way out.
+# The file is 29.4 MB, and parsing it into one dict cost 137 MB resident held
+# for the process lifetime -- to serve what are only ever single-key lookups.
+# fetch_stroke_data.py writes a byte-offset index beside it, so a character's
+# stroke data is read as one ~3 KB span and the rest is never materialised.
+# The span is already JSON, so it goes to the socket verbatim: no parse on
+# the way in, no re-encode on the way out.
 #
 # The index carries the size and sha256 of the file it describes. A stale
 # index would serve one character's strokes under another character's name --
@@ -374,8 +373,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if user_match:
             engine = get_engine_for_id(user_match.group(1))
             if engine is None:
-                self.send_response(404)
-                self.end_headers()
+                self._send_404()
                 return
             sub_path = user_match.group(2) or "/"
             if sub_path == "/manifest.json":
@@ -390,8 +388,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return super().do_GET()
             if self._handle_api_get(sub_path, engine):
                 return
-            self.send_response(404)
-            self.end_headers()
+            self._send_404()
             return
 
         if REQUIRE_SLUG:
@@ -407,21 +404,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if engine is not None and self._handle_api_get(path, engine):
                 return
             if path in ("/", "/index.html"):
-                # "/" can serve either file depending on login state, but a
-                # browser's conditional-GET cache doesn't know that -- it
-                # caches by URL, and SimpleHTTPRequestHandler's 304 check
-                # only compares the file it's about to serve against
-                # whatever If-Modified-Since the browser learned from
-                # *whichever file it fetched last time*. A visitor who saw
-                # landing.html anonymously, then logged in and requested "/"
-                # again, got a 304 back (landing.html's mtime happens to be
-                # newer than index.html's) and their browser silently kept
-                # showing the stale cached landing page instead of ever
-                # re-requesting the real app -- indistinguishable from
-                # "signup succeeded but nothing loads". Dropping the
-                # conditional headers here forces a real 200 every time, so
-                # the file that actually matches this response's login state
-                # is what gets shown.
+                # "/" serves either landing.html or index.html depending on
+                # login state, but a browser's conditional-GET cache keys by
+                # URL alone: it can 304 against the mtime of whichever file
+                # it fetched here last time, and go on showing a stale
+                # landing page to someone who has since logged in. Dropping
+                # the conditional headers forces a real 200, so the file
+                # that matches this response's login state is what's shown.
                 self._strip_conditional_headers()
                 if engine is not None:
                     self.path = "/index.html"
@@ -429,8 +418,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self.path = "/landing.html"
                 return super().do_GET()
             if path.startswith("/api/"):
-                self.send_response(404)
-                self.end_headers()
+                self._send_404()
                 return
         elif self._handle_api_get(path, default_engine):
             return
@@ -442,8 +430,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # Refuse to serve anything not explicitly whitelisted (blocks config.py,
         # brain.json, .git, hanzi_db.csv, etc. from being fetched over the network)
         if path not in ALLOWED_STATIC_PATHS:
-            self.send_response(404)
-            self.end_headers()
+            self._send_404()
             return
 
         return super().do_GET()
@@ -461,19 +448,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         304 rather than a re-download.
 
         A handler that has already set its own Cache-Control keeps it --
-        /api/strokes sets a long immutable one, since a character's stroke
-        data never changes. Finding 23: that check compared the capitalised
-        "Cache-Control" against _headers_buffer_names(), which returns
-        lowercased names, so it never matched and a second, contradictory
-        `no-cache` was appended to every response that set one. A stray
-        `path.startswith("/api/")` test hid this at the apex, but a hosted
-        request path begins `/u/<slug>/`, so for every real account
-        /api/strokes went out with both headers -- and `no-cache` wins when a
-        browser combines them, quietly defeating a year of immutable caching
-        on the one endpoint that most needs it. That path test is gone: it was
-        a cruder second guess at the same rule, and it left the other API
-        routes with no cache header at all, exposing per-account state to
-        heuristic freshness caching.
+        /api/strokes and /api/speech set a long immutable one, since their
+        content is addressed by something that changes when it does. The
+        check must be case-insensitive: _headers_buffer_names lowercases, so
+        comparing against a capitalised "Cache-Control" silently never
+        matches and appends a contradictory second `no-cache`, which wins
+        when a browser combines the two.
         """
         if "cache-control" not in self._headers_buffer_names():
             self.send_header("Cache-Control", "no-cache")
@@ -487,6 +467,21 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if b":" in line
         }
 
+    # GET API routes: path -> method name. Each takes the resolved `engine`
+    # and returns a payload to send as 200 JSON, or None having already
+    # written its own response (the two that serve raw bytes). Anything
+    # raised becomes a 500; see _handle_api_get.
+    API_GET_ROUTES = {
+        "/api/session": "_get_session",
+        "/api/suggestions": "_get_word_suggestions",
+        "/api/characters/suggestions": "_get_character_suggestions",
+        "/api/progress": "_get_progress",
+        "/api/settings": "_get_settings",
+        "/api/onboarding/tiers": "_get_onboarding_tiers",
+        "/api/strokes": "_get_strokes",
+        "/api/speech": "_get_speech",
+    }
+
     def _handle_api_get(self, path, engine):
         """
         Handles the API GET routes against a resolved `engine` -- either the
@@ -495,246 +490,149 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         (a response has already been sent), False otherwise so the caller
         can fall through to static-file serving or 404.
         """
-        # Intercept API requests for offline session sentence loading
-        if path == "/api/session":
+        method = self.API_GET_ROUTES.get(path)
+        if method is None:
+            return False
+        try:
+            payload = getattr(self, method)(engine)
+            if payload is not None:
+                self._send_json(200, payload)
+        except Exception as e:
+            self._send_json_error(500, str(e))
+        return True
+
+    def _get_session(self, engine):
+        """The saved practice bank plus the counters the top bar shows."""
+        brain_data = {"unlocked_chars": {}, "sentences": []}
+        with engine.brain_lock:
+            if os.path.exists(engine.brain_path):
+                with open(engine.brain_path, "r", encoding="utf-8") as f:
+                    brain_data = json.load(f)
+
+        unlocked_chars = brain_data.get("unlocked_chars", {})
+        saved_sentences = brain_data.get("sentences", [])
+
+        # Bootstrap an initial batch from the local corpus if the bank is
+        # empty but characters exist, so first-run works with zero
+        # configuration -- and rebuild a character-only bank narrower than
+        # the unlocked pool. The saved bank is otherwise replaced only on an
+        # explicit "Get Sentences", which is right for sentences and strands
+        # people in character practice: a Tier 1 account seeded before the
+        # batch covered the pool holds three of its five characters and loops
+        # them forever while the other two sit in the "Due" badge,
+        # unreachable. beginner_bank_is_stale asks for exactly the size a
+        # fresh batch would be, so this settles after one rebuild rather than
+        # rewriting brain.json on every page load.
+        if unlocked_chars and (not saved_sentences
+                               or engine.beginner_bank_is_stale(brain_data)):
             try:
-                # Load saved sentences and metadata directly from local brain.json
-                brain_data = {"unlocked_chars": {}, "sentences": []}
-                with engine.brain_lock:
-                    if os.path.exists(engine.brain_path):
-                        with open(engine.brain_path, "r", encoding="utf-8") as f:
-                            brain_data = json.load(f)
+                saved_sentences = engine.generate_fresh_session(count=3)["sentences"]
+            except Exception as gen_err:
+                print(f"Session bootstrap notice: {gen_err}")
 
-                unlocked_chars = brain_data.get("unlocked_chars", {})
-                saved_sentences = brain_data.get("sentences", [])
-                total_unlocked = len(unlocked_chars)
+        # Backfill per-character hint data on sentences saved before it
+        # existed. char_pinyin (per-POSITION and context-aware) is newer than
+        # char_metadata, so a bank written by an older build has the latter
+        # but not the former; rebuild whenever either is missing. Computed
+        # for the response only, not written back -- the saved bank is
+        # rewritten wholesale on the next generated batch, and this GET
+        # deliberately holds no write lock.
+        for sentence in saved_sentences:
+            if "char_metadata" not in sentence or "char_pinyin" not in sentence:
+                engine.attach_char_data(sentence, unlocked_chars)
 
-                # Bootstrap: populate an initial batch from the local HSK corpus if the
-                # bank is empty but characters exist, so first-run works with zero
-                # configuration.
-                #
-                # Also rebuild a character-only bank that is narrower than the
-                # unlocked pool. The saved bank is otherwise replaced only on
-                # an explicit "Get Sentences", which is right for sentences
-                # and strands people in character practice: a Tier 1 account
-                # seeded before the batch covered the pool holds three of its
-                # five characters and loops them forever, while the other two
-                # sit in the "Due" badge unreachable. Same for a character
-                # unlocked mid-phase through Suggest Characters or Paste
-                # Text. beginner_bank_is_stale asks for exactly the size a
-                # fresh batch would be, so this settles after one rebuild
-                # rather than rewriting brain.json on every page load.
-                if total_unlocked > 0 and (not saved_sentences
-                                           or engine.beginner_bank_is_stale(brain_data)):
-                    try:
-                        fresh = engine.generate_fresh_session(count=3)
-                        saved_sentences = fresh["sentences"]
-                    except Exception as gen_err:
-                        print(f"Session bootstrap notice: {gen_err}")
+        return {
+            "sentences": saved_sentences,
+            "total_unlocked_count": len(unlocked_chars),
+            "total_due_count": engine.total_due_count(brain_data),
+            # Characters unlocked but held behind the daily intake cap, so
+            # the badge can say "12 due, 60 waiting" rather than presenting
+            # the whole backlog as today's work.
+            "new_backlog": engine.new_character_backlog(unlocked_chars),
+            # False only for a brand-new create_user.py account that hasn't
+            # picked a starting tier yet -- app.js shows the tier picker
+            # instead of the normal session in that case. A missing key
+            # (every brain predating the picker) defaults True so existing
+            # installs are never re-prompted.
+            "onboarded": bool(brain_data.get("onboarded", True)),
+        }
 
-                # Backfill per-character hint data on sentences saved before it
-                # existed. char_pinyin (per-POSITION, context-aware -- see
-                # finding 10) is newer than char_metadata, so a bank written by
-                # an older build has the latter but not the former; rebuild
-                # whenever either is missing rather than only on char_metadata.
-                # Computed for the response only, not written back: the saved
-                # bank is rewritten wholesale on the next generated batch, and
-                # this GET deliberately holds no write lock.
-                for s in saved_sentences:
-                    if "char_metadata" not in s or "char_pinyin" not in s:
-                        engine.attach_char_data(s, unlocked_chars)
+    def _get_word_suggestions(self, engine):
+        """Highest-frequency compound words not yet added, for "Suggest Words"."""
+        return {"suggestions": engine.suggest_new_words(count=5)}
 
-                response_payload = {
-                    "sentences": saved_sentences,
-                    "total_unlocked_count": total_unlocked,
-                    "total_due_count": engine.total_due_count(brain_data),
-                    # Characters unlocked but held behind the daily intake cap
-                    # (finding 13), so the badge can say "12 due, 60 waiting"
-                    # rather than presenting the whole backlog as today's work.
-                    "new_backlog": engine.new_character_backlog(unlocked_chars),
-                    # False only for a brand-new create_user.py account that
-                    # hasn't picked a starting tier yet -- app.js shows the
-                    # tier picker instead of the normal session in that case.
-                    # Missing key (every brain predating the picker) defaults
-                    # True so existing installs are never re-prompted.
-                    "onboarded": bool(brain_data.get("onboarded", True)),
-                }
+    def _get_character_suggestions(self, engine):
+        """
+        The most useful characters not yet unlocked, for "Suggest
+        Characters" -- the same question the words tab answers, asked about
+        the actual practice unit this app is built to teach.
+        """
+        return {"suggestions": engine.suggest_new_characters(count=8)}
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(response_payload, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
+    def _get_progress(self, engine):
+        """Everything the progress view needs, in one request."""
+        return engine.progress_summary()
 
-        # Suggests the highest-frequency compound words not yet added to the
-        # user's vocabulary, for the "Suggest Words" modal tab.
-        if path == "/api/suggestions":
-            try:
-                suggestions = engine.suggest_new_words(count=5)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"suggestions": suggestions}, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
+    def _get_settings(self, engine):
+        """
+        The Settings panel's payload: the stored values plus the bounds and
+        today's counts that make the number mean something.
+        """
+        return engine.read_settings()
 
-        # The most useful characters not yet unlocked, for the "Suggest
-        # Characters" modal tab. The words equivalent has existed for a while;
-        # this answers the same question for the actual practice unit, which
-        # is what the app is built to teach.
-        if path == "/api/characters/suggestions":
-            try:
-                suggestions = engine.suggest_new_characters(count=8)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"suggestions": suggestions},
-                                            ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+    def _get_onboarding_tiers(self, _engine):
+        """
+        The starting-tier catalog shown to a friend who hasn't onboarded yet
+        (see /api/onboarding/seed and TIER_INFO in seed_brain.py). Static,
+        shared reference data, so the engine is unused.
+        """
+        return {"tiers": [{"size": size, **TIER_INFO[size]} for size in SIZE_CHOICES]}
 
-        # Everything the progress view needs, in one request.
-        if path == "/api/progress":
-            try:
-                payload = engine.progress_summary()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+    def _get_strokes(self, _engine):
+        """
+        One character's stroke-order data out of the vendored
+        stroke_data.json, replacing Hanzi Writer's default per-character
+        fetch to cdn.jsdelivr.net. A 404 here is not an error: app.js reads
+        it as "not vendored" and falls back to the CDN. Shared reference
+        data, not per-user, so the engine is unused.
+        """
+        char = self._query_param("char")
+        # Already-encoded JSON straight off disk (see stroke_entry_bytes) --
+        # nothing to parse or re-serialise.
+        payload = stroke_entry_bytes(char) if char else None
+        if payload is None:
+            self._send_json_error(404, "No vendored stroke data.")
+            return None
+        # A character's stroke data never changes; let the browser keep it so
+        # repeat characters don't re-request every time.
+        self._send_bytes(payload, "application/json; charset=utf-8", immutable=True)
+        return None
 
-        # The Settings panel's payload: the stored values plus the bounds and
-        # today's counts that make the number mean something.
-        if path == "/api/settings":
-            try:
-                payload = engine.read_settings()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+    def _get_speech(self, _engine):
+        """
+        One sentence's pre-generated audio (build_speech_audio.py), replacing
+        the browser's Web Speech API for anything in the local corpus. A 404
+        here is not an error -- it's how app.js knows to fall back to
+        speechSynthesis, which is the intended (and only) path for a user's
+        own pasted sentences, since those don't exist at build time. Shared
+        reference data, so the engine is unused.
+        """
+        text = self._query_param("text")
+        file_path = speech_audio_path(self._query_param("voice"), text) if text else None
+        if file_path is None or not os.path.exists(file_path):
+            self._send_json_error(404, "No pre-generated audio for this sentence/voice.")
+            return None
 
-        # The starting-tier catalog shown to a friend who hasn't onboarded yet
-        # (see /api/onboarding/seed below and TIER_INFO in seed_brain.py).
-        # Static, shared reference data -- `engine` is unused here, same as
-        # /api/strokes below.
-        if path == "/api/onboarding/tiers":
-            try:
-                tiers = [
-                    {"size": size, **TIER_INFO[size]}
-                    for size in SIZE_CHOICES
-                ]
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"tiers": tiers}, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
-
-        # Serves one character's stroke-order data out of the vendored
-        # stroke_data.json, replacing Hanzi Writer's default per-character
-        # fetch to cdn.jsdelivr.net. A 404 here is not an error: app.js reads
-        # it as "not vendored" and falls back to the CDN. Shared reference
-        # data, not per-user, so `engine` is unused here -- every account
-        # reads the same vendored stroke set.
-        if path == "/api/strokes":
-            try:
-                params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                char = (params.get("char") or [""])[0]
-                # Already-encoded JSON straight off disk (see
-                # stroke_entry_bytes) -- nothing to parse or re-serialise.
-                payload = stroke_entry_bytes(char) if char else None
-
-                if payload is None:
-                    self.send_response(404)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "No vendored stroke data."}).encode("utf-8"))
-                    return True
-
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.send_header("Content-Length", str(len(payload)))
-                # Stroke data for a character never changes; let the browser
-                # keep it so repeat characters don't re-request every time.
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.end_headers()
-                self.wfile.write(payload)
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-
-        # Serves one sentence's pre-generated audio (build_speech_audio.py),
-        # replacing the browser's Web Speech API for anything in the local
-        # corpus. A 404 here is not an error -- it's how app.js knows to fall
-        # back to speechSynthesis, which is the intended (and only) path for
-        # a user's own pasted sentences, since those don't exist at build
-        # time. Shared reference data, not per-user, so `engine` is unused,
-        # same as /api/strokes above.
-        if path == "/api/speech":
-            try:
-                params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                text = (params.get("text") or [""])[0]
-                voice = (params.get("voice") or [""])[0]
-                file_path = speech_audio_path(voice, text) if text else None
-
-                if file_path is None or not os.path.exists(file_path):
-                    self.send_response(404)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "No pre-generated audio for this sentence/voice."}).encode("utf-8"))
-                    return True
-
-                # Opened per request, like /api/strokes, rather than through a
-                # shared handle -- a seek/read on a shared file object isn't
-                # thread-safe and ThreadingHTTPServer makes concurrent
-                # requests real.
-                with open(file_path, "rb") as f:
-                    payload = f.read()
-
-                self.send_response(200)
-                self.send_header("Content-Type", "audio/mpeg")
-                self.send_header("Content-Length", str(len(payload)))
-                # This exact (text, voice) pair's audio never changes -- the
-                # hash is of the text itself, so any edit produces a
-                # different path rather than a stale file at this one.
-                self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-                self.end_headers()
-                self.wfile.write(payload)
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-
-        return False
+        # Opened per request, like _get_strokes, rather than through a shared
+        # handle -- a seek/read on a shared file object isn't thread-safe and
+        # ThreadingHTTPServer makes concurrent requests real.
+        with open(file_path, "rb") as f:
+            payload = f.read()
+        # This exact (text, voice) pair's audio never changes -- the hash is
+        # of the text itself, so any edit produces a different path rather
+        # than a stale file at this one.
+        self._send_bytes(payload, "audio/mpeg", immutable=True)
+        return None
 
     def _csrf_check_failed(self):
         """Rejects cross-origin POSTs. Without this, any page the user has open in
@@ -752,40 +650,58 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         should be rejected.
         """
         content_type = self.headers.get("Content-Type", "")
-        if not content_type.split(";")[0].strip().lower() == "application/json":
-            self.send_response(403)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Content-Type must be application/json."}).encode("utf-8"))
+        if content_type.split(";")[0].strip().lower() != "application/json":
+            self._send_json_error(403, "Content-Type must be application/json.")
             return True
 
         origin = self.headers.get("Origin")
         if origin is not None:
-            host = self.headers.get("Host", "")
-            origin_host = urllib.parse.urlparse(origin).netloc
-            if origin_host != host:
-                self.send_response(403)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Cross-origin request rejected."}).encode("utf-8"))
+            if urllib.parse.urlparse(origin).netloc != self.headers.get("Host", ""):
+                self._send_json_error(403, "Cross-origin request rejected.")
                 return True
 
         return False
 
-    def _send_manifest(self, start_url):
-        payload = json.dumps(build_manifest(start_url),
-                             ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/manifest+json; charset=utf-8")
+    def _send_404(self):
+        """A bare, body-less 404 -- the response for any path not routed."""
+        self.send_response(404)
+        self.end_headers()
+
+    def _send_bytes(self, payload, content_type, status=200, immutable=False,
+                    cookie=None):
+        """
+        The one place a response body is written. `immutable` marks content
+        addressed by something that changes when the content does (a
+        character's stroke data, a sentence hash), so the browser may keep it
+        for good rather than revalidating -- end_headers leaves an explicit
+        Cache-Control alone.
+        """
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
+        if immutable:
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
         self.wfile.write(payload)
 
+    def _send_json(self, status, payload, cookie=None):
+        self._send_bytes(json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                         "application/json; charset=utf-8", status, cookie=cookie)
+
     def _send_json_error(self, status, message):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"error": message}).encode("utf-8"))
+        self._send_json(status, {"error": message})
+
+    def _send_manifest(self, start_url):
+        self._send_bytes(
+            json.dumps(build_manifest(start_url), ensure_ascii=False).encode("utf-8"),
+            "application/manifest+json; charset=utf-8")
+
+    def _query_param(self, name):
+        """One query-string value off the current request URL, "" if absent."""
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        return (params.get(name) or [""])[0]
 
     def _read_json_body_or_reject(self, empty_default="{}"):
         """
@@ -859,23 +775,22 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return None, None
         return user_id, username
 
-    def _set_session_cookie(self, user_id, session_version):
-        cookie_value = auth.make_session_cookie(user_id, session_version)
-        # HttpOnly: JavaScript can't read it, so it isn't a target for an XSS
-        # payload to exfiltrate. SameSite=Lax: the browser won't attach it to
-        # a cross-site POST at all, which is a second, independent layer on
-        # top of the existing CSRF check below. Secure per COOKIE_SECURE --
-        # see its definition for why this is a separate flag from REQUIRE_SLUG.
+    @staticmethod
+    def _session_cookie(user_id, session_version):
+        """
+        The Set-Cookie value for a fresh session.
+
+        HttpOnly: JavaScript can't read it, so it isn't a target for an XSS
+        payload to exfiltrate. SameSite=Lax: the browser won't attach it to a
+        cross-site POST at all, which is a second, independent layer on top
+        of the CSRF check. Secure per COOKIE_SECURE -- see its definition for
+        why that is a separate flag from REQUIRE_SLUG.
+        """
         flags = "HttpOnly; SameSite=Lax; Path=/"
         if COOKIE_SECURE:
             flags += "; Secure"
-        self.send_header(
-            "Set-Cookie",
-            f"{auth.SESSION_COOKIE_NAME}={cookie_value}; Max-Age={auth.SESSION_TTL_SECONDS}; {flags}"
-        )
-
-    def _clear_session_cookie(self):
-        self.send_header("Set-Cookie", f"{auth.SESSION_COOKIE_NAME}=; Max-Age=0; Path=/")
+        return (f"{auth.SESSION_COOKIE_NAME}={auth.make_session_cookie(user_id, session_version)}; "
+                f"Max-Age={auth.SESSION_TTL_SECONDS}; {flags}")
 
     def _handle_signup(self):
         """
@@ -920,13 +835,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 accounts.save_accounts(accounts_data)
                 invites.save_invite_codes(invite_codes)
 
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
             # A brand new account always starts at INITIAL_SESSION_VERSION --
             # no need to re-read the record just written above.
-            self._set_session_cookie(user_id, accounts.INITIAL_SESSION_VERSION)
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            self._send_json(200, {"ok": True}, cookie=self._session_cookie(
+                user_id, accounts.INITIAL_SESSION_VERSION))
         except Exception as e:
             self._send_json_error(500, str(e))
 
@@ -959,23 +871,16 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json_error(401, "Invalid username or password.")
                 return
             user_id, session_version = result
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_session_cookie(user_id, session_version)
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            self._send_json(200, {"ok": True},
+                            cookie=self._session_cookie(user_id, session_version))
         except Exception as e:
             self._send_json_error(500, str(e))
 
     def _handle_logout(self):
         # No body or existing session required -- clearing a cookie that may
         # not even be valid is harmless, so a stray call here just no-ops.
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._clear_session_cookie()
-        self.end_headers()
-        self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+        self._send_json(200, {"ok": True},
+                        cookie=f"{auth.SESSION_COOKIE_NAME}=; Max-Age=0; Path=/")
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
@@ -1001,14 +906,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if user_match:
             engine = get_engine_for_id(user_match.group(1))
             if engine is None:
-                self.send_response(404)
-                self.end_headers()
+                self._send_404()
                 return
             sub_path = user_match.group(2) or "/"
             if self._handle_api_post(sub_path, engine):
                 return
-            self.send_response(404)
-            self.end_headers()
+            self._send_404()
             return
 
         if REQUIRE_SLUG:
@@ -1019,15 +922,35 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             engine = get_engine_for_id(user_id) if user_id else None
             if engine is not None and self._handle_api_post(path, engine):
                 return
-            self.send_response(404)
-            self.end_headers()
+            self._send_404()
             return
 
         if self._handle_api_post(path, default_engine):
             return
 
-        self.send_response(404)
-        self.end_headers()
+        self._send_404()
+
+    # POST API routes: path -> (method name, status for an unexpected error,
+    # whether a ValueError is the client's fault rather than ours). Each
+    # method takes the resolved `engine` and returns a payload to send as 200
+    # JSON, or None having already written its own response (a rejected body,
+    # a validation failure). See _handle_api_post.
+    API_POST_ROUTES = {
+        "/api/onboarding/seed": ("_post_onboarding_seed", 500, False),
+        "/api/account/reset": ("_post_account_reset", 500, False),
+        "/api/settings": ("_post_settings", 500, False),
+        "/api/characters/add": ("_post_characters_add", 500, False),
+        "/api/sentence/complete": ("_post_sentence_complete", 500, False),
+        "/api/import": ("_post_import", 500, False),
+        # 502 rather than 500: generating a batch is the one thing that can
+        # fail because the corpus underneath it came up empty-handed.
+        "/api/session/generate": ("_post_session_generate", 502, False),
+        "/api/session/refresh": ("_post_session_refresh", 502, False),
+        "/api/suggestions/add": ("_post_suggestions_add", 500, False),
+        # A missing field or an unknown character/word is a client error.
+        "/api/character/review": ("_post_character_review", 500, True),
+        "/api/word/review": ("_post_word_review", 500, True),
+    }
 
     def _handle_api_post(self, path, engine):
         """
@@ -1037,423 +960,276 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         (a response has already been sent), False otherwise so the caller
         can 404.
         """
-        # First-run tier choice: a friend picks their own starting pool from
-        # the tier picker app.js shows instead of the operator choosing a
-        # --size for them at create_user.py time. Body: { "size": 50 }.
-        # Only works once -- an account with characters already unlocked, or
-        # already marked onboarded, is left untouched (409), so this can't be
-        # replayed to wipe out real progress later. Deliberately reads/writes
-        # brain.json directly rather than through a JuziEngine method, same
-        # as /api/session's GET handler above.
-        if path == "/api/onboarding/seed":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                size = json.loads(body).get("size")
-                if size not in SIZE_CHOICES:
-                    self._send_json_error(400, f"'size' must be one of {list(SIZE_CHOICES)}.")
-                    return True
+        route = self.API_POST_ROUTES.get(path)
+        if route is None:
+            return False
+        method, error_status, value_error_is_client = route
+        try:
+            payload = getattr(self, method)(engine)
+            if payload is not None:
+                self._send_json(200, payload)
+        except ValueError as e:
+            self._send_json_error(400 if value_error_is_client else error_status, str(e))
+        except Exception as e:
+            self._send_json_error(error_status, str(e))
+        return True
 
-                with engine.brain_lock:
-                    brain_data = {}
-                    if os.path.exists(engine.brain_path):
-                        with open(engine.brain_path, "r", encoding="utf-8") as f:
-                            brain_data = json.load(f)
+    def _json_body(self):
+        """
+        The decoded JSON object for this POST, or None if the body was
+        already rejected (too large, bad Content-Length) and the caller must
+        return immediately.
+        """
+        body = self._read_json_body_or_reject()
+        return None if body is None else json.loads(body)
 
-                    already_onboarded = brain_data.get("onboarded", True)
-                    has_chars = bool(brain_data.get("unlocked_chars"))
-                    if already_onboarded or has_chars:
-                        self._send_json_error(409, "This account has already been set up.")
-                        return True
+    def _post_onboarding_seed(self, engine):
+        """
+        First-run tier choice: a friend picks their own starting pool from
+        the tier picker app.js shows, instead of the operator choosing a
+        --size for them at create_user.py time. Body: { "size": 50 }.
 
-                    master = engine.load_master_dictionary()
-                    new_brain = seed_build_brain(size, master)
-                    with open(engine.brain_path, "w", encoding="utf-8") as f:
-                        json.dump(new_brain, f, ensure_ascii=False, indent=4)
+        Only works once -- an account with characters already unlocked, or
+        already marked onboarded, is left untouched (409), so this can't be
+        replayed to wipe out real progress later. Reads and writes brain.json
+        directly rather than through a JuziEngine method, same as
+        _get_session.
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        size = data.get("size")
+        if size not in SIZE_CHOICES:
+            self._send_json_error(400, f"'size' must be one of {list(SIZE_CHOICES)}.")
+            return None
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "size": size,
-                    "name": TIER_INFO[size]["name"],
-                    "total_unlocked_count": len(new_brain["unlocked_chars"]),
-                }, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+        with engine.brain_lock:
+            brain_data = {}
+            if os.path.exists(engine.brain_path):
+                with open(engine.brain_path, "r", encoding="utf-8") as f:
+                    brain_data = json.load(f)
 
-        # Wipes the account back to a brand new one -- everything unlocked,
-        # every SM-2 schedule, every completed sentence and every personally
-        # pasted sentence, followed by the tier picker on the next session
-        # fetch. Body: { "confirm": "RESET" }.
-        #
-        # This is the account owner's own escape hatch (the Start Over tab in
-        # the progress view), for someone who wants to begin again from a
-        # clean slate rather than live with a pool they picked wrong or a
-        # review backlog they have given up on. Without it the only way back
-        # was to ask the operator to run reset_user.py.
-        #
-        # Note what this deliberately gives up. /api/onboarding/seed is
-        # one-shot precisely so that holding the link cannot wipe an
-        # account's progress; this endpoint hands that capability back, and
-        # the link is the only credential there is. That is inherent in the
-        # feature -- a self-service reset is a self-service reset -- and it
-        # widens nothing that link-holding did not already permit, since
-        # anyone with the link can already grade characters wrongly or import
-        # junk. The protections that remain are the CSRF pair on every POST
-        # (so another site cannot trigger this in a logged-in browser), the
-        # explicit confirmation token below, and the two-step confirmation in
-        # the UI.
-        #
-        # RESET_CONFIRMATION is required in the body so that no bare,
-        # bodyless POST to this path can destroy an account: a request has to
-        # say what it is doing, not merely arrive at the right URL.
-        if path == "/api/account/reset":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                if json.loads(body).get("confirm") != RESET_CONFIRMATION:
-                    self._send_json_error(
-                        400, f"Reset requires \"confirm\": \"{RESET_CONFIRMATION}\".")
-                    return True
+            if brain_data.get("onboarded", True) or brain_data.get("unlocked_chars"):
+                self._send_json_error(409, "This account has already been set up.")
+                return None
 
-                with engine.brain_lock:
-                    brain_data = {}
-                    if os.path.exists(engine.brain_path):
-                        with open(engine.brain_path, "r", encoding="utf-8") as f:
-                            brain_data = json.load(f)
+            new_brain = seed_build_brain(size, engine.load_master_dictionary())
+            with open(engine.brain_path, "w", encoding="utf-8") as f:
+                json.dump(new_brain, f, ensure_ascii=False, indent=4)
 
-                    # Counted before the overwrite so the response can report
-                    # what was actually destroyed, rather than what the client
-                    # last happened to render.
-                    erased = {
-                        "unlocked_chars": len(brain_data.get("unlocked_chars", {}) or {}),
-                        "unlocked_words": len(brain_data.get("unlocked_words", {}) or {}),
-                        "completed_sentences": len(brain_data.get("completed_sentences", {}) or {}),
-                        "pasted_sentences": len(brain_data.get("pasted_sentences", []) or []),
-                    }
+        return {
+            "size": size,
+            "name": TIER_INFO[size]["name"],
+            "total_unlocked_count": len(new_brain["unlocked_chars"]),
+        }
 
-                    with open(engine.brain_path, "w", encoding="utf-8") as f:
-                        json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
+    def _post_account_reset(self, engine):
+        """
+        Wipes the account back to a brand new one -- everything unlocked,
+        every SM-2 schedule, every completed sentence and every personally
+        pasted sentence, followed by the tier picker on the next session
+        fetch. Body: { "confirm": "RESET" }.
 
-                # Logged because it is irreversible and someone will ask what
-                # happened to their progress. The account is not named: the
-                # slug is the credential and does not belong in a log (see
-                # log_message and finding 21), so this records that a reset
-                # happened and how much it took, not whose it was.
-                #
-                # flush=True because stdout is block-buffered whenever it is
-                # not a terminal -- which is every real deployment, systemd
-                # included. Without it this line sits in the buffer while the
-                # access log (stderr, unbuffered) races ahead, so the one
-                # event worth finding in the journal arrives late, out of
-                # order, or not at all if the process is killed.
-                print(f"Account reset on request: erased {erased['unlocked_chars']} characters, "
-                      f"{erased['completed_sentences']} completed sentences, "
-                      f"{erased['pasted_sentences']} saved sentences.", flush=True)
+        This is the account owner's own escape hatch (the Start Over tab),
+        for someone who wants to begin again rather than live with a pool
+        they picked wrong or a review backlog they have given up on. Without
+        it the only way back was to ask the operator to run reset_user.py.
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"reset": True, "erased": erased},
-                                            ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+        Note what it deliberately gives up. _post_onboarding_seed is one-shot
+        precisely so that holding the link cannot wipe an account's progress;
+        this hands that capability back, and the link is the only credential
+        there is. That is inherent in the feature, and it widens nothing that
+        link-holding did not already permit -- anyone with the link can
+        already grade characters wrongly or import junk. What remains is the
+        CSRF pair on every POST, the confirmation token below, and the
+        two-step confirmation in the UI.
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        if data.get("confirm") != RESET_CONFIRMATION:
+            self._send_json_error(
+                400, f"Reset requires \"confirm\": \"{RESET_CONFIRMATION}\".")
+            return None
 
-        # Saves the Settings panel. Body: { "daily_new_limit": 15 }.
-        # update_settings ignores any key it doesn't understand, so this
-        # can't be used to write arbitrary data into brain.json, and raises
-        # ValueError on an out-of-range value rather than clamping -- someone
-        # who types 500 should be told the cap, not left believing they set it.
-        if path == "/api/settings":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                values = json.loads(body)
-                if not isinstance(values, dict):
-                    self._send_json_error(400, "Body must be a JSON object.")
-                    return True
-                try:
-                    payload = engine.update_settings(values)
-                except ValueError as bad:
-                    self._send_json_error(400, str(bad))
-                    return True
+        with engine.brain_lock:
+            brain_data = {}
+            if os.path.exists(engine.brain_path):
+                with open(engine.brain_path, "r", encoding="utf-8") as f:
+                    brain_data = json.load(f)
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+            # Counted before the overwrite so the response can report what
+            # was actually destroyed, rather than what the client last
+            # happened to render.
+            erased = {key: len(brain_data.get(key) or {}) for key in
+                      ("unlocked_chars", "unlocked_words",
+                       "completed_sentences", "pasted_sentences")}
 
-        # Unlocks characters chosen in the Suggest Characters tab.
-        # Body: { "chars": ["\u662f", "\u4eba", ...] }
-        if path == "/api/characters/add":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                chars = json.loads(body).get("chars", [])
-                if not isinstance(chars, list):
-                    self._send_json_error(400, "'chars' must be a list.")
-                    return True
-                result = engine.add_characters(chars)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+            with open(engine.brain_path, "w", encoding="utf-8") as f:
+                json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
 
-        # Records that a sentence was written all the way through, so batches
-        # stop re-serving what was just practiced (finding 12).
-        # Body: { "chinese": "..." }
-        if path == "/api/sentence/complete":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                chinese = json.loads(body).get("chinese", "")
-                result = engine.record_sentence_completion(chinese)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self._send_json_error(500, str(e))
-                return True
+        # Logged because it is irreversible and someone will ask what
+        # happened to their progress. The account is not named: the slug is
+        # the credential and does not belong in a log (see log_message), so
+        # this records that a reset happened and how much it took, not whose
+        # it was. flush=True because stdout is block-buffered whenever it is
+        # not a terminal -- which is every real deployment, systemd included
+        # -- so without it this line sits in the buffer while the access log
+        # (stderr, unbuffered) races ahead.
+        print(f"Account reset on request: erased {erased['unlocked_chars']} characters, "
+              f"{erased['completed_sentences']} completed sentences, "
+              f"{erased['pasted_sentences']} saved sentences.", flush=True)
 
-        # Intercept POST requests for importing raw text/sentences locally.
-        # Body: { "text": "<chinese and english, combined>" }
-        # import_text_locally auto-detects Chinese/English pairs within the
-        # single blob and saves what it finds to the user's persistent
-        # pasted_sentences for future practice.
-        if path == "/api/import":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                data = json.loads(body)
-                raw_text = data.get("text", "")
+        return {"reset": True, "erased": erased}
 
-                # Call the local master dictionary import method on the engine
-                result = engine.import_text_locally(raw_text)
+    def _post_settings(self, engine):
+        """
+        Saves the Settings panel. Body: { "daily_new_limit": 15 }.
+        update_settings ignores any key it doesn't understand, so this can't
+        be used to write arbitrary data into brain.json, and raises
+        ValueError on an out-of-range value rather than clamping -- someone
+        who types 500 should be told the cap, not left believing they set it.
+        """
+        values = self._json_body()
+        if values is None:
+            return None
+        if not isinstance(values, dict):
+            self._send_json_error(400, "Body must be a JSON object.")
+            return None
+        try:
+            return engine.update_settings(values)
+        except ValueError as bad:
+            self._send_json_error(400, str(bad))
+            return None
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
+    def _post_characters_add(self, engine):
+        """
+        Unlocks characters chosen in the Suggest Characters tab.
+        Body: { "chars": ["是", "人", ...] }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        chars = data.get("chars", [])
+        if not isinstance(chars, list):
+            self._send_json_error(400, "'chars' must be a list.")
+            return None
+        return engine.add_characters(chars)
 
-        # Generates a brand new batch of real HSK/Tatoeba example sentences,
-        # replacing the saved bank. No body fields required.
-        if path == "/api/session/generate":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
+    def _post_sentence_complete(self, engine):
+        """
+        Records that a sentence was written all the way through, so batches
+        stop re-serving what was just practiced. Body: { "chinese": "..." }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        return engine.record_sentence_completion(data.get("chinese", ""))
 
-                # 3 keeps each batch focused rather than exhausting
-                # due/relevant sentences in one go. styles={"sentences"}
-                # overrides the account's general study-styles setting: this
-                # button is an explicit "give me sentences" request, not the
-                # general session bootstrap the toggle is meant to govern
-                # (see generate_fresh_session). allow_character_fallback=True
-                # is likewise explicit rather than derived from styles: even
-                # with "Individual characters" unchecked in Settings, this
-                # button still falls back to characters for a pool too small
-                # for any sentence yet (finding 18) -- app.js's
-                # handleGenerateSession already tells the user why when that
-                # happens, so it never reads as ignoring their toggle.
-                # restrict_sentences_to_bank=False: ordinary practice sessions
-                # only ever serve sentences already in the learner's own
-                # Sentence Bank (per explicit user request), but this button's
-                # whole purpose is pulling in new corpus sentences, so it's
-                # the one deliberate exception.
-                result = engine.generate_fresh_session(
-                    count=3, styles={"sentences"}, allow_character_fallback=True,
-                    restrict_sentences_to_bank=False)
+    def _post_import(self, engine):
+        """
+        Imports pasted text. Body: { "text": "<chinese and english,
+        combined>" } -- import_text_locally auto-detects Chinese/English
+        pairs within the single blob and saves what it finds to the user's
+        persistent pasted_sentences for future practice.
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        return engine.import_text_locally(data.get("text", ""))
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(502)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
+    def _post_session_generate(self, engine):
+        """
+        Generates a brand new batch of real corpus sentences, replacing the
+        saved bank. No body fields required.
 
-        # Regenerates the practice batch using the account's own settings --
-        # study_styles and bank-restricted sentences -- the same call
-        # /api/session's bootstrap uses, with no overrides. Called by the
-        # client once it has cycled through every item in the current batch
-        # (see nextSentence in app.js), so ordinary practice picks up newly
-        # completed/pasted sentences and newly unlocked characters instead of
-        # looping the exact same fixed batch forever between page loads.
-        # Unlike /api/session/generate (the explicit "Get Sentences" button,
-        # which deliberately pulls in new corpus sentences), this always
-        # stays bank-restricted -- it's the automatic path, not an explicit
-        # "discover new material" request.
-        if path == "/api/session/refresh":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
+        3 keeps each batch focused rather than exhausting due/relevant
+        sentences in one go. styles={"sentences"} overrides the account's
+        general study-styles setting: this button is an explicit "give me
+        sentences" request, not the general session bootstrap the toggle
+        governs. allow_character_fallback=True is likewise explicit -- even
+        with "Individual characters" unchecked in Settings, this still falls
+        back to characters for a pool too small for any sentence yet, and
+        app.js says why when that happens, so it never reads as ignoring the
+        toggle. restrict_sentences_to_bank=False is the one deliberate
+        exception to bank-only practice: pulling in new corpus sentences is
+        this button's whole purpose.
+        """
+        if self._json_body() is None:
+            return None
+        return engine.generate_fresh_session(
+            count=3, styles={"sentences"}, allow_character_fallback=True,
+            restrict_sentences_to_bank=False)
 
-                result = engine.generate_fresh_session(count=5)
+    def _post_session_refresh(self, engine):
+        """
+        Regenerates the practice batch using the account's own settings --
+        study_styles and bank-restricted sentences -- the same call
+        _get_session's bootstrap uses, with no overrides. Called by the
+        client once it has cycled through every item in the current batch,
+        so ordinary practice picks up newly completed/pasted sentences and
+        newly unlocked characters instead of looping one fixed batch forever
+        between page loads. Unlike _post_session_generate this always stays
+        bank-restricted: it's the automatic path, not an explicit request to
+        discover new material.
+        """
+        if self._json_body() is None:
+            return None
+        return engine.generate_fresh_session(count=5)
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(502)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
+    def _post_suggestions_add(self, engine):
+        """
+        Adds user-selected words from the "Suggest Words" tab to brain.json.
+        Body: { "words": ["谢谢", "再见", ...] }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        return engine.add_words(data.get("words", []))
 
-        # Adds user-selected words from the "Suggest Words" tab to brain.json.
-        # Body: { "words": ["谢谢", "再见", ...] }
-        if path == "/api/suggestions/add":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                data = json.loads(body) if body else {}
-                words = data.get("words", [])
+    def _post_character_review(self, engine):
+        """
+        Grades one completed character quiz and advances its SM-2 scheduling
+        fields in brain.json. Body: { "char": "我", "quality": 0-5 }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        char, quality = data.get("char", ""), data.get("quality")
+        if not char or quality is None:
+            raise ValueError("Both 'char' and 'quality' are required.")
+        return engine.review_character(char, quality)
 
-                result = engine.add_words(words)
+    def _post_word_review(self, engine):
+        """
+        Grades one completed word-practice item against the word's own SM-2
+        schedule, independent of the per-character grading its characters
+        separately received. Body: { "word": "你好", "quality": 0-5 }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        word, quality = data.get("word", ""), data.get("quality")
+        if not word or quality is None:
+            raise ValueError("Both 'word' and 'quality' are required.")
+        return engine.review_word(word, quality)
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-
-        # Grades one completed character quiz and advances its SM-2
-        # scheduling fields (interval/factor/reps/last) in brain.json.
-        # Body: { "char": "我", "quality": 0-5 }
-        if path == "/api/character/review":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                data = json.loads(body) if body else {}
-
-                char = data.get("char", "")
-                quality = data.get("quality")
-
-                if not char or quality is None:
-                    raise ValueError("Both 'char' and 'quality' are required.")
-
-                result = engine.review_character(char, quality)
-
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except ValueError as e:
-                # Missing field or unknown character -- a client error, not a server error
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-
-        # Grades one completed word-practice item and advances its own
-        # SM-2 scheduling fields, independent of any per-character grading
-        # the same item's characters separately received via
-        # /api/character/review. Body: { "word": "你好", "quality": 0-5 }
-        if path == "/api/word/review":
-            try:
-                body = self._read_json_body_or_reject()
-                if body is None:
-                    return True
-                data = json.loads(body) if body else {}
-
-                word = data.get("word", "")
-                quality = data.get("quality")
-
-                if not word or quality is None:
-                    raise ValueError("Both 'word' and 'quality' are required.")
-
-                result = engine.review_word(word, quality)
-
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-                return True
-            except ValueError as e:
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-            except Exception as e:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-                return True
-
-        return False
 
 if __name__ == "__main__":
     # Loopback by default, because the deployment this serves sits behind
     # Caddy (see the Caddyfile) on a public host: binding only 127.0.0.1 means
     # plain-HTTP port 8000 is reachable from the reverse proxy on the same
     # machine and from nowhere else, rather than being exposed to the internet
-    # in parallel with the HTTPS Caddy serves. This used to default to all
-    # interfaces for LAN tablet access over plain HTTP, which is exactly the
-    # arrangement a hosted deployment should not have. Set JUZI_BIND_HOST=""
-    # explicitly to go back to all interfaces.
+    # in parallel with the HTTPS Caddy serves. Set JUZI_BIND_HOST="" to bind
+    # all interfaces instead, for LAN tablet access on a trusted network.
     bind_host = os.environ.get("JUZI_BIND_HOST", "127.0.0.1")
     server_address = (bind_host, PORT)
     # ThreadingHTTPServer, not HTTPServer: the plain version handles one
-    # connection at a time on its single main thread, so one slow or
-    # malicious connection (e.g. a request that declares a large body and
-    # trickles it in slowly) blocks every other request -- including the
-    # tablet/phone client this server is built to serve -- for as long as
-    # that connection is held open. Each connection now gets its own thread.
-    # brain.json access is guarded by JuziEngine.brain_lock (see there) so
-    # concurrent requests can't race on its read-modify-write.
+    # connection at a time, so a single slow connection (a request that
+    # declares a large body and trickles it in) blocks every other request
+    # for as long as it's held open. brain.json access is guarded by
+    # JuziEngine.brain_lock so the resulting concurrency can't race on its
+    # read-modify-write.
     httpd = http.server.ThreadingHTTPServer(server_address, JuziAPIHandler)
     display_host = bind_host or "localhost"
     print(f"JuziGenius Server running at http://{display_host}:{PORT}")

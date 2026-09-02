@@ -18,8 +18,6 @@
  * untouched, so the page's own error handling reports it.
  */
 
-const VERSION = "juzi-v2-network-only";
-
 self.addEventListener("install", () => {
     // Nothing to precache. Take over immediately so a previously installed
     // caching worker is replaced on the next load rather than lingering.

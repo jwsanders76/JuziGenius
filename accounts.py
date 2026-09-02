@@ -25,7 +25,7 @@ import secrets
 
 from auth import hash_password, verify_password
 from seed_brain import empty_brain
-from user_registry import USERS_DIR
+from user_registry import USERS_DIR, load_index, save_index
 
 ACCOUNTS_PATH = os.path.join(USERS_DIR, "accounts.json")
 
@@ -40,16 +40,11 @@ INITIAL_SESSION_VERSION = 1
 
 
 def load_accounts():
-    if not os.path.exists(ACCOUNTS_PATH):
-        return {}
-    with open(ACCOUNTS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return load_index(ACCOUNTS_PATH)
 
 
 def save_accounts(accounts):
-    os.makedirs(USERS_DIR, exist_ok=True)
-    with open(ACCOUNTS_PATH, "w", encoding="utf-8") as f:
-        json.dump(accounts, f, ensure_ascii=False, indent=4)
+    save_index(ACCOUNTS_PATH, accounts)
 
 
 def find_account_by_user_id(accounts, user_id):
