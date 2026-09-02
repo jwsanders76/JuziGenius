@@ -193,9 +193,10 @@
                 </div>
             </div>
 
-            <!-- The live practice queue (see generate_fresh_session) -- what's
-                 actually queued up to write right now, not the full history
-                 of everything ever completed. -->
+            <!-- Everything accrued -- personal sentences saved via Paste Text
+                 plus every corpus sentence ever completed (see
+                 progress_summary's sentence_bank) -- not the live practice
+                 queue, which empties out on every new batch. -->
             <div class="mode-panel" data-progress-panel="sentences" hidden>
                 <div id="progress-sentences" class="progress-body">
                     <p class="suggestions-empty">Loading…</p>
@@ -220,6 +221,37 @@
                             <input type="checkbox" id="setting-show-grid">
                             <span>Show writing grid</span>
                         </label>
+                    </section>
+
+                    <section class="progress-section">
+                        <h3 class="progress-title">What to study</h3>
+                        <p class="progress-note">
+                            Which practice item kinds show up in a session, and which
+                            categories count toward the "Due" badge. At least one must
+                            stay checked. "Unlocked" always shows your total character
+                            count regardless of this setting.
+                        </p>
+
+                        <label class="setting-checkbox-row" for="setting-study-characters">
+                            <input type="checkbox" id="setting-study-characters">
+                            <span>Individual characters</span>
+                        </label>
+                        <label class="setting-checkbox-row" for="setting-study-words">
+                            <input type="checkbox" id="setting-study-words">
+                            <span>Words</span>
+                        </label>
+                        <label class="setting-checkbox-row" for="setting-study-sentences">
+                            <input type="checkbox" id="setting-study-sentences">
+                            <span>Sentences</span>
+                        </label>
+
+                        <div class="danger-actions">
+                            <button type="button" id="study-styles-btn-save" class="modal-btn btn-primary">
+                                Save
+                            </button>
+                        </div>
+
+                        <p id="study-styles-status" class="danger-status" role="status" hidden></p>
                     </section>
 
                     <section class="progress-section">

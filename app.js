@@ -9,6 +9,9 @@ const state = {
     charIndex: 0,
     hintTier: 0,
     charMistakes: 0,
+    // Per-character recall qualities for the item currently loaded -- see
+    // loadSession/triggerSentenceCompletion.
+    itemQualities: [],
     writer: null,
     writerToken: 0,
     // Same guard shape as writerToken, for sentence audio: bumped whenever
@@ -246,6 +249,12 @@ function cacheDomElements() {
     elements.settingsStatus = document.getElementById("settings-status");
     elements.settingShowGrid = document.getElementById("setting-show-grid");
 
+    elements.settingStudyCharacters = document.getElementById("setting-study-characters");
+    elements.settingStudyWords = document.getElementById("setting-study-words");
+    elements.settingStudySentences = document.getElementById("setting-study-sentences");
+    elements.studyStylesBtnSave = document.getElementById("study-styles-btn-save");
+    elements.studyStylesStatus = document.getElementById("study-styles-status");
+
     elements.progressBtnLogout = document.getElementById("progress-btn-logout");
     elements.btnSettings = document.getElementById("btn-settings");
 
@@ -318,6 +327,9 @@ function initEventListeners() {
 
     if (elements.settingsBtnSave) {
         elements.settingsBtnSave.addEventListener("click", saveSettings);
+    }
+    if (elements.studyStylesBtnSave) {
+        elements.studyStylesBtnSave.addEventListener("click", saveStudyStyles);
     }
     if (elements.settingsBtnReset) {
         // Restores the app default rather than saving it outright, so the
@@ -593,6 +605,12 @@ function loadSession() {
     state.hintTier = 0;
     state.charMistakes = 0;
     state.skippedIndices = new Set();
+    // Per-character qualities for the item now loading, so a "word" kind
+    // item (see triggerSentenceCompletion) can report one aggregate quality
+    // to /api/word/review once the whole item is written -- independent of
+    // the per-character SM-2 grading each character still receives as it's
+    // completed.
+    state.itemQualities = [];
     updateHintButtonLabel();
 
     prefetchPregeneratedAudio(currentSentence.chinese);
@@ -819,7 +837,9 @@ function handleCharacterSuccess(char) {
         slot.classList.remove("active");
     }
 
-    submitCharacterReview(char, state.hintTier, state.charMistakes);
+    const quality = characterQuality(state.hintTier, state.charMistakes);
+    state.itemQualities.push(quality);
+    submitCharacterReview(char, quality);
 
     state.charIndex++;
     state.hintTier = 0;
@@ -841,24 +861,29 @@ function mistakePenalty(mistakes) {
 }
 
 /**
- * Reports a completed character quiz to the backend so its SM-2 scheduling
- * fields (interval/factor/reps/last) advance.
- *
- * Recall quality (0-5) comes from both signals the quiz produces: how many
- * hint tiers were needed, and how many wrong strokes were made getting there.
- * Hints alone were not enough -- someone who fumbled twenty strokes but never
- * pressed Hint scored the same perfect 5 as someone who wrote it cleanly, so
- * the scheduler could not tell a shaky character from a solid one.
+ * Recall quality (0-5) for one completed character, from both signals the
+ * quiz produces: how many hint tiers were needed, and how many wrong
+ * strokes were made getting there. Hints alone were not enough -- someone
+ * who fumbled twenty strokes but never pressed Hint scored the same
+ * perfect 5 as someone who wrote it cleanly, so the scheduler could not
+ * tell a shaky character from a solid one.
  *
  * Floored at 2, matching the previous behaviour for heavy-hint completions:
  * quality below 3 already registers as a lapse in SM-2 and resets the
  * repetition streak, and the character *was* eventually written, so a total
  * blackout score of 0 would overstate it.
+ */
+function characterQuality(hintTier, mistakes = 0) {
+    return Math.max(2, 5 - hintTier - mistakePenalty(mistakes));
+}
+
+/**
+ * Reports a completed character quiz to the backend so its SM-2 scheduling
+ * fields (interval/factor/reps/last) advance.
  *
  * Fire-and-forget -- a failed request shouldn't block practice.
  */
-function submitCharacterReview(char, hintTier, mistakes = 0) {
-    const quality = Math.max(2, 5 - hintTier - mistakePenalty(mistakes));
+function submitCharacterReview(char, quality) {
     fetch(`${API_BASE}/api/character/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -892,6 +917,29 @@ function triggerSentenceCompletion() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chinese: currentSentence.chinese })
     }).catch(err => console.error("Could not record sentence completion.", err));
+
+    // A "word" kind item also carries its own independent SM-2 schedule
+    // (see review_word) -- additional to, not instead of, the per-character
+    // grading each of its characters already received as it was written
+    // (see handleCharacterSuccess). Quality is the weakest character in the
+    // item, matching the app's existing "a wobble anywhere counts" stance
+    // (mistakePenalty/characterQuality) rather than averaging it away.
+    if (currentSentence.kind === "word" && state.itemQualities.length) {
+        const wordQuality = Math.min(...state.itemQualities);
+        fetch(`${API_BASE}/api/word/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ word: currentSentence.chinese, quality: wordQuality })
+        })
+            .then(response => response.ok ? response.json() : null)
+            .then(result => {
+                if (result && result.due_count !== undefined) {
+                    state.totalDueCount = result.due_count;
+                    updateDueCounter();
+                }
+            })
+            .catch(err => console.error("Could not record word review.", err));
+    }
 
     // 1. Flash all slots green
     const slots = document.querySelectorAll(".character-slot");
@@ -932,8 +980,9 @@ function triggerSentenceCompletion() {
  * Redoes the sentence just completed, for a user who wants another pass at
  * it. Goes through the same loadSession() any other sentence uses, so hint
  * tiers/mistakes reset and the canvas starts clean; completing it again
- * re-fires /api/sentence/complete and per-character SM-2 review exactly as
- * revisiting that sentence later in the normal rotation would.
+ * re-fires /api/sentence/complete, per-character SM-2 review, and (for a
+ * "word" kind item) /api/word/review, exactly as revisiting that item later
+ * in the normal rotation would.
  */
 function repeatSentence() {
     loadSession();
@@ -1845,6 +1894,7 @@ function switchProgressTab(tab) {
 async function loadSettings() {
     if (!elements.settingDailyNewLimit) return;
     if (elements.settingsStatus) elements.settingsStatus.hidden = true;
+    if (elements.studyStylesStatus) elements.studyStylesStatus.hidden = true;
 
     try {
         const response = await fetch(`${API_BASE}/api/settings`);
@@ -1863,6 +1913,11 @@ async function loadSettings() {
 function renderSettings(s) {
     state.settings = s;
     setSettingsControlsEnabled(true);
+
+    const styles = s.study_styles || ["characters", "words", "sentences"];
+    if (elements.settingStudyCharacters) elements.settingStudyCharacters.checked = styles.includes("characters");
+    if (elements.settingStudyWords) elements.settingStudyWords.checked = styles.includes("words");
+    if (elements.settingStudySentences) elements.settingStudySentences.checked = styles.includes("sentences");
 
     elements.settingDailyNewLimit.value = s.daily_new_limit;
     elements.settingDailyNewLimit.min = s.min_daily_new_limit;
@@ -1891,8 +1946,59 @@ function renderSettings(s) {
 }
 
 function setSettingsControlsEnabled(enabled) {
-    [elements.settingDailyNewLimit, elements.settingsBtnSave, elements.settingsBtnReset]
+    [elements.settingDailyNewLimit, elements.settingsBtnSave, elements.settingsBtnReset,
+     elements.settingStudyCharacters, elements.settingStudyWords, elements.settingStudySentences,
+     elements.studyStylesBtnSave]
         .forEach(el => el && (el.disabled = !enabled));
+}
+
+function showStudyStylesStatus(message) {
+    if (!elements.studyStylesStatus) return;
+    elements.studyStylesStatus.hidden = false;
+    elements.studyStylesStatus.textContent = message;
+}
+
+/**
+ * Saves which study styles (characters/words/sentences) are enabled. At
+ * least one must stay checked -- an empty selection would silently empty
+ * every future session and the "Due" badge alike, so this is checked
+ * client-side (the server rejects it too, see update_settings) before the
+ * request even goes out.
+ */
+async function saveStudyStyles() {
+    if (state.settings === null) return;
+
+    const styles = [];
+    if (elements.settingStudyCharacters && elements.settingStudyCharacters.checked) styles.push("characters");
+    if (elements.settingStudyWords && elements.settingStudyWords.checked) styles.push("words");
+    if (elements.settingStudySentences && elements.settingStudySentences.checked) styles.push("sentences");
+
+    if (styles.length === 0) {
+        showStudyStylesStatus("Keep at least one checked.");
+        return;
+    }
+
+    setSettingsControlsEnabled(false);
+    showStudyStylesStatus("Saving…");
+    try {
+        const response = await fetch(`${API_BASE}/api/settings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ study_styles: styles })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
+
+        renderSettings(data);
+        showStudyStylesStatus("Saved.");
+        // Which styles are enabled decides what counts toward "Due" (see
+        // total_due_count), so the badge behind this modal is now stale.
+        refreshDueCounter();
+    } catch (err) {
+        console.error(err);
+        setSettingsControlsEnabled(true);
+        showStudyStylesStatus(err.message || "Couldn't save your study styles.");
+    }
 }
 
 /**

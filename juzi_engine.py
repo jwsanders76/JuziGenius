@@ -140,6 +140,14 @@ MAX_DAILY_NEW_LIMIT = 100
 # purpose rather than lost.
 DEAD_SETTING_KEYS = ("daily_goal", "strict_mode")
 
+# Study styles a learner can toggle on/off in Settings -- which practice
+# item kinds pick_character_practice/pick_word_practice/pick_hsk_sentences
+# contribute to a session, and which categories the "Due: N" badge counts
+# (see total_due_count). All three enabled is the default so existing
+# accounts (whose settings predate this) see no behavior change.
+VALID_STUDY_STYLES = {"characters", "words", "sentences"}
+DEFAULT_STUDY_STYLES = frozenset(VALID_STUDY_STYLES)
+
 # Combining marks that NFD leaves on a toned pinyin vowel, in tone order.
 # Reading the mark is more robust than a table of precomposed vowels, which
 # has to enumerate ā á ǎ à ē é ě è ī í ǐ ì ō ó ǒ ò ū ú ǔ ù ǖ ǘ ǚ ǜ and the
@@ -291,6 +299,62 @@ class JuziEngine:
             return DEFAULT_DAILY_NEW_LIMIT
         return max(0, value)
 
+    def study_styles(self, brain_data: dict = None) -> set:
+        """
+        Which practice item kinds ("characters", "words", "sentences") this
+        account currently studies -- editable in Settings, at least one
+        always enabled (an empty selection falls back to the full default
+        rather than serving nothing, since a config that silently empties
+        every session is worse than ignoring a bad save).
+
+        Unknown values (a stale client, hand-edited brain.json) are dropped
+        rather than rejected, the same tolerance daily_new_limit's read side
+        doesn't need but this one does: there's no numeric range to clamp
+        into, just a set to intersect against what's actually valid.
+        """
+        if brain_data is None:
+            brain_data = self._read_brain()
+        settings = brain_data.get("settings") or {}
+        raw = settings.get("study_styles")
+        if not isinstance(raw, list):
+            return set(DEFAULT_STUDY_STYLES)
+        styles = {s for s in raw if s in VALID_STUDY_STYLES}
+        return styles or set(DEFAULT_STUDY_STYLES)
+
+    def total_due_count(self, brain_data: dict = None) -> int:
+        """
+        The number the top "Due: N" badge shows, restricted to whichever
+        study styles are enabled (see study_styles). "Unlocked: N" is
+        deliberately not filtered the same way -- it answers "how much have
+        I unlocked in total," not "how much of that is in scope right now."
+
+        Characters and Sentences share one term rather than being summed
+        separately: a sentence carries no SM-2 schedule of its own (see
+        pick_hsk_sentences/count_playable_sentences) -- "a sentence is due"
+        has never meant anything but "it contains a due character." Giving
+        it a second, independent number would mean a full corpus scan
+        (17,000+ rows) on every single character grading, since this badge
+        refreshes after each one, not just once per session -- turning
+        every keystroke of practice into a multi-file disk scan on a
+        1 vCPU/458 MB box. Enabling either or both of Characters/Sentences
+        therefore contributes the one cheap due-character count once; only
+        Words, which does carry its own independent SM-2 schedule (see
+        get_due_words), adds a second, separate term.
+        """
+        if brain_data is None:
+            brain_data = self._read_brain()
+        unlocked_chars = brain_data.get("unlocked_chars", {}) or {}
+        unlocked_words = brain_data.get("unlocked_words", {}) or {}
+        styles = self.study_styles(brain_data)
+        new_limit = self.daily_new_limit(brain_data)
+
+        total = 0
+        if "characters" in styles or "sentences" in styles:
+            total += len(self.get_due_characters(unlocked_chars, new_limit))
+        if "words" in styles:
+            total += len(self.get_due_words(unlocked_words, new_limit))
+        return total
+
     def read_settings(self) -> dict:
         """
         The settings panel's whole payload: the stored values, the bounds the
@@ -310,6 +374,7 @@ class JuziEngine:
                                     if m.get("introduced") == today),
             "new_backlog": self.new_character_backlog(unlocked),
             "unlocked_chars": len(unlocked),
+            "study_styles": sorted(self.study_styles(brain_data)),
         }
 
     def update_settings(self, values: dict) -> dict:
@@ -350,11 +415,25 @@ class JuziEngine:
         else:
             limit = None
 
+        if "study_styles" in values:
+            raw_styles = values["study_styles"]
+            if not isinstance(raw_styles, list) or not all(isinstance(s, str) for s in raw_styles):
+                raise ValueError("'study_styles' must be a list of strings.")
+            styles = {s for s in raw_styles if s in VALID_STUDY_STYLES}
+            if not styles:
+                raise ValueError(
+                    "'study_styles' must include at least one of: "
+                    + ", ".join(sorted(VALID_STUDY_STYLES)) + ".")
+        else:
+            styles = None
+
         with self.brain_lock:
             brain_data = self._read_brain()
             settings = brain_data.setdefault("settings", {})
             if limit is not None:
                 settings["daily_new_limit"] = limit
+            if styles is not None:
+                settings["study_styles"] = sorted(styles)
             # daily_goal and strict_mode were written into every new brain
             # and read by nothing, ever. They are gone from the schema now
             # (see seed_brain.empty_brain); drop them from existing accounts
@@ -664,6 +743,108 @@ class JuziEngine:
         due_new = [c for c in self.get_due_characters(unlocked_chars) if c in set(waiting)]
         return max(0, len(waiting) - len(due_new))
 
+    def get_due_words(self, unlocked_words: dict = None,
+                       new_limit: int = None) -> set:
+        """
+        The unlocked words due for practice right now -- the exact word-side
+        mirror of get_due_characters, now that words carry their own
+        independent SM-2 schedule (see review_word). Never-reviewed words
+        are admitted by frequency `rank` (the word-list equivalent of
+        char_frequency_rank) under the same daily_new_limit cap, so a large
+        vocabulary import paces itself the same way a large character
+        import already did.
+        """
+        brain_data = None
+        if unlocked_words is None:
+            brain_data = self._read_brain()
+            unlocked_words = brain_data.get("unlocked_words", {})
+        if new_limit is None:
+            new_limit = self.daily_new_limit(brain_data)
+
+        today = date.today()
+        today_iso = today.isoformat()
+        due = set()
+        never_reviewed = []
+        introduced_today = 0
+
+        for word, meta in unlocked_words.items():
+            if meta.get("introduced") == today_iso:
+                introduced_today += 1
+
+            last = meta.get("last")
+            if not last:
+                never_reviewed.append(word)
+                continue
+            try:
+                last_date = date.fromisoformat(last)
+            except ValueError:
+                due.add(word)
+                continue
+            interval = meta.get("interval", 0) or 0
+            if last_date + timedelta(days=interval) <= today:
+                due.add(word)
+
+        allowance = max(0, new_limit - introduced_today)
+        if allowance and never_reviewed:
+            never_reviewed.sort(key=lambda w: unlocked_words[w].get("rank", 99999))
+            due.update(never_reviewed[:allowance])
+        return due
+
+    def _new_word_budget(self, unlocked_words: dict, brain_data: dict,
+                          today_iso: str) -> tuple:
+        """(words) -> (never graded at all, how many more may be introduced today). Word-side mirror of _new_character_budget."""
+        never_graded = {word for word, meta in unlocked_words.items()
+                        if not meta.get("last") and not meta.get("introduced")}
+        introduced_today = sum(1 for meta in unlocked_words.values()
+                               if meta.get("introduced") == today_iso)
+        remaining = max(0, self.daily_new_limit(brain_data) - introduced_today)
+        return never_graded, remaining
+
+    @staticmethod
+    def _advance_sm2(entry: dict, quality: int, today_iso: str) -> bool:
+        """
+        Applies one SM-2 grading to `entry` (interval/factor/reps/last) in
+        place. Shared by review_character and review_word -- words got their
+        own independent SM-2 schedule (Sept 1, 2026, "study words" as its
+        own toggleable style) rather than piggybacking on their characters',
+        and duplicating this math a second time risked the two schedules
+        quietly drifting apart on a future tweak to one but not the other.
+
+        Returns False (entry left untouched) for a same-day successful
+        repeat -- see review_character for why that has to be a no-op
+        rather than compounding the interval multiplier against itself.
+        Quality < 3 always counts, including a same-day repeat: forgetting
+        an item later in the same session is real evidence it isn't known.
+        """
+        already_reviewed_today = entry.get("last") == today_iso
+        reps = entry.get("reps", 0) or 0
+        interval = entry.get("interval", 0) or 0
+        factor = entry.get("factor", 2.5) or 2.5
+
+        if quality < 3:
+            reps = 0
+            # interval 0, not 1, so the item comes back into the due set
+            # *today* rather than tomorrow -- see review_character.
+            interval = 0
+            factor = max(1.3, factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
+        elif already_reviewed_today and reps > 0:
+            return False
+        else:
+            if reps == 0:
+                interval = 1
+            elif reps == 1:
+                interval = 6
+            else:
+                interval = round(interval * factor)
+            reps += 1
+            factor = max(1.3, factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
+
+        entry["reps"] = reps
+        entry["interval"] = interval
+        entry["factor"] = round(factor, 2)
+        entry["last"] = today_iso
+        return True
+
     def review_character(self, char: str, quality: int) -> dict:
         """
         Grades a single completed character quiz and advances its SM-2
@@ -682,10 +863,10 @@ class JuziEngine:
         against itself (1 -> 6 -> 16 -> 45 -> 130 -> 390 days), scheduling a
         character the user has barely learned a year out. So a repeat
         grading on a day the character was already reviewed does not
-        advance the schedule. A *failed* repeat still applies its lapse:
-        forgetting a character later in the same session is real evidence
-        that it isn't known, and ignoring it would let the loop paper over
-        genuine failures.
+        advance the schedule (see _advance_sm2). A *failed* repeat still
+        applies its lapse: forgetting a character later in the same session
+        is real evidence that it isn't known, and ignoring it would let the
+        loop paper over genuine failures.
         """
         quality = max(0, min(5, int(quality)))
 
@@ -704,7 +885,6 @@ class JuziEngine:
                 raise ValueError(f"Character '{char}' is not in the unlocked pool.")
 
             today = date.today().isoformat()
-            already_reviewed_today = entry.get("last") == today
 
             # First time this character has ever been graded: record the day it
             # entered study. get_due_characters counts these against the daily
@@ -715,92 +895,68 @@ class JuziEngine:
                 entry["introduced"] = today
                 brain_data_dirty = True
 
-            reps = entry.get("reps", 0) or 0
-            interval = entry.get("interval", 0) or 0
-            factor = entry.get("factor", 2.5) or 2.5
+            advanced = self._advance_sm2(entry, quality, today)
 
-            if quality < 3:
-                # A lapse always counts, including a same-day repeat.
-                reps = 0
-                # interval 0, not 1, so the character comes back into the due
-                # set *today* rather than tomorrow. With interval 1 and `last`
-                # stamped today, get_due_characters computes last + 1 day >
-                # today and drops it -- so failing a character removed it from
-                # today's practice, which is precisely backwards: the one
-                # character the learner just demonstrably could not write was
-                # the one thing excluded from the rest of the session. SM-2
-                # schedules a lapse for immediate re-study, and
-                # pick_hsk_sentences biases toward due characters, so 0 puts
-                # it back in front of them within the same sitting. The next
-                # successful review takes the reps == 0 branch and sets the
-                # interval to 1 as usual, so nothing downstream changes.
-                interval = 0
-                factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-                factor = max(1.3, factor)
-            elif already_reviewed_today and reps > 0:
-                # Successful repeat on a day already credited: no schedule
-                # change, and no ease bump either (that would inflate the
-                # multiplier for every later review just as badly).
-                #
-                # `reps > 0` exempts a character that LAPSED earlier today,
-                # which is a different situation wearing the same clothes.
-                # A lapse sets reps to 0 and interval to 0 so the character
-                # returns to practice immediately; if the guard also blocked
-                # its recovery, writing it correctly afterwards would change
-                # nothing and it would sit at interval 0 for the rest of the
-                # day however well the learner then performed -- re-queued
-                # with no way out. Letting the recovery through graduates it
-                # to interval 1 exactly once (the next same-day success has
-                # reps == 1 and takes this branch again), so the compounding
-                # this guard exists to prevent still cannot happen.
-                #
-                # Persist before returning even though the schedule is
-                # unchanged (finding 22): the `introduced` stamp set above may
-                # be new on this call. It is missing for characters last
-                # reviewed by a build predating that field, and those take
-                # this branch on their first grading of the day -- so
-                # returning early without writing discarded the stamp every
-                # time, leaving introduced_today permanently undercounted and
-                # the day's new-character allowance too generous.
-                if brain_data_dirty:
-                    with open(self.brain_path, "w", encoding="utf-8") as f:
-                        json.dump(brain_data, f, ensure_ascii=False, indent=4)
-                return {
-                    "char": char,
-                    "reps": reps,
-                    "interval": interval,
-                    "factor": round(factor, 2),
-                    "last": entry.get("last"),
-                    "counted": False,
-                    "due_count": len(self.get_due_characters(unlocked_chars))
-                }
-            else:
-                if reps == 0:
-                    interval = 1
-                elif reps == 1:
-                    interval = 6
-                else:
-                    interval = round(interval * factor)
-                reps += 1
-                factor = factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-                factor = max(1.3, factor)
-
-            entry["reps"] = reps
-            entry["interval"] = interval
-            entry["factor"] = round(factor, 2)
-            entry["last"] = today
-
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            # Persist even when the schedule itself didn't advance (finding
+            # 22): the `introduced` stamp set above may be new on this call,
+            # and discarding it here would leave introduced_today
+            # permanently undercounted and the day's new-character allowance
+            # too generous.
+            if advanced or brain_data_dirty:
+                with open(self.brain_path, "w", encoding="utf-8") as f:
+                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
 
             return {
                 "char": char,
-                "reps": reps,
-                "interval": interval,
-                "factor": entry["factor"],
-                "last": entry["last"],
-                "counted": True,
-                "due_count": len(self.get_due_characters(unlocked_chars))
+                "reps": entry.get("reps", 0),
+                "interval": entry.get("interval", 0),
+                "factor": entry.get("factor", 2.5),
+                "last": entry.get("last"),
+                "counted": advanced,
+                "due_count": self.total_due_count(brain_data)
+            }
+
+    def review_word(self, word: str, quality: int) -> dict:
+        """
+        Grades a completed word-practice item and advances the word's own
+        SM-2 fields in unlocked_words -- independent of any SM-2 grading its
+        individual characters separately receive (a word item's characters
+        are still written stroke by stroke on the same canvas, and still
+        graded via review_character as they're completed; this is an
+        additional signal, not a replacement, so writing a word's
+        characters keeps teaching those characters even if "words" is the
+        only study style enabled). See review_character/_advance_sm2 for
+        the scheduling rules themselves, which are identical.
+        """
+        quality = max(0, min(5, int(quality)))
+
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            unlocked_words = brain_data.setdefault("unlocked_words", {})
+            entry = unlocked_words.get(word)
+            if entry is None:
+                raise ValueError(f"Word '{word}' is not in the unlocked pool.")
+
+            today = date.today().isoformat()
+            brain_data_dirty = False
+            if not entry.get("introduced"):
+                entry["introduced"] = today
+                brain_data_dirty = True
+
+            advanced = self._advance_sm2(entry, quality, today)
+
+            if advanced or brain_data_dirty:
+                with open(self.brain_path, "w", encoding="utf-8") as f:
+                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+            return {
+                "word": word,
+                "reps": entry.get("reps", 0),
+                "interval": entry.get("interval", 0),
+                "factor": entry.get("factor", 2.5),
+                "last": entry.get("last"),
+                "counted": advanced,
+                "due_count": self.total_due_count(brain_data)
             }
 
     @staticmethod
@@ -1070,6 +1226,10 @@ class JuziEngine:
                         "pinyin": item.get("pinyin", ""),
                         "meaning": item.get("meaning", ""),
                         "rank": item.get("rank", 99999),
+                        "interval": 0,
+                        "factor": 2.5,
+                        "reps": 0,
+                        "last": None,
                     }
                     added_word_count += 1
 
@@ -1358,7 +1518,7 @@ class JuziEngine:
                 "added_chars": added,
                 "skipped": skipped,
                 "total_unlocked_count": len(unlocked),
-                "total_due_count": len(self.get_due_characters(unlocked)),
+                "total_due_count": self.total_due_count(brain_data),
                 "new_backlog": self.new_character_backlog(unlocked),
             }
 
@@ -1410,6 +1570,10 @@ class JuziEngine:
                     "pinyin": meta.get("pinyin", ""),
                     "meaning": meta.get("meaning", ""),
                     "rank": meta.get("rank", 99999),
+                    "interval": 0,
+                    "factor": 2.5,
+                    "reps": 0,
+                    "last": None,
                 }
                 added_words.append(word)
 
@@ -1852,12 +2016,97 @@ class JuziEngine:
         return {
             "english": meta.get("meaning", ""),
             "chinese": char,
+            "kind": "character",
             "_fresh": _freshness(char, completed, today_iso),
             "_due_ratio": _due_ratio(char, due_set),
             "_personal": False,
             "_new_chars": {char} if char in never_graded else set(),
             "_fits": (char not in never_graded) or budget >= 1,
         }
+
+    @staticmethod
+    def _word_candidate(word: str, meta: dict, due_set: set,
+                        completed: dict, today_iso: str,
+                        never_graded: set, budget: int) -> dict:
+        """
+        One unlocked word dressed as a "sentence" item, the word-side mirror
+        of _character_candidate -- the canvas writes a word's characters in
+        sequence exactly like a sentence's, so the same item shape works
+        unchanged; only `kind` differs, which the frontend uses to grade the
+        item via review_word (its own SM-2 schedule) rather than treating it
+        as a completed sentence.
+        """
+        return {
+            "english": meta.get("meaning", ""),
+            "chinese": word,
+            "kind": "word",
+            "_fresh": _freshness(word, completed, today_iso),
+            "_due_ratio": _due_ratio(word, due_set),
+            "_personal": False,
+            "_new_chars": {word} if word in never_graded else set(),
+            "_fits": (word not in never_graded) or budget >= 1,
+        }
+
+    def pick_character_practice(self, count: int = 5) -> list:
+        """
+        A due-biased batch of standalone single-character practice items,
+        used when "characters" is one of the enabled study styles (see
+        study_styles) -- so character review is available on its own,
+        beyond the sentence pipeline's stranded-character safety net and
+        the Tier 1 bootstrap phase, both of which exist independently of
+        this setting and are untouched by it.
+
+        Reuses _character_candidate/_fill_batch, the same as
+        _pick_beginner_characters, but sized to `count` rather than
+        _beginner_batch_size -- Tier 1's "cover the whole pool at once"
+        sizing is a bootstrap concern for a pool with no other practice
+        option; an ongoing review batch from a large pool wants a normal
+        batch size instead.
+        """
+        brain_data = self._read_brain()
+        unlocked = brain_data.get("unlocked_chars", {}) or {}
+        if not unlocked:
+            return []
+        due_set = self.get_due_characters(unlocked)
+        completed = brain_data.get("completed_sentences", {}) or {}
+        today_iso = date.today().isoformat()
+        never_graded, budget = self._new_character_budget(unlocked, brain_data, today_iso)
+
+        candidates = [
+            self._character_candidate(char, meta, due_set, completed,
+                                      today_iso, never_graded, budget)
+            for char, meta in unlocked.items()]
+        random.shuffle(candidates)
+        candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
+        return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
+
+    def pick_word_practice(self, count: int = 5) -> list:
+        """
+        A due-biased batch of standalone word practice items, used when
+        "words" is one of the enabled study styles. Structurally identical
+        to pick_character_practice, over unlocked_words and get_due_words
+        instead -- words have carried their own independent SM-2 schedule
+        since Sept 1, 2026 (see review_word), so they're ranked and paced
+        exactly like characters are, just against a separate due set and a
+        separate daily intake budget.
+        """
+        brain_data = self._read_brain()
+        unlocked_words = brain_data.get("unlocked_words", {}) or {}
+        unlocked_words = {w: m for w, m in unlocked_words.items() if len(w) >= 2}
+        if not unlocked_words:
+            return []
+        due_set = self.get_due_words(unlocked_words)
+        completed = brain_data.get("completed_sentences", {}) or {}
+        today_iso = date.today().isoformat()
+        never_graded, budget = self._new_word_budget(unlocked_words, brain_data, today_iso)
+
+        candidates = [
+            self._word_candidate(word, meta, due_set, completed,
+                                 today_iso, never_graded, budget)
+            for word, meta in unlocked_words.items()]
+        random.shuffle(candidates)
+        candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
+        return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
     def _pick_beginner_characters(self, unlocked: dict, due_set: set,
                                    completed: dict, today_iso: str,
@@ -2032,6 +2281,7 @@ class JuziEngine:
             new_chars = {c for c in chinese if c in never_graded}
             candidates.append({
                 "english": english, "chinese": chinese,
+                "kind": "sentence",
                 "_fresh": _freshness(chinese, completed, today_iso),
                 "_due_ratio": _due_ratio(chinese, due_set),
                 "_personal": personal,
@@ -2080,14 +2330,37 @@ class JuziEngine:
             reverse=True)
         return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
-    def generate_fresh_session(self, count: int = 5) -> dict:
+    def generate_fresh_session(self, count: int = 5, styles: set = None) -> dict:
         """
-        Picks a brand new batch of real example sentences -- from the local
-        HSK/Tatoeba corpora and the user's own saved pasted sentences -- and
-        replaces the saved sentence bank in brain.json, so a completed
-        session doesn't just replay the same sentences forever. No AI, no
-        network, no key needed. If no sentences come back, the existing saved
-        bank is left untouched.
+        Picks a brand new practice batch -- real example sentences from the
+        local HSK/Tatoeba corpora and the user's own saved pasted sentences,
+        standalone characters, and/or standalone words, depending on which
+        study styles are currently enabled (see study_styles) -- and
+        replaces the saved queue in brain.json, so a completed session
+        doesn't just replay the same material forever. No AI, no network, no
+        key needed. If no items come back, the existing saved bank is left
+        untouched.
+
+        `styles`, if given, overrides the account's own study_styles setting
+        for this one call -- used by the Import modal's "HSK Sentences" tab,
+        whose "Get Sentences" button is an explicit request for sentences
+        specifically and shouldn't start handing back word/character items
+        just because the learner has narrowed their general study styles.
+        The page-load bootstrap (see server.py's /api/session) calls this
+        with no override, so it's the one place the toggle actually governs.
+
+        Each enabled style contributes its own sub-batch (via
+        pick_hsk_sentences/pick_character_practice/pick_word_practice)
+        rather than being merged into one shared candidate pool: they rank
+        against genuinely different due sets and different daily-intake
+        budgets (a due character and a due word are not the same kind of
+        "due"), and pick_hsk_sentences' own internal ranking is already
+        carefully tuned (freshness/due-ratio/personal/new-chars-budget) --
+        folding a second currency (new *words*) into that would risk
+        breaking it in ways worth avoiding for what a Settings toggle needs.
+        `count` is split evenly across whichever styles are enabled, with a
+        floor of 1 each, so turning on all three doesn't triple the batch
+        size.
         """
         with self.brain_lock:
             brain_data = {"unlocked_chars": {}, "sentences": []}
@@ -2098,17 +2371,28 @@ class JuziEngine:
                 except Exception as e:
                     print(f"Error reading brain database: {e}")
             unlocked_chars = brain_data.get("unlocked_chars", {})
+            if styles is None:
+                styles = self.study_styles(brain_data)
 
-            # pick_hsk_sentences reacquires brain_lock through its own helpers,
-            # which is safe since it's an RLock, and is a fast local read with
-            # no network call, so holding the lock across it doesn't stall
+            # These reacquire brain_lock through their own helpers, which is
+            # safe since it's an RLock, and are fast local reads with no
+            # network call, so holding the lock across them doesn't stall
             # other requests.
-            raw_sentences = self.pick_hsk_sentences(count=count)
+            per_style_count = max(1, -(-count // max(1, len(styles))))  # ceil division
+            raw_items = []
+            if "sentences" in styles:
+                raw_items += self.pick_hsk_sentences(count=per_style_count)
+            if "characters" in styles:
+                raw_items += self.pick_character_practice(count=per_style_count)
+            if "words" in styles:
+                raw_items += self.pick_word_practice(count=per_style_count)
+            random.shuffle(raw_items)
 
             master_dict = self.load_master_dictionary()
             new_sentences = []
-            for item in raw_sentences:
-                sentence = {"english": item["english"], "chinese": item["chinese"]}
+            for item in raw_items:
+                sentence = {"english": item["english"], "chinese": item["chinese"],
+                           "kind": item.get("kind", "sentence")}
                 self.attach_char_data(sentence, unlocked_chars, master_dict)
                 new_sentences.append(sentence)
 
@@ -2124,7 +2408,7 @@ class JuziEngine:
                 # batch. Without it the frontend had no due figure to apply
                 # and left the badge showing whatever it read at page load,
                 # which drifts further from the truth with every review.
-                "total_due_count": len(self.get_due_characters(unlocked_chars)),
+                "total_due_count": self.total_due_count(brain_data),
             }
 
 if __name__ == "__main__":

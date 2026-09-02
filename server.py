@@ -547,7 +547,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 response_payload = {
                     "sentences": saved_sentences,
                     "total_unlocked_count": total_unlocked,
-                    "total_due_count": len(engine.get_due_characters(unlocked_chars)),
+                    "total_due_count": engine.total_due_count(brain_data),
                     # Characters unlocked but held behind the daily intake cap
                     # (finding 13), so the badge can say "12 due, 60 waiting"
                     # rather than presenting the whole backlog as today's work.
@@ -1272,8 +1272,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     return True
 
                 # 3 keeps each batch focused rather than exhausting
-                # due/relevant sentences in one go.
-                result = engine.generate_fresh_session(count=3)
+                # due/relevant sentences in one go. styles={"sentences"}
+                # overrides the account's general study-styles setting: this
+                # button is an explicit "give me sentences" request, not the
+                # general session bootstrap the toggle is meant to govern
+                # (see generate_fresh_session).
+                result = engine.generate_fresh_session(count=3, styles={"sentences"})
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1336,6 +1340,43 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return True
             except ValueError as e:
                 # Missing field or unknown character -- a client error, not a server error
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return True
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return True
+
+        # Grades one completed word-practice item and advances its own
+        # SM-2 scheduling fields, independent of any per-character grading
+        # the same item's characters separately received via
+        # /api/character/review. Body: { "word": "你好", "quality": 0-5 }
+        if path == "/api/word/review":
+            try:
+                body = self._read_json_body_or_reject()
+                if body is None:
+                    return True
+                data = json.loads(body) if body else {}
+
+                word = data.get("word", "")
+                quality = data.get("quality")
+
+                if not word or quality is None:
+                    raise ValueError("Both 'word' and 'quality' are required.")
+
+                result = engine.review_word(word, quality)
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                return True
+            except ValueError as e:
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
