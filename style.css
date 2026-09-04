@@ -1266,6 +1266,29 @@ body {
     text-align: center;
 }
 
+/* --- About JuziGenius: "how it works" reveal --- */
+.about-link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 4px;
+    color: var(--accent-blue);
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+    text-align: left;
+}
+
+.about-link-btn:hover {
+    color: var(--accent-gold);
+}
+
+.about-how-it-works {
+    margin-top: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+
 /* --- Progress view: Settings tab --- */
 .setting-row {
     display: flex;

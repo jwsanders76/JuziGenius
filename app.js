@@ -294,6 +294,9 @@ function cacheDomElements() {
     elements.sentenceImportDeselectAll = document.getElementById("sentence-import-deselect-all");
     elements.sentenceImportCancel = document.getElementById("sentence-import-cancel");
     elements.sentenceImportSubmit = document.getElementById("sentence-import-submit");
+
+    elements.aboutHowItWorksToggle = document.getElementById("about-how-it-works-toggle");
+    elements.aboutHowItWorks = document.getElementById("about-how-it-works");
 }
 
 function initEventListeners() {
@@ -352,6 +355,16 @@ function initEventListeners() {
     }
     if (elements.sentenceImportSubmit) {
         elements.sentenceImportSubmit.addEventListener("click", handleSentenceImportSubmit);
+    }
+
+    if (elements.aboutHowItWorksToggle && elements.aboutHowItWorks) {
+        elements.aboutHowItWorksToggle.addEventListener("click", () => {
+            const nowHidden = !elements.aboutHowItWorks.hidden;
+            elements.aboutHowItWorks.hidden = nowHidden;
+            elements.aboutHowItWorksToggle.textContent = nowHidden
+                ? "Read this if you really want to know how it works."
+                : "Hide this.";
+        });
     }
 
     elements.progressTabs.forEach(tab => {
