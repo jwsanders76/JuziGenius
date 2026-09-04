@@ -1,0 +1,3 @@
+char_script_map.json is derived from opencc/dictionary/STCharacters.txt in opencc-python-reimplemented 0.1.7, Apache License.
+Source: https://github.com/yichen0831/opencc-python
+Only the character-level (non-phrase-context) mapping is used; see build_char_script_map.py's module docstring for what that trades away.

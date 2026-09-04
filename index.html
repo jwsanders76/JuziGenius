@@ -252,6 +252,31 @@
                     </section>
 
                     <section class="progress-section">
+                        <h3 class="progress-title">Character script</h3>
+                        <p class="progress-note">
+                            Which script practice items are displayed and written
+                            in. What you've unlocked, your review schedule, and
+                            pinyin/meaning lookups are unaffected either way &mdash;
+                            this only changes which glyph you see and write.
+                            A character with more than one traditional form may
+                            occasionally show the wrong one out of context.
+                        </p>
+
+                        <select id="setting-character-script" class="setting-input">
+                            <option value="simplified">Simplified</option>
+                            <option value="traditional">Traditional</option>
+                        </select>
+
+                        <div class="danger-actions">
+                            <button type="button" id="character-script-btn-save" class="modal-btn btn-primary">
+                                Save
+                            </button>
+                        </div>
+
+                        <p id="character-script-status" class="danger-status" role="status" hidden></p>
+                    </section>
+
+                    <section class="progress-section">
                         <h3 class="progress-title">New characters per day</h3>
                         <p class="progress-note">
                             How many characters you have never written may enter practice

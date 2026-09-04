@@ -272,6 +272,10 @@ function cacheDomElements() {
     elements.studyStylesBtnSave = document.getElementById("study-styles-btn-save");
     elements.studyStylesStatus = document.getElementById("study-styles-status");
 
+    elements.settingCharacterScript = document.getElementById("setting-character-script");
+    elements.characterScriptBtnSave = document.getElementById("character-script-btn-save");
+    elements.characterScriptStatus = document.getElementById("character-script-status");
+
     elements.progressBtnLogout = document.getElementById("progress-btn-logout");
     elements.btnSettings = document.getElementById("btn-settings");
 
@@ -388,6 +392,9 @@ function initEventListeners() {
     }
     if (elements.studyStylesBtnSave) {
         elements.studyStylesBtnSave.addEventListener("click", saveStudyStyles);
+    }
+    if (elements.characterScriptBtnSave) {
+        elements.characterScriptBtnSave.addEventListener("click", saveCharacterScript);
     }
     if (elements.settingsBtnReset) {
         // Restores the app default rather than saving it outright, so the
@@ -887,9 +894,18 @@ function handleCharacterSuccess(char) {
         slot.classList.remove("active");
     }
 
+    // Grade the character's SM-2/dictionary identity, not necessarily what
+    // was just written -- in traditional display mode `char` is the
+    // traditional glyph shown on the canvas, but unlocking/scheduling always
+    // key off the simplified character (see chinese_id / identityChars).
+    const currentSentence = state.sentences[state.currentIndex];
+    const idChar = currentSentence
+        ? (identityChars(currentSentence)[state.charIndex] || char)
+        : char;
+
     const quality = characterQuality(state.hintTier, state.charMistakes);
     state.itemQualities.push(quality);
-    submitCharacterReview(char, quality);
+    submitCharacterReview(idChar, quality);
 
     state.charIndex++;
     state.hintTier = 0;
@@ -958,7 +974,7 @@ function triggerSentenceCompletion() {
     // Tell the server this sentence is done, so future batches prefer
     // material the user hasn't written yet. Fire-and-forget: a failed
     // request must never interrupt the celebration.
-    apiPost("/api/sentence/complete", { chinese: currentSentence.chinese })
+    apiPost("/api/sentence/complete", { chinese: identityChinese(currentSentence) })
         .catch(err => console.error("Could not record sentence completion.", err));
 
     // A "word" kind item also carries its own independent SM-2 schedule
@@ -969,7 +985,7 @@ function triggerSentenceCompletion() {
     // (mistakePenalty/characterQuality) rather than averaging it away.
     if (currentSentence.kind === "word" && state.itemQualities.length) {
         const wordQuality = Math.min(...state.itemQualities);
-        apiPost("/api/word/review", { word: currentSentence.chinese, quality: wordQuality })
+        apiPost("/api/word/review", { word: identityChinese(currentSentence), quality: wordQuality })
             .then(response => response.ok ? response.json() : null)
             .then(result => {
                 if (result && result.due_count !== undefined) {
@@ -1061,6 +1077,23 @@ function toggleSentenceAudioControls(visible) {
 function currentSentenceText() {
     const sentence = state.sentences[state.currentIndex];
     return sentence ? sentence.chinese : "";
+}
+
+/**
+ * A sentence's simplified identity text -- what unlocking, SM-2 scheduling,
+ * and sentence-completion tracking key off, as opposed to `chinese`, which
+ * in traditional display mode holds the converted glyphs actually shown and
+ * written. `chinese_id` is only present when the two differ (see
+ * apply_character_script in juzi_engine.py); absent, `chinese` already is
+ * the identity, e.g. simplified display mode or a sentence made entirely of
+ * characters identical in both scripts.
+ */
+function identityChinese(sentence) {
+    return (sentence && (sentence.chinese_id || sentence.chinese)) || "";
+}
+
+function identityChars(sentence) {
+    return Array.from(identityChinese(sentence));
 }
 
 /**
@@ -1953,6 +1986,7 @@ async function loadSettings() {
     if (!elements.settingDailyNewLimit) return;
     if (elements.settingsStatus) elements.settingsStatus.hidden = true;
     if (elements.studyStylesStatus) elements.studyStylesStatus.hidden = true;
+    if (elements.characterScriptStatus) elements.characterScriptStatus.hidden = true;
 
     try {
         const response = await fetch(`${API_BASE}/api/settings`);
@@ -1976,6 +2010,10 @@ function renderSettings(s) {
     if (elements.settingStudyCharacters) elements.settingStudyCharacters.checked = styles.includes("characters");
     if (elements.settingStudyWords) elements.settingStudyWords.checked = styles.includes("words");
     if (elements.settingStudySentences) elements.settingStudySentences.checked = styles.includes("sentences");
+
+    if (elements.settingCharacterScript) {
+        elements.settingCharacterScript.value = s.character_script || "simplified";
+    }
 
     elements.settingDailyNewLimit.value = s.daily_new_limit;
     elements.settingDailyNewLimit.min = s.min_daily_new_limit;
@@ -2006,7 +2044,7 @@ function renderSettings(s) {
 function setSettingsControlsEnabled(enabled) {
     [elements.settingDailyNewLimit, elements.settingsBtnSave, elements.settingsBtnReset,
      elements.settingStudyCharacters, elements.settingStudyWords, elements.settingStudySentences,
-     elements.studyStylesBtnSave]
+     elements.studyStylesBtnSave, elements.settingCharacterScript, elements.characterScriptBtnSave]
         .forEach(el => el && (el.disabled = !enabled));
 }
 
@@ -2052,6 +2090,37 @@ async function saveStudyStyles() {
         console.error(err);
         setSettingsControlsEnabled(true);
         showStudyStylesStatus(err.message || "Couldn't save your study styles.");
+    }
+}
+
+function showCharacterScriptStatus(message) {
+    if (!elements.characterScriptStatus) return;
+    elements.characterScriptStatus.hidden = false;
+    elements.characterScriptStatus.textContent = message;
+}
+
+/**
+ * Saves which script (simplified/traditional) practice items display and
+ * write in. Takes effect on the next batch -- the current one, already
+ * loaded, keeps whatever script it was fetched with.
+ */
+async function saveCharacterScript() {
+    if (!elements.settingCharacterScript || state.settings === null) return;
+
+    setSettingsControlsEnabled(false);
+    showCharacterScriptStatus("Saving…");
+    try {
+        const response = await apiPost("/api/settings",
+            { character_script: elements.settingCharacterScript.value });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
+
+        renderSettings(data);
+        showCharacterScriptStatus("Saved. Takes effect on your next practice batch.");
+    } catch (err) {
+        console.error(err);
+        setSettingsControlsEnabled(true);
+        showCharacterScriptStatus(err.message || "Couldn't save your character script.");
     }
 }
 

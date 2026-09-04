@@ -527,7 +527,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if unlocked_chars and (not saved_sentences
                                or engine.beginner_bank_is_stale(brain_data)):
             try:
-                saved_sentences = engine.generate_fresh_session(count=3)["sentences"]
+                engine.generate_fresh_session(count=3)
+                # Re-read rather than trust that call's own return value:
+                # generate_fresh_session persists the (always-simplified)
+                # bank to disk but returns an already script-converted copy
+                # (see apply_character_script), and unlocked_chars/onboarded/
+                # etc. below need the raw simplified brain state, not that.
+                with engine.brain_lock:
+                    with open(engine.brain_path, "r", encoding="utf-8") as f:
+                        brain_data = json.load(f)
+                unlocked_chars = brain_data.get("unlocked_chars", {})
+                saved_sentences = brain_data.get("sentences", [])
             except Exception as gen_err:
                 print(f"Session bootstrap notice: {gen_err}")
 
@@ -542,8 +552,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if "char_metadata" not in sentence or "char_pinyin" not in sentence:
                 engine.attach_char_data(sentence, unlocked_chars)
 
+        # Converted here, once, for the response only -- saved_sentences (and
+        # brain_data["sentences"] on disk) stay simplified either way.
+        display_sentences = engine.apply_character_script(
+            saved_sentences, engine.character_script(brain_data))
+
         return {
-            "sentences": saved_sentences,
+            "sentences": display_sentences,
             "total_unlocked_count": len(unlocked_chars),
             "total_due_count": engine.total_due_count(brain_data),
             # Characters unlocked but held behind the daily intake cap, so
