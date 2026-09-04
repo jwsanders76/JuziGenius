@@ -476,6 +476,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         "/api/suggestions": "_get_word_suggestions",
         "/api/characters/suggestions": "_get_character_suggestions",
         "/api/progress": "_get_progress",
+        "/api/sentences/importable": "_get_importable_sentences",
         "/api/settings": "_get_settings",
         "/api/onboarding/tiers": "_get_onboarding_tiers",
         "/api/strokes": "_get_strokes",
@@ -572,6 +573,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     def _get_progress(self, engine):
         """Everything the progress view needs, in one request."""
         return engine.progress_summary()
+
+    def _get_importable_sentences(self, engine):
+        """
+        The checklist behind the Overview tab's "N sentences writable"
+        quick-import button: every corpus sentence the current pool can
+        already fully write that isn't in the Sentence Bank yet.
+        """
+        return engine.list_importable_sentences()
 
     def _get_settings(self, engine):
         """
@@ -941,6 +950,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         "/api/settings": ("_post_settings", 500, False),
         "/api/characters/add": ("_post_characters_add", 500, False),
         "/api/sentence/complete": ("_post_sentence_complete", 500, False),
+        "/api/sentences/import": ("_post_sentences_import", 500, False),
         "/api/import": ("_post_import", 500, False),
         # 502 rather than 500: generating a batch is the one thing that can
         # fail because the corpus underneath it came up empty-handed.
@@ -1125,6 +1135,21 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if data is None:
             return None
         return engine.record_sentence_completion(data.get("chinese", ""))
+
+    def _post_sentences_import(self, engine):
+        """
+        Bulk-adds sentences selected from the "N sentences writable"
+        checklist straight to the Sentence Bank -- no writing practice
+        required. Body: { "sentences": ["...", ...] }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        sentences = data.get("sentences", [])
+        if not isinstance(sentences, list):
+            self._send_json_error(400, "'sentences' must be a list.")
+            return None
+        return engine.bulk_add_to_sentence_bank(sentences)
 
     def _post_import(self, engine):
         """

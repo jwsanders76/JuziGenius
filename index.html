@@ -375,6 +375,33 @@
         </div>
     </div>
 
+    <!-- Quick Sentence Import: opened from the Overview tab's "N sentences
+         writable" stat tile. Lists every corpus sentence the current pool
+         can already fully write but hasn't been added to the Sentence Bank
+         yet, so a learner can bulk-add known-writable material straight into
+         their bank without a round of handwriting first. -->
+    <div id="sentence-import-modal" class="modal-overlay">
+        <div class="modal-card progress-card">
+            <h2 class="modal-title">Quick-Add Writable Sentences</h2>
+            <p class="modal-subtitle">Every corpus sentence you can already write in full, not yet in your Sentence Bank. Check the ones you know and add them straight to your bank &mdash; no handwriting required.</p>
+
+            <div class="import-list-actions">
+                <button type="button" id="sentence-import-select-all" class="top-btn import-list-action-btn">Select All</button>
+                <button type="button" id="sentence-import-deselect-all" class="top-btn import-list-action-btn">Deselect All</button>
+            </div>
+
+            <div id="sentence-import-list" class="suggestions-list import-sentence-list">
+                <p class="suggestions-empty">Loading…</p>
+            </div>
+            <p id="sentence-import-note" class="import-sentence-note" hidden></p>
+
+            <div class="modal-actions">
+                <button type="button" id="sentence-import-cancel" class="modal-btn btn-secondary">Cancel</button>
+                <button type="button" id="sentence-import-submit" class="modal-btn btn-primary">Add Selected</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Fixed to the corner of the viewport, not the practice card, so it
          stays put regardless of the card's own size or scroll position. -->
     <div id="corner-bar">

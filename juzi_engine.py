@@ -261,6 +261,14 @@ MAX_IMPORT_TOTAL_CHARS = 8000
 # learner is already asked to write.
 MAX_PASTED_SENTENCE_CHARS = 30
 
+# Caps the checklist list_importable_sentences returns to the Overview tab's
+# "N sentences writable" quick-import button. A pool with many characters
+# unlocked can make thousands of corpus sentences playable at once -- capped
+# so the modal stays a scrollable list rather than a multi-thousand-row page;
+# total_available in the response still reports the true count so the UI can
+# say "and N more".
+MAX_IMPORTABLE_SENTENCES_SHOWN = 200
+
 # Used by _split_vocab_line/_pair_vocab_lines (Paste Text's single-box
 # auto-pairing) to tell Chinese from English by Unicode range rather than by
 # any dictionary lookup, so it works for text outside master_dictionary too.
@@ -1790,6 +1798,90 @@ class JuziEngine:
         """
         return sum(1 for chinese, _english in load_sentence_corpus()
                    if all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese))
+
+    def list_importable_sentences(self, limit: int = MAX_IMPORTABLE_SENTENCES_SHOWN) -> dict:
+        """
+        Corpus sentences that are fully writable right now but not yet in the
+        Sentence Bank -- the checklist behind the Overview tab's "N sentences
+        writable" quick-import button. Distinct from pick_hsk_sentences: that
+        picks a handful to *practice*; this lists everything eligible so the
+        learner can bulk-add known-writable material straight into their bank
+        without a round of handwriting first (see bulk_add_to_sentence_bank).
+
+        Shortest sentences first, on the theory that a quick "yes I know
+        this" pass favors easy wins -- there's no practice-freshness ranking
+        to apply here since nothing about this list is about to be served in
+        a session. Capped at `limit`; total_available reports the true count
+        so the UI can say how many more exist.
+        """
+        brain_data = self._read_brain()
+        unlocked_set = set(brain_data.get("unlocked_chars", {}).keys())
+        already_known = {
+            (item.get("chinese") or "").strip()
+            for item in (brain_data.get("pasted_sentences", []) or [])
+        }
+        already_known |= set((brain_data.get("completed_sentences", {}) or {}).keys())
+
+        matches = [
+            {"chinese": chinese, "english": english}
+            for chinese, english in load_sentence_corpus()
+            if len(chinese) >= 2 and chinese not in already_known
+            and all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese)
+        ]
+        matches.sort(key=lambda s: (len(s["chinese"]), s["chinese"]))
+
+        return {
+            "sentences": matches[:limit],
+            "total_available": len(matches),
+        }
+
+    def bulk_add_to_sentence_bank(self, chinese_list) -> dict:
+        """
+        Directly records a batch of corpus sentences as completed, without
+        the learner writing any of them out first -- the quick-import action
+        behind list_importable_sentences' checklist. A learner who already
+        knows a sentence (or just doesn't want to hand-write it right now)
+        can add it straight to their permanent Sentence Bank in bulk, the
+        same destination record_sentence_completion writes to one at a time
+        after real practice.
+
+        Each candidate is re-validated against the corpus and the *current*
+        unlocked pool (not just trusted from the client) via
+        _corpus_english_lookup, so this can't be used to mark arbitrary text,
+        or a sentence the pool can no longer fully write, as completed.
+        Already-known sentences (already in pasted_sentences or
+        completed_sentences) are silently skipped rather than double-counted.
+        """
+        requested = {c.strip() for c in (chinese_list or []) if isinstance(c, str) and c.strip()}
+        if not requested:
+            return {"added": 0, "total_completed": 0}
+
+        today = date.today().isoformat()
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            unlocked_set = set(brain_data.get("unlocked_chars", {}).keys())
+            already_known = {
+                (item.get("chinese") or "").strip()
+                for item in (brain_data.get("pasted_sentences", []) or [])
+            }
+            completed = brain_data.setdefault("completed_sentences", {})
+            already_known |= set(completed.keys())
+
+            corpus_matches = self._corpus_english_lookup(requested)
+            added = 0
+            for chinese in requested:
+                if chinese in already_known or chinese not in corpus_matches:
+                    continue
+                if not all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese):
+                    continue
+                completed[chinese] = {"count": 1, "last": today}
+                added += 1
+
+            if added:
+                with open(self.brain_path, "w", encoding="utf-8") as f:
+                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {"added": added, "total_completed": len(completed)}
 
     def record_sentence_completion(self, chinese: str) -> dict:
         """

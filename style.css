@@ -969,6 +969,38 @@ body {
     margin-top: 4px;
 }
 
+/* Shown on the "sentences writable" tile once at least one corpus sentence
+   is playable -- opens the quick-import checklist. The wobble is a short
+   periodic burst (most of each cycle sits still) rather than a constant
+   idle animation, which was tried elsewhere in this app and found
+   distracting. */
+.sentence-import-btn {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 11px;
+    border: none;
+    border-radius: 999px;
+    background-color: var(--accent-purple);
+    color: white;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+    animation: sentenceImportWobble 4s ease-in-out infinite;
+}
+
+.sentence-import-btn:hover {
+    filter: brightness(1.15);
+}
+
+@keyframes sentenceImportWobble {
+    0%, 85%, 100% { transform: rotate(0deg); }
+    87% { transform: rotate(-8deg); }
+    89% { transform: rotate(8deg); }
+    91% { transform: rotate(-6deg); }
+    93% { transform: rotate(6deg); }
+    96% { transform: rotate(0deg); }
+}
+
 .progress-section { margin-bottom: 26px; }
 
 .progress-title {
@@ -1194,6 +1226,44 @@ body {
     border-radius: 4px;
     padding: 1px 5px;
     vertical-align: middle;
+}
+
+/* --- Quick Sentence Import modal (triggered from the Overview stat tile) --- */
+.import-list-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.import-list-action-btn {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
+
+.import-sentence-list {
+    max-height: 46vh;
+}
+
+.import-sentence-row {
+    grid-template-columns: auto 1fr 1.4fr;
+}
+
+.import-sentence-chinese {
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.import-sentence-english {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.import-sentence-note {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    text-align: center;
 }
 
 /* --- Progress view: Settings tab --- */

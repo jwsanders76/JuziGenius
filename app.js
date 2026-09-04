@@ -286,6 +286,14 @@ function cacheDomElements() {
     elements.onboardingModal = document.getElementById("onboarding-modal");
     elements.onboardingTiersList = document.getElementById("onboarding-tiers");
     elements.onboardingStatus = document.getElementById("onboarding-status");
+
+    elements.sentenceImportModal = document.getElementById("sentence-import-modal");
+    elements.sentenceImportList = document.getElementById("sentence-import-list");
+    elements.sentenceImportNote = document.getElementById("sentence-import-note");
+    elements.sentenceImportSelectAll = document.getElementById("sentence-import-select-all");
+    elements.sentenceImportDeselectAll = document.getElementById("sentence-import-deselect-all");
+    elements.sentenceImportCancel = document.getElementById("sentence-import-cancel");
+    elements.sentenceImportSubmit = document.getElementById("sentence-import-submit");
 }
 
 function initEventListeners() {
@@ -326,6 +334,26 @@ function initEventListeners() {
             if (elements.progressModal) elements.progressModal.style.display = "none";
         });
     }
+
+    if (elements.sentenceImportSelectAll) {
+        elements.sentenceImportSelectAll.addEventListener("click", () => {
+            setSentenceImportCheckboxes(true);
+        });
+    }
+    if (elements.sentenceImportDeselectAll) {
+        elements.sentenceImportDeselectAll.addEventListener("click", () => {
+            setSentenceImportCheckboxes(false);
+        });
+    }
+    if (elements.sentenceImportCancel) {
+        elements.sentenceImportCancel.addEventListener("click", () => {
+            if (elements.sentenceImportModal) elements.sentenceImportModal.style.display = "none";
+        });
+    }
+    if (elements.sentenceImportSubmit) {
+        elements.sentenceImportSubmit.addEventListener("click", handleSentenceImportSubmit);
+    }
+
     elements.progressTabs.forEach(tab => {
         tab.addEventListener("click", () => switchProgressTab(tab.dataset.progressTab));
     });
@@ -2205,10 +2233,11 @@ async function performAccountReset() {
     }
 }
 
-function statTile(value, label, title) {
+function statTile(value, label, title, extraHtml = "") {
     return `<div class="stat-tile" title="${escapeAttr(title)}">
         <div class="stat-value">${value}</div>
         <div class="stat-label">${escapeHtml(label)}</div>
+        ${extraHtml}
     </div>`;
 }
 
@@ -2310,7 +2339,10 @@ function renderProgress(p) {
 
         <div class="stat-row">
             ${statTile(p.unlocked_chars.toLocaleString(), "characters unlocked", "Total characters in your practice pool.")}
-            ${statTile(p.playable_sentences.toLocaleString(), "sentences writable", "Corpus sentences you can currently write every character of.")}
+            ${statTile(p.playable_sentences.toLocaleString(), "sentences writable", "Corpus sentences you can currently write every character of.",
+                p.playable_sentences >= 1
+                    ? `<button type="button" id="sentence-import-open" class="sentence-import-btn" title="Add writable corpus sentences straight to your Sentence Bank">Import</button>`
+                    : "")}
             ${statTile(p.due_count.toLocaleString(), "due today", "Characters scheduled for review right now.")}
             ${statTile((p.new_backlog || 0).toLocaleString(), "waiting", `Unlocked characters queued for later days. New characters are introduced at most ${p.daily_new_limit} per day, most frequent first.`)}
         </div>
@@ -2349,6 +2381,14 @@ function renderProgress(p) {
             </p>
         </section>
     `;
+
+    // Rebound on every render since the button is part of the innerHTML
+    // just replaced above -- any listener attached to a previous render's
+    // button is gone along with that element.
+    const importBtn = document.getElementById("sentence-import-open");
+    if (importBtn) {
+        importBtn.addEventListener("click", openSentenceImportModal);
+    }
 }
 
 /**
@@ -2435,6 +2475,119 @@ function renderProgressSentences(sentences) {
         <p class="progress-note">${sentences.length.toLocaleString()} sentence${sentences.length === 1 ? "" : "s"} learned.</p>
         <div class="sentence-list">${rows}</div>
     `;
+}
+
+/* ==========================================================================
+   Quick Sentence Import (Overview tab's "sentences writable" import button)
+   ==========================================================================
+   A fast path into the Sentence Bank for material the learner can already
+   write in full: rather than hand-writing a batch via "Get Sentences" one
+   sentence at a time, this lists everything currently playable but not yet
+   banked and lets them bulk-add whichever ones they choose in one request.
+   ========================================================================== */
+
+async function openSentenceImportModal() {
+    if (!elements.sentenceImportModal) return;
+    elements.sentenceImportModal.style.display = "flex";
+    elements.sentenceImportList.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
+    if (elements.sentenceImportNote) elements.sentenceImportNote.hidden = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/sentences/importable`);
+        if (!response.ok) throw new Error("Failed to load importable sentences.");
+        const data = await response.json();
+        renderSentenceImportList(data.sentences || [], data.total_available || 0);
+    } catch (err) {
+        console.error(err);
+        elements.sentenceImportList.innerHTML = `<p class="suggestions-empty">Could not load writable sentences.</p>`;
+    }
+}
+
+function renderSentenceImportList(sentences, totalAvailable) {
+    if (!elements.sentenceImportList) return;
+    elements.sentenceImportList.innerHTML = "";
+
+    if (sentences.length === 0) {
+        elements.sentenceImportList.innerHTML = `<p class="suggestions-empty">Every sentence your current pool can write is already in your Sentence Bank.</p>`;
+        if (elements.sentenceImportNote) elements.sentenceImportNote.hidden = true;
+        return;
+    }
+
+    sentences.forEach((item, idx) => {
+        const row = document.createElement("label");
+        row.className = "suggestion-row import-sentence-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "suggestion-checkbox import-sentence-checkbox";
+        checkbox.checked = true;
+        checkbox.dataset.chinese = item.chinese;
+        checkbox.id = `sentence-import-${idx}`;
+
+        const chineseSpan = document.createElement("span");
+        chineseSpan.className = "import-sentence-chinese";
+        chineseSpan.textContent = item.chinese;
+
+        const englishSpan = document.createElement("span");
+        englishSpan.className = "import-sentence-english";
+        englishSpan.textContent = item.english;
+
+        row.append(checkbox, chineseSpan, englishSpan);
+        elements.sentenceImportList.appendChild(row);
+    });
+
+    if (elements.sentenceImportNote) {
+        const remaining = totalAvailable - sentences.length;
+        if (remaining > 0) {
+            elements.sentenceImportNote.textContent =
+                `Showing the ${sentences.length.toLocaleString()} shortest of ${totalAvailable.toLocaleString()} writable sentences. Import these, then reopen to see more.`;
+            elements.sentenceImportNote.hidden = false;
+        } else {
+            elements.sentenceImportNote.hidden = true;
+        }
+    }
+}
+
+function setSentenceImportCheckboxes(checked) {
+    if (!elements.sentenceImportList) return;
+    elements.sentenceImportList.querySelectorAll(".import-sentence-checkbox")
+        .forEach(box => { box.checked = checked; });
+}
+
+async function handleSentenceImportSubmit() {
+    const checked = elements.sentenceImportList
+        ? Array.from(elements.sentenceImportList.querySelectorAll(".import-sentence-checkbox:checked"))
+        : [];
+
+    if (checked.length === 0) {
+        alert("Please select at least one sentence to add.");
+        return;
+    }
+
+    const sentences = checked.map(box => box.dataset.chinese);
+    const originalLabel = elements.sentenceImportSubmit.textContent;
+    elements.sentenceImportSubmit.textContent = "Adding...";
+    elements.sentenceImportSubmit.disabled = true;
+
+    try {
+        const response = await apiPost("/api/sentences/import", { sentences });
+        if (!response.ok) throw new Error("Failed to add selected sentences.");
+        const result = await response.json();
+
+        elements.sentenceImportModal.style.display = "none";
+        alert(`Added ${result.added} sentence(s) to your Sentence Bank.`);
+
+        // Refreshes Overview, Character/Word/Sentence Bank and the reset
+        // summary in one go -- the same load openProgressView already does
+        // on open, reused here since the underlying data just changed.
+        openProgressView();
+    } catch (err) {
+        console.error(err);
+        alert("Something went wrong adding those sentences. Please try again.");
+    } finally {
+        elements.sentenceImportSubmit.textContent = originalLabel;
+        elements.sentenceImportSubmit.disabled = false;
+    }
 }
 
 function escapeHtml(value) {
