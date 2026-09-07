@@ -309,7 +309,7 @@
   },
   "年": {
     "pinyin": "nián",
-    "meaning": "",
+    "meaning": "year",
     "freq": 45,
     "strokes": 6,
     "hsk": 1
@@ -981,7 +981,7 @@
   },
   "并": {
     "pinyin": "bìng",
-    "meaning": "",
+    "meaning": "and; together; moreover; (before a negative) at all",
     "freq": 141,
     "strokes": 6,
     "hsk": 4
@@ -1072,7 +1072,7 @@
   },
   "被": {
     "pinyin": "bèi",
-    "meaning": "",
+    "meaning": "(passive marker) by; quilt",
     "freq": 154,
     "strokes": 10,
     "hsk": 3
@@ -1100,7 +1100,7 @@
   },
   "等": {
     "pinyin": "děng",
-    "meaning": "",
+    "meaning": "to wait; class, rank, grade; et cetera, and so on; equal to",
     "freq": 158,
     "strokes": 12,
     "hsk": 2
@@ -2640,7 +2640,7 @@
   },
   "令": {
     "pinyin": "lìng",
-    "meaning": "",
+    "meaning": "to order, command; to cause, make; (measure word for reams of paper); season",
     "freq": 378,
     "strokes": 5,
     "hsk": 5
@@ -3290,7 +3290,7 @@
   },
   "阿": {
     "pinyin": "ā",
-    "meaning": "",
+    "meaning": "(prefix of familiarity before a name or kinship term); used in transliteration",
     "freq": 471,
     "strokes": 7,
     "hsk": 3
@@ -3738,7 +3738,7 @@
   },
   "责": {
     "pinyin": "zé",
-    "meaning": "",
+    "meaning": "duty, responsibility; to blame, reproach",
     "freq": 535,
     "strokes": 8,
     "hsk": 4
@@ -4123,7 +4123,7 @@
   },
   "苏": {
     "pinyin": "sū",
-    "meaning": "",
+    "meaning": "to revive, come to; (short for Jiangsu or the Soviet Union); surname",
     "freq": 590,
     "strokes": 7,
     "hsk": 6
@@ -4542,7 +4542,7 @@
   },
   "阳": {
     "pinyin": "yáng",
-    "meaning": "",
+    "meaning": "the sun; positive/male principle (yang); open, overt",
     "freq": 650,
     "strokes": 6,
     "hsk": 3
@@ -5072,7 +5072,7 @@
   },
   "您": {
     "pinyin": "nín",
-    "meaning": "",
+    "meaning": "you (polite/formal)",
     "freq": 726,
     "strokes": 11,
     "hsk": 2
@@ -5735,7 +5735,7 @@
   },
   "伯": {
     "pinyin": "bó",
-    "meaning": "",
+    "meaning": "father's elder brother, uncle; term of respect for an older man",
     "freq": 821,
     "strokes": 7,
     "hsk": 6
@@ -6894,7 +6894,7 @@
   },
   "阴": {
     "pinyin": "yīn",
-    "meaning": "",
+    "meaning": "shade, overcast; negative/female principle (yin); hidden, secret",
     "freq": 987,
     "strokes": 6,
     "hsk": 2
@@ -6942,7 +6942,7 @@
   },
   "姑": {
     "pinyin": "gū",
-    "meaning": "",
+    "meaning": "father's sister, aunt; husband's mother; young woman",
     "freq": 994,
     "strokes": 8,
     "hsk": 5
@@ -7410,7 +7410,7 @@
   },
   "姆": {
     "pinyin": "mǔ",
-    "meaning": "",
+    "meaning": "governess, nursemaid (as in 保姆, nanny)",
     "freq": 1061,
     "strokes": 8,
     "hsk": 6
@@ -7437,7 +7437,7 @@
   },
   "趣": {
     "pinyin": "qù",
-    "meaning": "",
+    "meaning": "interest, fun, delight",
     "freq": 1065,
     "strokes": 15,
     "hsk": 3
@@ -7904,7 +7904,7 @@
   },
   "郑": {
     "pinyin": "zhèng",
-    "meaning": "",
+    "meaning": "serious, solemn (as in 郑重); surname; short for Zhengzhou",
     "freq": 1132,
     "strokes": 8,
     "hsk": 6
@@ -8022,7 +8022,7 @@
   },
   "姓": {
     "pinyin": "xìng",
-    "meaning": "",
+    "meaning": "surname, family name",
     "freq": 1149,
     "strokes": 8,
     "hsk": 2
@@ -8387,7 +8387,7 @@
   },
   "距": {
     "pinyin": "jù",
-    "meaning": "",
+    "meaning": "distance; to be apart from",
     "freq": 1202,
     "strokes": 11,
     "hsk": 4
@@ -8915,7 +8915,7 @@
   },
   "奶": {
     "pinyin": "nǎi",
-    "meaning": "",
+    "meaning": "milk; breast; (informal) grandmother",
     "freq": 1278,
     "strokes": 5,
     "hsk": 2
@@ -9915,7 +9915,7 @@
   },
   "叔": {
     "pinyin": "shū",
-    "meaning": "",
+    "meaning": "father's younger brother, uncle",
     "freq": 1422,
     "strokes": 8,
     "hsk": 3
@@ -10276,7 +10276,7 @@
   },
   "尺": {
     "pinyin": "chǐ",
-    "meaning": "",
+    "meaning": "a Chinese unit of length (about 1/3 meter); ruler (for measuring)",
     "freq": 1474,
     "strokes": 4,
     "hsk": 5
@@ -11560,7 +11560,7 @@
   },
   "赤": {
     "pinyin": "chì",
-    "meaning": "",
+    "meaning": "red; bare, naked",
     "freq": 1660,
     "strokes": 7,
     "hsk": 6
@@ -13199,7 +13199,7 @@
   },
   "姿": {
     "pinyin": "zī",
-    "meaning": "",
+    "meaning": "posture, appearance, looks",
     "freq": 1899,
     "strokes": 9,
     "hsk": 5
@@ -13879,7 +13879,7 @@
   },
   "饱": {
     "pinyin": "bǎo",
-    "meaning": "",
+    "meaning": "full, satiated (after eating)",
     "freq": 1998,
     "strokes": 8,
     "hsk": 3
@@ -14830,7 +14830,7 @@
   },
   "吁": {
     "pinyin": "xū",
-    "meaning": "",
+    "meaning": "to sigh (as in 长吁短叹)",
     "freq": 2138,
     "strokes": 6,
     "hsk": 6
@@ -14857,7 +14857,7 @@
   },
   "嫂": {
     "pinyin": "sǎo",
-    "meaning": "",
+    "meaning": "older brother's wife, sister-in-law",
     "freq": 2142,
     "strokes": 12,
     "hsk": 6
@@ -14957,7 +14957,7 @@
   },
   "衷": {
     "pinyin": "zhōng",
-    "meaning": "",
+    "meaning": "inner feelings, heart; middle",
     "freq": 2157,
     "strokes": 10,
     "hsk": 6
@@ -14977,7 +14977,7 @@
   },
   "矩": {
     "pinyin": "jǔ",
-    "meaning": "",
+    "meaning": "carpenter's square; rule, regulation (as in 规矩)",
     "freq": 2160,
     "strokes": 9,
     "hsk": 5
@@ -15833,7 +15833,7 @@
   },
   "姨": {
     "pinyin": "yí",
-    "meaning": "",
+    "meaning": "mother's sister, aunt",
     "freq": 2287,
     "strokes": 9,
     "hsk": 3
@@ -16420,7 +16420,7 @@
   },
   "舅": {
     "pinyin": "jiù",
-    "meaning": "",
+    "meaning": "mother's brother, uncle",
     "freq": 2375,
     "strokes": 13,
     "hsk": 5
@@ -23064,7 +23064,7 @@
   },
   "徙": {
     "pinyin": "xǐ",
-    "meaning": "",
+    "meaning": "to move, migrate, transfer",
     "freq": 3411,
     "strokes": 11,
     "hsk": 6
@@ -25623,7 +25623,7 @@
   },
   "辕": {
     "pinyin": "yuán",
-    "meaning": "",
+    "meaning": "shaft of a cart or carriage",
     "freq": 3831,
     "strokes": 14,
     "hsk": 6
