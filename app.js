@@ -2082,6 +2082,20 @@ async function saveStudyStyles() {
         if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
 
         renderSettings(data);
+        // The batch already sitting in state.sentences was built under the
+        // old styles -- generate_fresh_session only re-reads the account's
+        // study_styles on the next regeneration (page-load bootstrap, or the
+        // current batch wrapping), so without this a learner who just
+        // unchecked "Individual characters" keeps seeing exactly the
+        // character items already loaded until they finish that whole batch.
+        // Reported directly: toggling this off didn't seem to do anything.
+        await refreshSessionBatch();
+        // refreshSessionBatch only updates state -- the practice screen
+        // behind this modal keeps rendering whatever was on it when Settings
+        // was opened until something re-renders it, and closing the modal
+        // doesn't (see progressBtnClose). Without this the learner would
+        // close Settings back into the exact stale item they started from.
+        loadSession();
         showStudyStylesStatus("Saved.");
         // Which styles are enabled decides what counts toward "Due" (see
         // total_due_count), so the badge behind this modal is now stale.
