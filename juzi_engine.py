@@ -2070,7 +2070,7 @@ class JuziEngine:
         return never_graded, remaining
 
     @staticmethod
-    def _fill_batch(candidates: list, count: int, budget: int) -> list:
+    def _fill_batch(candidates: list, count: int, budget: int, reserved: list = None) -> list:
         """
         Takes up to `count` sentences off an already-ranked list, spending at
         most `budget` never-graded characters across the batch as a whole.
@@ -2088,11 +2088,29 @@ class JuziEngine:
         character set, and an empty session teaches nothing at all.
         Overshooting the cap is the lesser harm, and it only happens when
         respecting it would mean serving nothing.
+
+        `reserved`, if given, is filled first, ahead of `candidates`' own
+        ranking -- see pick_hsk_sentences' use of this to guarantee a
+        non-personal sentence a slot. Identity-matched (`id()`) against
+        `candidates` so a reserved item already present there is not also
+        picked a second time by the ranked pass below.
         """
         picked, chosen, spent = [], set(), set()
+        reserved_ids = {id(c) for c in (reserved or [])}
+
+        for cand in (reserved or []):
+            if len(picked) >= count:
+                break
+            new = cand["_new_chars"] - spent
+            picked.append(cand)
+            budget -= len(new)
+            spent |= new
+
         for i, cand in enumerate(candidates):
             if len(picked) >= count:
                 break
+            if id(cand) in reserved_ids:
+                continue
             new = cand["_new_chars"] - spent
             if len(new) <= budget:
                 picked.append(cand)
@@ -2104,7 +2122,7 @@ class JuziEngine:
             for i, cand in enumerate(candidates):
                 if len(picked) >= count:
                     break
-                if i not in chosen:
+                if i not in chosen and id(cand) not in reserved_ids:
                     picked.append(cand)
         return picked
 
@@ -2527,7 +2545,27 @@ class JuziEngine:
         candidates.sort(
             key=lambda c: (c["_personal"], c["_fits"], c["_fresh"], c["_due_ratio"]),
             reverse=True)
-        return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
+
+        # Personal sentences are ranked first deliberately (see this
+        # function's docstring), but that ranking is absolute, not a nudge:
+        # a learner with as many pasted sentences as the batch has slots gets
+        # nothing else, forever -- every corpus sentence they've completed
+        # or newly could, permanently unreachable, no matter how many times
+        # the session regenerates. Reported directly: a user with exactly
+        # two pasted sentences and a two-slot sentence batch never once saw
+        # a different sentence across dozens of regenerations. Reserving one
+        # slot for the best-ranked non-personal candidate closes that off
+        # while leaving personal sentences the rest of the batch -- still a
+        # priority, just not an absolute one. Only kicks in at count > 1 so a
+        # one-slot batch doesn't flip the priority the other way.
+        reserved = []
+        if count > 1:
+            non_personal = [c for c in candidates if not c["_personal"]]
+            if non_personal:
+                reserved = self._fill_batch(non_personal, 1, budget)
+
+        return self._strip_ranking_keys(
+            self._fill_batch(candidates, count, budget, reserved=reserved))
 
     def generate_fresh_session(self, count: int = 5, styles: set = None,
                                 allow_character_fallback: bool = None,
