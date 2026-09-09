@@ -23,6 +23,22 @@ uncommon 乾 reading might render as 干's more common 幹). Good enough for
 "write this character correctly," which is what stroke practice tests; not a
 claim of publishing-grade Traditional Chinese conversion.
 
+WHY A STANDARD-GLYPH CORRECTION PASS
+-------------------------------------
+STCharacters.txt's first candidate is sometimes a rare historical/Kangxi
+variant rather than the glyph actually printed in Taiwan or Hong Kong
+Traditional text -- e.g. simplified 为 maps to 爲, not the far more common 為.
+Both are legitimate "traditional Chinese," but a learner studying Traditional
+script expects the one that's actually in use, and stroke practice made it
+worse: the vendored stroke set (fetch_stroke_data.py, from hanzi-writer-data)
+doesn't cover these rare variants at all, so writing practice hit a dead "no
+stroke data for this character" error for them (found via a user report).
+OpenCC ships exactly the correction table this needs -- TWVariants.txt and
+HKVariants.txt map a variant glyph to its Taiwan/Hong-Kong standard form -- so
+after building the base mapping, any value with an entry in either table is
+replaced by it (TW checked first, then HK). This is still a one-time build
+step, not a runtime dependency; see the module docstring above.
+
 WHAT IT WRITES
 --------------
 char_script_map.json, tracked: {simplified_char: traditional_char}, one entry
@@ -42,6 +58,8 @@ PYPI_JSON = "https://pypi.org/pypi/opencc-python-reimplemented/json"
 OUTPUT = "char_script_map.json"
 LICENSE_OUTPUT = "opencc_source.LICENSE.txt"
 SOURCE_FILE = "opencc/dictionary/STCharacters.txt"
+TW_VARIANTS_FILE = "opencc/dictionary/TWVariants.txt"
+HK_VARIANTS_FILE = "opencc/dictionary/HKVariants.txt"
 
 
 def fetch_wheel():
@@ -77,13 +95,40 @@ def parse_st_characters(raw: bytes) -> dict:
     return mapping
 
 
+def parse_variants(raw: bytes) -> dict:
+    """
+    A variant-glyph file is the same tab-separated shape: `variant<TAB>
+    standard candidate(s)`. Only the first (best) candidate is kept, same as
+    parse_st_characters.
+    """
+    variants = {}
+    for line in raw.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        variant, _, standards = line.partition("\t")
+        if not variant or not standards:
+            continue
+        variants[variant] = standards.split(" ", 1)[0]
+    return variants
+
+
 def main():
     wheel_bytes, version, license_name, home_page = fetch_wheel()
     with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as zf:
         raw = zf.read(SOURCE_FILE)
+        tw_variants = parse_variants(zf.read(TW_VARIANTS_FILE))
+        hk_variants = parse_variants(zf.read(HK_VARIANTS_FILE))
 
     mapping = parse_st_characters(raw)
     print(f"  {len(mapping)} characters differ between scripts")
+
+    corrected = 0
+    for simp, trad in mapping.items():
+        standard = tw_variants.get(trad) or hk_variants.get(trad)
+        if standard:
+            mapping[simp] = standard
+            corrected += 1
+    print(f"  {corrected} corrected from a rare variant to the TW/HK standard glyph")
 
     with open(OUTPUT, "w", encoding="utf-8") as f:
         json.dump(mapping, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
