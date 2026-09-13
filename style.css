@@ -1511,3 +1511,26 @@ body {
     }
     .cov-row { grid-template-columns: 62px 1fr 92px; }
 }
+
+/* #workspace-main lays the action sidebar and the writing canvas out in a
+   row with no wrap: at the old fixed sizes (90px sidebar + 16px gap + 240px
+   canvas = 346px) that needs 394px of viewport width just to clear
+   #app-container's own 48px of horizontal padding, which most phones in
+   portrait don't have (390px/393px/375px are all common widths) -- and
+   body's overflow-x: hidden (relied on elsewhere to keep an accidental
+   horizontal scrollbar from ever appearing) clips whatever doesn't fit
+   rather than making it reachable. Reported directly: the Listen/Hint/Skip
+   buttons sometimes missing entirely on a phone -- they were never gone,
+   just pushed past the clipped edge. setupCurrentCharacterWriter reads the
+   canvas's actual size from the DOM rather than a hardcoded value, so
+   shrinking it here is enough on its own to keep Hanzi Writer in sync. */
+@media (max-width: 480px) {
+    #workspace-main { gap: 10px; }
+    #action-sidebar { width: 72px; }
+    #tian-zi-ge { width: 180px; height: 180px; }
+
+    .action-btn {
+        padding: 10px 4px;
+        font-size: 0.8rem;
+    }
+}

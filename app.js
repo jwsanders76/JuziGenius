@@ -824,9 +824,15 @@ function setupCurrentCharacterWriter() {
     // if they've been superseded.
     const token = ++state.writerToken;
 
+    // Read from the container rather than hardcoded, so the canvas actually
+    // shrinks to match #tian-zi-ge's own CSS sizing on a narrow phone
+    // (see the max-width: 480px rule) instead of staying 240x240 and
+    // clipping inside a smaller box -- found while fixing a report of the
+    // sidebar's Listen/Hint/Skip buttons being pushed off-screen on phones,
+    // since #tian-zi-ge's old fixed 240px left no room for them beside it.
     state.writer = HanziWriter.create('tian-zi-ge', targetChar, {
-        width: 240,
-        height: 240,
+        width: container.clientWidth,
+        height: container.clientHeight,
         padding: 10,
         showCharacter: false,
         showOutline: false,
