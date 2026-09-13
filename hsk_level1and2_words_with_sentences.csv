@@ -27,9 +27,9 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 要	want; need	yào	我 要 吃 水果	wǒ yào chī shuǐguǒ	I want to eat fruit.
 有	to have	yǒu	我 有 水果	wǒ yǒu shuǐguǒ	I have fruits.
 一些	some	xiē	他 有 一些 苹果	tā yǒu yīxiē píngguǒ	He has some apples.
-杯	(counter for bottles)	bēi	我 有 一 杯 水	wǒ yǒu yībēi shuǐ	I have one bottle of water.
-一	one	yī	我 有 一 杯 水	wǒ yǒu yībēi shuǐ	I have one bottle of water.
-两	two	liǎng	她 有 两 杯 茶	tā yǒu liǎng bēi chá	She has two bottles of tea.
+杯	(counter for cups)	bēi	我 有 一 杯 水	wǒ yǒu yībēi shuǐ	I have one cup of water.
+一	one	yī	我 有 一 杯 水	wǒ yǒu yībēi shuǐ	I have one cup of water.
+两	two	liǎng	她 有 两 杯 茶	tā yǒu liǎng bēi chá	She has two cups of tea.
 爱	to love	ài	我 爱 我 的 妈妈	wǒ ài wǒ de māmā	I love my mother.
 妈妈	mama	mā ma	我 爱 我 的 妈妈	wǒ ài wǒ de māmā	I love my mother.
 个	(object marker)	gè	我 有 两 个 哥哥	wǒ yǒu liǎng gè gēgē	I have two older brothers.
@@ -37,7 +37,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 孩子	child	hái zi	你 有 孩子 吗	nǐ yǒu háizi ma	Do you have children?
 姐姐	older sister	jiě jie	我 有 一 个 姐姐	wǒ yǒu yīgè jiějiě	I have one older sister 
 家	home	jiā	这 是 我 的 家	zhè shì wǒ de jiā	This is my house.
-人	man	rén	我 家 有 两 个 人	wǒ jiā yǒu liǎng gè rén	There are two people in my house./There are two people in my family.
+人	person	rén	我 家 有 两 个 人	wǒ jiā yǒu liǎng gè rén	There are two people in my house./There are two people in my family.
 几	how much	jǐ	你 的 家 有 几 个 人	nǐ de jiā yǒu jǐ gèrén	how many people do you have in your house?
 女儿	daughter	nǚ ér	我 女儿 有 两 个 孩子	wǒ nǚ'ér yǒu liǎng gè háizi	my daughter has two children
 我们	we	wǒ men	我们 是 他 的 孩子	wǒmen shì tā de háizǐ	We are his children.
@@ -52,19 +52,19 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 高	high	gāo	我 的 爸爸 很 高	Wǒ de bàba hěn gāo	My father is very tall.
 妹妹	younger sister	mèi mei	我 妹妹 想 喝茶	wǒ mèimei xiǎng hē chá	My little sister wants to drink tea.
 长	grow	zhǎng	我 弟弟 想 长 高	wǒ dìdì xiǎng zhǎng gāo	my younger brother wants to grow taller.
-钱	coin	qián	你 有 钱 吗	Nǐ yǒu qián ma	Do you have any money?
+钱	money	qián	你 有 钱 吗	Nǐ yǒu qián ma	Do you have any money?
 没	without	méi	我 没有 钱	wǒ méiyǒu qián	I don't have money.
 块	piece; (counter for money)	kuài	这 个 苹果 是 三 块 钱	zhège píngguǒ shì sān kuài qián	This apple is three yuan
 四	four	sì	这个 水果 四 元	zhège shuǐguǒ sì yuán	This fruit is four yuan.
-五	five	wǔ	这 杯 水 是 五 块	zhè bēi shuǐ shì wǔ kuài	This bottle of water is five yuan.
-多少	how much	duō shao	这 杯 水 多少 钱	zhè bēi shuǐ duōshǎo qián	How much money is this bottle of water?
-那	that	nà	那 杯 水 多少 钱	nà bēi shuǐ duōshǎo qián	How much money is that bottle of water.
-六	six	liù	那 两 杯 水 是 六 块	nà liǎng bēi shuǐ shì liù kuài	Those two bottles of water are six yuan.
-七	seven	qī	这 杯 茶 是 七 块	zhè bēi chá shì qī kuài	This bottle of tea is seven yuan.
-八	eight	bā	这 两 个 苹果 八 块 钱	zhè liǎng gè píngguǒ bā kuài qián	These two apples are eight yaun.
+五	five	wǔ	这 杯 水 是 五 块	zhè bēi shuǐ shì wǔ kuài	This cup of water is five yuan.
+多少	how much	duō shao	这 杯 水 多少 钱	zhè bēi shuǐ duōshǎo qián	How much money is this cup of water?
+那	that	nà	那 杯 水 多少 钱	nà bēi shuǐ duōshǎo qián	How much money is that cup of water?
+六	six	liù	那 两 杯 水 是 六 块	nà liǎng bēi shuǐ shì liù kuài	Those two cups of water are six yuan.
+七	seven	qī	这 杯 茶 是 七 块	zhè bēi chá shì qī kuài	This cup of tea is seven yuan.
+八	eight	bā	这 两 个 苹果 八 块 钱	zhè liǎng gè píngguǒ bā kuài qián	These two apples are eight yuan.
 九	nine	jiǔ	他 有 九 杯 水	tā yǒu jiǔ bēi shuǐ	He has nine cups of water.
 十	ten	shí	这 九 杯 茶 十五 块 钱	zhè jiǔ bēi chá shíwǔ kuài qián	These nine cups of tea are fifteen yuan.
-二	two	èr	这 八 个 苹果 是 二十 九 快	zhè bā gè píngguǒ shì èrshíjiǔ kuài	these eight apples are twenty nine yuan
+二	two	èr	这 八 个 苹果 是 二十 九 块	zhè bā gè píngguǒ shì èrshíjiǔ kuài	these eight apples are twenty nine yuan
 了	(past particle)	le	我 喝了 两 杯 水	wǒ hēle liǎng bēi shuǐ	I drank two cups of water.
 少	less	shǎo	我 少了 二十 块 钱	wǒ shǎole èrshí kuài qián	I'm twenty yuan short.
 东西	thing	dōng xi	这 是 什么 东西	zhè shì shénme dōngxī	What is this thing?
@@ -72,14 +72,14 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 哪里	where	nǎlǐ	你 在 哪里？	nǐ zài nǎlǐ?	Where are you?
 去	to go	qù	你 要 去 哪里	Nǐ yào qù nǎlǐ	Where are you going?
 商店	store	shāng diàn	我 去 商店	wǒ qù shāngdiàn	I'm going to the store.
-买	to buy	mǎi	我 要 去 商店 买 一些 东​​西	wǒ yào qù shāngdiàn mǎi yīxiē dōng​​xī	I'm going to the store to buy some things.
+买	to buy	mǎi	我 要 去 商店 买 一些 东西	wǒ yào qù shāngdiàn mǎi yīxiē dōngxī	I'm going to the store to buy some things.
 贵	expensive	guì	这 很 贵	zhè hěn guì	This is very expensive.
 都	all	dōu	这 家 商店 的 东西 都 很贵	zhè jiā shāngdiàn de dōngxī dōu hěn guì	Everything in this store is expensive.
 哪	which	nǎ	你 想 买 哪个 水果	nǐ xiǎng mǎi nǎge shuǐguǒ	which fruit do you want to buy?
 手机	cell phone	shǒu jī	你 有 手机 吗	nǐ yǒu shǒujī ma	Do you have a cellphone?
 元	yuan	yuán	我 有 九十八 元	wǒ yǒu jiǔshíbā yuán	I have ninety eight yuan.
 千	thousand	qiān	这 个 手机 五 千 元	zhè gè shǒujī wǔqiān yuán	This phone costs five thousand yuan.
-百	hundred	bǎi	我 有 五百 元	Wǒ yǒu wǔbǎi yuán	I have one five hundred yuan.
+百	hundred	bǎi	我 有 五百 元	Wǒ yǒu wǔbǎi yuán	I have five hundred yuan.
 零	zero	líng	这个 手机 五千零一 元	zhège shǒujī wǔqiān líng yī yuán	This phone costs 5,001 yuan.
 卖	to sell	mài	他 卖 水果	tā mài shuǐguǒ	He sells fruit.
 新	new	xīn	我 今天 买了 新 手机	wǒ jīntiān mǎile xīn shǒujī	I bought a new phone today.
@@ -98,7 +98,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 生日	birthday	shēng rì	明天 是 我 的 生日	míngtiān shì wǒ de shēngrì	Tomorrow is my birthday.
 快乐	happy	kuài lè	生日快乐 ！	shēngrì kuàilè!	happy birthday!
 每	each	měi	每年 我 长 高	měi nián wǒ zhǎng gāo	every year I grow taller
-点	o'ckock	diǎn	我 三 点 要 去 商店	wǒ sān diǎn yào qù shāngdiàn	I'm going to the store at three o clock.
+点	o'clock	diǎn	我 三 点 要 去 商店	wǒ sān diǎn yào qù shāngdiàn	I'm going to the store at three o clock.
 起床	to get out of bed	qǐ chuáng	你每天几点起床	nǐ měitiān jǐ diǎn qǐchuáng	What time do you wake up every day?
 早上	morning	zǎo shang	我 每天 早上 八 点 起床	wǒ měitiān zǎoshang bā diǎn qǐchuáng	I wake up at eight o'clock in the morning every day.
 后	after	hòu	起床 后 我 喝 了 一杯 水	qǐchuáng hòu wǒ hēle yībēi shuǐ	I drank a cup of water after waking up.
@@ -106,7 +106,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 小时	hour	xiǎo shí	我 起床 一 小时 后 吃 早饭	Wǒ qǐchuáng yī xiǎoshí hòu chī zǎofàn	I eat breakfast one hour after waking up.
 时间	time	shí jiān	你 有 时间 去 商店 吗	nǐ yǒu shíjiān qù shāngdiàn ma	Do you have time to go to the store?
 分钟	minute	fēn zhōng	三十 分钟 后 我 有 时间 去 商店	sānshí fēnzhōng hòu wǒ yǒu shíjiān qù shāngdiàn	I will have time to go to the store in thirty minutes.
-上午	a.m.	shàng wǔ	我 今天 上午 十 点 三十 分 吃 了 早饭	wǒ jīntiān shàngwǔ shí diǎn sānshí fēn chīle zǎofàn	I ate breakfast at ten thirty a.m. today。
+上午	a.m.	shàng wǔ	我 今天 上午 十 点 三十 分 吃 了 早饭	wǒ jīntiān shàngwǔ shí diǎn sānshí fēn chīle zǎofàn	I ate breakfast at ten thirty a.m. today.
 现在	now	xiàn zài	我 现在 没 时间 去 商店	wǒ xiànzài méi shíjiān qù shāngdiàn	I don't have time to go to the store now.
 中午	noon	zhōng wǔ	中午 我 有时 间 去 商店 买 午饭	zhōngwǔ wǒ yǒu shíjiān qù shāngdiàn mǎi wǔfàn	I will have time to go to the store at noon to buy lunch
 睡觉	to go to bed	shuì jiào	你 每天 几点 睡觉	nǐ měitiān jǐ diǎn shuìjiào	What time do you go to sleep every day?
@@ -134,7 +134,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 椅子	chair	yǐ zi	椅子 在 桌子 旁边	yǐzǐ zài zhuōzǐ pángbiān	The chair is next to the table.
 张	(counter for tables); to open up	zhāng	我 的 房间 里 有 一张 桌子	wǒ de fángjiān li yǒu yīzhāng zhuōzǐ	I have a table in my room.
 长	long	zhǎng	这 张 桌子 很 长	zhè zhāng zhuōzǐ hěn zhǎng	This table is very long.
-坐	to sit	zuò	他 坐 在 椅子 上	tā zuò zài yǐzǐ shàng	He is sitting on the cair.
+坐	to sit	zuò	他 坐 在 椅子 上	tā zuò zài yǐzǐ shàng	He is sitting on the chair.
 电脑	computer	diàn nǎo	我 的 电脑 在 我 房间 的 桌子 上	wǒ de diànnǎo zài wǒ fángjiān de zhuōzǐ shàng	My computer is in my room on the desk.
 电视	television	diàn shì	你 喜欢 看 电视 吗	nǐ xǐhuān kàn diànshì ma	Do you like watching TV?
 电影	movie	diàn yǐng	我 喜欢 看 电影	wǒ xǐhuān kàn diànyǐng	I like watching movies.
@@ -170,16 +170,16 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 羊肉	mutton	yáng ròu	他 不 喜欢 吃 羊肉	tā bù xǐhuān chī yángròu	He doesn't like to eat mutton.
 鱼	fish	yú	我 喜欢 吃 鱼	wǒ xǐhuān chī yú	I like to eat fish.
 也	also	yě	我 也 喜欢 吃 鱼	wǒ yě xǐhuān chī yú	I also like to eat fish.
-肉	meat	ròu	他 喜欢 吃 什么 肉	tā xǐhuān chī shénme ròu?	What kind of meat does he likes to eat?
+肉	meat	ròu	他 喜欢 吃 什么 肉	tā xǐhuān chī shénme ròu?	What kind of meat does he like to eat?
 说	to speak	shuō	你 说 什么	nǐ shuō shénme	What did you say?
-汉语	Chinese language	hàn yǔ	我 会 说 汉语	wǒ huì shuō hànyǔ	I can speak chinese.
+汉语	Chinese language	hàn yǔ	我 会 说 汉语	wǒ huì shuō hànyǔ	I can speak Chinese.
 学习	to learn	xué xí	我 正在 学习 汉语	wǒ zhèngzài xuéxí hànyǔ	I'm currently learning Chinese.
 懂	to understand	dǒng	我 不 懂 汉语	wǒ bù dǒng hànyǔ	I don't understand Chinese.
 本	(counter for books)	běn	我 不 懂 这 本 书	wǒ bù dǒng zhè běn shū	I don't understand this book.
 书	book	shū	我 不 懂 这 本 书	wǒ bù dǒng zhè běn shū	I don't understand this book.
 读	to read	dú	我 读了 那 本 书	wǒ dúle nà běn shū	I read that book.
 但是	but	dàn shì	我 会 说 ， 但是 不会 读 汉语	wǒ huì shuō, dànshì bù huì dú hànyǔ	I can speak, but can’t read Chinese.
-第一	first	dì yī	这 是 我 的 第一 本 汉语 书	zhè shì wǒ de dì yī běn hànyǔ shū	This is my first chinese book
+第一	first	dì yī	这 是 我 的 第一 本 汉语 书	zhè shì wǒ de dì yī běn hànyǔ shū	This is my first Chinese book
 呢	how about	ne	我 会 读 汉语，你 呢 ?	wǒ huì dú hànyǔ, nǐ ne?	I can read Chinese, how about you?
 写	to write	xiě	我 会 写 汉语	wǒ huì xiě hànyǔ	I can write Chinese.
 字	letter; character	zì	你 会 写 这个 字 吗？	nǐ huì xiě zhège zì ma?	Can you write this character?
@@ -209,7 +209,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 冷	cold	lěng	我 很 冷	wǒ hěn lěng	I am cold.
 天气	weather	tiān qì	今天 天气 很 冷	jīntiān tiānqì hěn lěng	The weather is very cold today.
 热	hot	rè	今天 天气 很 热	jīntiān tiānqì hěn rè	The weather is very hot today.
-非常	unusual	fēi cháng	今天 天气 非常 冷	jīntiān tiānqì fēicháng lěng	The weather is extreamly cold today.
+非常	very; extremely	fēi cháng	今天 天气 非常 冷	jīntiān tiānqì fēicháng lěng	The weather is extremely cold today.
 雪	snow	xuě	下 雪 了	xià xuě le	It is snowing.
 时候	time	shí hou	下雪 的 时候 我们 不 上课	Xià xuě de shíhòu wǒmen bù shàngkè	When it snows we don't have class.
 下雨	to rain	xià yǔ	今天 下雨 了。	jīntiān xiàyǔ le.	It's raining today.
@@ -238,10 +238,10 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 衣服	clothes	yī fu	我 正在 买 衣服	wǒ zhèngzài mǎi yīfú	I'm buying clothing.
 穿	wear	chuān	你 今天 穿了 什么	nǐ jīntiān chuānle shénme	What are you wearing today?
 件	item; (counter for clothing)	jiàn	这 件 衣服 是 新 的	zhè jiàn yīfú shì xīn de	This clothing is new.
-颜色	color	yán sè	那 件 衣服 是 什么 颜色 的	nà jiàn yīfú shì shénme yánsè de	What color is that peice of clothing?
+颜色	color	yán sè	那 件 衣服 是 什么 颜色 的	nà jiàn yīfú shì shénme yánsè de	What color is that piece of clothing?
 着	(aspect particle indicating action in progress)	zhe	他 穿着 新 衣服	tā chuānzhe xīn yīfú	He is wearing new clothes.
-红	red	hóng	他 穿着 一 件 红色 的 衣服	tā chuānzhe yī jiàn hóngsè de yīfu	he is wearing red clotihng
-漂亮	pretty	piào liang	我 觉得 这个 小姐 穿 红 衣服 很 漂亮	wǒ juédé zhège xiǎojiě chuān hóng yīfú hěn piàoliang	I think this lady looks beautiful in red dress
+红	red	hóng	他 穿着 一 件 红色 的 衣服	tā chuānzhe yī jiàn hóngsè de yīfu	he is wearing red clothing
+漂亮	pretty	piào liang	我 觉得 这个 小姐 穿 红 衣服 很 漂亮	wǒ juédé zhège xiǎojiě chuān hóng yīfú hěn piàoliang	I think this lady looks beautiful in a red dress
 漂亮	pretty	piào liang	她 的 衣服 很 漂亮	tā de yīfu hěn piàoliang.	Her clothes are very pretty.
 小姐	young lady	xiǎo jie	那 个 小姐 很 漂亮	nà gè xiǎojiě hěn piàoliang.	That young lady is very pretty.
 觉得	to think	jué de	我 觉得 这 件 衣服 很 漂亮	wǒ juéde zhè jiàn yīfu hěn piàoliang.	I think this clothing is very pretty.
@@ -251,7 +251,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 眼睛	eye	yǎn jing	她 的 眼睛 很 漂亮	tā de yǎnjīng hěn piàoliang	Her eyes are very beautiful.
 黑	black	hēi	我 喜欢 黑色 的 衣服	wǒ xǐhuān hēisè de yīfú	I like black clothes.
 手表	wrist watch	shǒu biǎo	他 有 一 个 黑色 的 手表	tā yǒu yīgè hēisè de shǒubiǎo	He has a black watch.
-洗	to wash	xǐ	我 现在 正在 洗衣 服	wǒ xiànzài zhèngzài xǐ yīfú	I'm currently in middle of washing my clothes.
+洗	to wash	xǐ	我 现在 正在 洗衣 服	wǒ xiànzài zhèngzài xǐ yīfú	I'm currently in the middle of washing my clothes.
 医生	doctor	yī shēng	他 是 个 医生	tā shì gè yīshēng	He is a doctor.
 看	to see	kàn	你 要 去 看 医生 	nǐ yào qù kàn yīshēng	You need to see a doctor.
 打电话	to make a phone call	dǎ diàn huà	你 要 打电话 给 医生	nǐ yào dǎ diànhuà gěi yīshēng	You need to call a doctor.
@@ -268,7 +268,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 工作	to work	gōng zuò	我 现在 在 公司 工作	wǒ xiànzài zài gōngsī gōngzuò	I'm working at the company right now.
 做	to do	zuò	你 做 什么 工作	nǐ zuò shénme gōngzuò	what's your job?
 为	for	wèi	我 已经 为 公司 工作 十年 了	Wǒ yǐjīng wèi gōngsī gōngzuò shí niánle	I have been working for the company for ten years.
-中国	China	Zhōng guó	我 在 中国 公司 工作	wǒ zài zhōngguó gōngsī gōngzuò	I work for chinese company.
+中国	China	Zhōng guó	我 在 中国 公司 工作	wǒ zài zhōngguó gōngsī gōngzuò	I work for a Chinese company.
 对不起	sorry	duì bu qǐ	对不起，我 不 懂	duìbuqǐ, wǒ bù dǒng.	Sorry, I don't understand.
 因为	because	yīn wèi	对不起，我今天没来上班，因为要去医院。	Duìbùqǐ, wǒ jīntiān méi lái shàngbān, yīnwèi yào qù yīyuàn.	I'm sorry, I didn't come to work today because I had to go to the hospital.
 没关系	it doesn't matter	méi guān xi	还有 人 没 来 ， 但是 没关系 ， 我们 可以 开始	hái yǒurén méi lái, dànshì méiguānxì, wǒmen kěyǐ kāishǐ	There are still people who haven't come, but it doesn't matter, we can start.
@@ -276,7 +276,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 请	to ask	qǐng	请 明天 六 点 来 上班	qǐng míngtiān liù diǎn lái shàngbān	Please come to work at six tomorrow.
 说话	to speak	shuō huà	请 让 我 说话	qǐng ràng wǒ shuōhuà	Please let me speak.
 事情	affair	shì qing	我 现在 很 忙 ， 有 很多 事情 要 做	wǒ xiànzài hěn máng, yǒu hěnduō shìqíng yào zuò	I am very busy now, there are a lot of things to do.
-左边	left	zuǒ bian	商店 在 学校 的 左边	shāngdiàn zài xuéxiào de zuǒbiān	The store is the the left of the school.
+左边	left	zuǒ bian	商店 在 学校 的 左边	shāngdiàn zài xuéxiào de zuǒbiān	The store is to the left of the school.
 前面	ahead	qián miàn	前面 有 一个 学校	qiánmiàn yǒu yīgè xuéxiào	There is a school ahead.
 门	door; gate	mén	我 就 在 门 前面	wǒ jiù zài mén qiánmiàn	I'm right in front of the door.
 怎么	how	zěn me	怎么 去 商店？	zěnme qù shāngdiàn?	How do I get to the store?
@@ -286,7 +286,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 离	from	lí	我 家 离 学校 很 远	wǒjiā lí xuéxiào hěn yuǎn	My house is very far from the school.
 近	near	jìn	我 家 离 商店 很 近	wǒjiā lí shāngdiàn hěn jìn	My house is very close to the store.
 路	road	lù	前面 的 路 还 很 长	qiánmiàn de lù hái hěn zhǎng.	The road ahead is still very long/There is still a long way to go.
-问	to ask	wèn	请问，最 近 的 商店 在 哪里	qǐngwèn, zuì jìn de shāngdiàn zài nǎlǐ	Excuse me, where is the nearest store?.
+问	to ask	wèn	请问，最 近 的 商店 在 哪里	qǐngwèn, zuì jìn de shāngdiàn zài nǎlǐ	Excuse me, where is the nearest store?
 走	to walk	zǒu	弟弟 每天 走 去 学校	dìdì měitiān zǒu qù xuéxiào	My little brother walks to school every day.
 向	towards	xiàng	请 向 前面 走	qǐng xiàng qiánmiàn zǒu	Please walk forward.
 右边	right	yòu bian	商店 在 我 的 右边	shāngdiàn zài wǒ de yòubiān	The store is to my right.
@@ -308,6 +308,6 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 跳舞	to dance	tiào wǔ	你 能 跳舞 吗 ？	nǐ néng tiàowǔ ma	can you dance?
 点	a bit; point	diǎn	请 走 快 一点	qǐng zǒu kuài yīdiǎn	Please walk a bit faster.
 慢	slow	màn	你 走 得 太 快 了 。   请 走 慢 一点 。 	nǐ zǒu dé tài kuàile. qǐng zǒu màn yīdiǎn	you're going too fast. please walk a bit slower.
-跑步	runing	pǎo bù	  他 每天 早上 都 去 跑步	tā měitiān zǎoshang dōu qù pǎobù	 He goes running every morning.
+跑步	running	pǎo bù	  他 每天 早上 都 去 跑步	tā měitiān zǎoshang dōu qù pǎobù	 He goes running every morning.
 运动	exercise	yùn dòng	我 每天 都 做 运动。	wǒ měitiān dū zuò yùndòng	I exercise every day.
 休息	rest	xiū xi	他 运动 一 个 小时 后 休息 了	tā yùndòng yīgè xiǎoshí hòu xiūxíle.	he rested after exercising for an hour

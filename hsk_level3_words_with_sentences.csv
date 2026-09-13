@@ -1,6 +1,6 @@
 word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 才	only	cái	弟弟 才 十 岁 就 这么 高	dìdì cái shí suì jiù zhème gāo	My little brother is so tall at only ten years old.
-爷爷	grandgather	yé ye	我 的 爷爷 八十 岁 了	wǒ de yéyé bāshí suìle	My grandfather is eighty years old.
+爷爷	grandfather	yé ye	我 的 爷爷 八十 岁 了	wǒ de yéyé bāshí suìle	My grandfather is eighty years old.
 奶奶	grandma	nǎi nai	我 奶奶 七十八 岁了	wǒ nǎinai qīshíbā suìle	My grandmother is seventy eight years old.
 跟	with	gēn	我 跟 我 的 爷爷 和 奶奶 住 在一起	wǒ gēn wǒ de yéyé hé nǎinai zhù zài yīqǐ	I live together with my grandfather and grandmother.
 年轻	young	nián qīng	他 的 儿子 还 年轻	tā de érzǐ huán niánqīng	His son is still young.
@@ -33,7 +33,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 只	only	zhǐ	我 只 喝 水	wǒ zhǐ hē shuǐ	I only drink water.
 有名	famous	yǒu míng	那 家 餐馆 在 这个 城市 很 有名	nà jiā cānguǎn zài zhège chéngshì hěn yǒumíng	That restaurant is very famous in this city.
 冰箱	refrigerator	bīng xiāng	冰箱 里 有 果汁 和 牛奶	bīngxiāng li yǒu guǒzhī hé niúnǎi	There is juice and milk in the fridge.
-把	(active indicator particle)	bǎ	我 把 水果 放進 冰箱	wǒ bǎ shuǐguǒ fàngjìn bīngxiāng	I put the fruits in the fridge.
+把	(active indicator particle)	bǎ	我 把 水果 放进 冰箱	wǒ bǎ shuǐguǒ fàngjìn bīngxiāng	I put the fruits in the fridge.
 放	place	fàng	请 把 水果 放 回 冰箱 里	qǐng bǎ shuǐguǒ fàng huí bīngxiāng lǐ	Please put the fruits back in the fridge.
 被	by	bèi	牛奶 被 我 放进 了 冰箱	niúnǎi bèi wǒ fàng jìn le bīngxiāng	The milk was put into the fridge by me.
 厨房	kitchen	chú fáng	妈妈 在 厨房	māmā zài chúfáng	Mom is in the kitchen.
@@ -42,7 +42,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 离开	to depart	lí kāi	请 离开 厨房 时 关 灯	qǐng líkāi chúfáng shí guān dēng	Please turn off the light when you leave the kitchen.
 打扫	to clean	dǎ sǎo	我 今天 要 打扫 我 的 房间	wǒ jīntiān yào dǎsǎo wǒ de fángjiān	I need to clean my room today.
 干净	clean	gān jìng	这个 房间 非常 干净	zhège fángjiān fēicháng gānjìng	This room is very clean.
-哪儿	where	nà'er	你 的 房间 在 哪儿	nǐ de fángjiān zài nǎ'er	Where is your room?
+哪儿	where	nǎ'er	你 的 房间 在 哪儿	nǐ de fángjiān zài nǎ'er	Where is your room?
 洗手间	toilet	xǐ shǒu jiān	你 的 洗手间 在 哪儿	nǐ de xǐshǒujiān zài nǎ'er	Where is your bathroom?
 重要	important	zhòng yào	打扫 房间 很 重要	dǎsǎo fángjiān hěn zhòngyào	It's important to clean your room.
 洗澡	to bathe	xǐ zǎo	我 每天 早上 和 晚上 洗澡	wǒ měitiān zǎoshang hé wǎnshàng xǐzǎo	I bathe every day in the morning and evening.
@@ -209,7 +209,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 带	bring	dài	我 带 了 一些 水果 去 旅行	wǒ dài le yīxiē shuǐguǒ qù lǚxíng	I brought some fruits for the trip.
 借	to lend	jiè	我 把 铅笔 借 给 他 了	wǒ bǎ qiānbǐ jiè gěi tā le	I lent him the pencil.
 愿意	willing	yuàn yì	你 愿意 借 我 这 本 书 吗	nǐ yuànyì jiè wǒ zhè běn shū ma	Are you willing to lend me this book?
-一会儿	a while	yī huì r	我 需要 离开 一会儿 的时候，你 能 帮 我 看 一下 我 的 狗 吗	wǒ xūyào líkāi yīhuǐ'er de shíhòu, nǐ néng bāng wǒ kàn yīxià wǒ de gǒu ma	Can you watch my dog ​​when I need to be away for a while?
+一会儿	a while	yī huì r	我 需要 离开 一会儿 的时候，你 能 帮 我 看 一下 我 的 狗 吗	wǒ xūyào líkāi yīhuǐ'er de shíhòu, nǐ néng bāng wǒ kàn yīxià wǒ de gǒu ma	Can you watch my dog when I need to be away for a while?
 字典	dictionary	zì diǎn	你 有 可以 借 给 我 用 的 字典 吗	nǐ yǒu kěyǐ jiè gěi wǒ yòng de zìdiǎn ma?	Do you have a dictionary you can lend me?
 解决	to resolve	jiě jué	这个 问题 很 难 解决	zhège wèntí hěn nán jiějué	This problem is difficult to solve.
 办法	means	bàn fǎ	我 不知 道 怎么 解决 这个 问题 ， 你 有 什么 好 的 办法 吗	wǒ bù zhīdào zěnme jiějué zhège wèntí, nǐ yǒu shénme hǎo de bànfǎ ma	I don't know how to solve this problem, do you have any good ideas.
@@ -265,7 +265,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 万	ten thousand	wàn	银行借给他一万元	yínháng jiè gěi tā yī wàn yuán	The bank lent him 10,000 yuan.
 一共	altogether	yī gòng	我 从 银行 拿出 一共 两 万 零 三 百 元	wǒ cóng yínháng náchū yīgòng liǎng wàn líng sān bǎi yuán	I took out 20,300 yuan altogether from the bank.
 先	first	xiān	我 先 去 商店, 然后 去 银行	wǒ xiān qù shāngdiàn, ránhòu qù yínháng	I'll go to the store first, then go to the bank.
-根据	according to	gēn jù	根据 经理 ， 银行 明天 一定 会 开	gēnjù jīnglǐ, yínháng míngtiān yídìng huì kāi	According to the manager, the bank will surely be open tomorrow。
+根据	according to	gēn jù	根据 经理 ， 银行 明天 一定 会 开	gēnjù jīnglǐ, yínháng míngtiān yídìng huì kāi	According to the manager, the bank will surely be open tomorrow.
 别人	other people	bié ren	  她 经常 帮助 别人	tā jīngcháng bāngzhù biérén	 She regularly helps others.
 低	low	dī	他 的 声音 很 低	tā de shēngyīn hěn dī	His voice is low.
 热情	enthusiastic	rè qíng	  他 总是 热情 地 讲话	tā zǒng shì rèqíng de jiǎnghuà	 He always speaks enthusiastically.
@@ -276,7 +276,7 @@ word	word_meaning	word_pinyin	sentence	sentence_pinyin	sentence_meaning
 关系	relationship	guān xì	你 和 她 是 什么 关系	nǐ hé tā shì shénme guānxì	What is your relationship with her?
 担心	to worry	dān xīn	妈妈 担心 我 的 学习 成绩	māmā dānxīn wǒ de xuéxí chéngjì	Mom is worried about my grades.
 放心	to feel relieved	fàng xīn	你 放心 ，我 的 成绩 比较 好	nǐ fàngxīn, wǒ de chéngjì bǐjiào hǎo.	Don't worry, my grades are relatively good.
-一边	one side	yī biān	考试 后 ， 我 一边 放心 ， 一边 担心	Kǎoshì hòu, wǒ yībiān fàngxīn, yībiān dānxīn	After the test, I feel relieved while also worried,
+一边	one side	yī biān	考试 后 ， 我 一边 放心 ， 一边 担心	Kǎoshì hòu, wǒ yībiān fàngxīn, yībiān dānxīn	After the test, I feel relieved while also worried.
 着急	anxious; hurried	zháo jí	他 上学 迟到 了，所以 很 着急	tā shàngxué chídàole, suǒyǐ hěn zhāojí	He was late for school, so he felt very anxious.
 哭	to cry	kū	爸爸 离开 后，孩子 开始 哭	bàba líkāi hòu, háizǐ kāishǐ kū	After the father left, the child started crying.
 生气	angry	shēng qì	经理 很 生气，因为 我 迟 到了	jīnglǐ hěn shēngqì, yīnwèi wǒ chídàole	The manager was angry because I was late.
