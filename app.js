@@ -1068,7 +1068,7 @@ function triggerSentenceCompletion() {
                 <div class="victory-title">太棒了! Well Done!</div>
                 <div class="victory-actions">
                     <button id="btn-repeat" class="btn-repeat">↺ Repeat</button>
-                    <button id="btn-next" class="btn-next">${currentSentence.chinese.length === 1 ? "Next" : "Next Sentence"} →</button>
+                    <button id="btn-next" class="btn-next">Next →</button>
                 </div>
             </div>
         `;
