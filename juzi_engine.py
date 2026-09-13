@@ -272,12 +272,12 @@ MAX_IMPORT_TOTAL_CHARS = 8000
 # The caps above bound a whole *import*, not one practice item, and
 # _pair_vocab_lines splits on newlines only -- deliberately, so a paragraph
 # the user chose not to break up stays one thought. Without this, a
-# 2,000-character paragraph pasted without line breaks becomes one
-# top-priority practice item (personal sentences rank ahead of corpus ones):
-# 2,000 characters to hand-write before the victory card. 30 is drawn from
-# the corpus the app already serves, whose longest sentence is 29 hanzi (p50
-# is 9, p99 is 20), so this never asks for anything longer than what the
-# learner is already asked to write.
+# 2,000-character paragraph pasted without line breaks becomes one practice
+# item a session could still serve whole: 2,000 characters to hand-write
+# before the victory card. 30 is drawn from the corpus the app already
+# serves, whose longest sentence is 29 hanzi (p50 is 9, p99 is 20), so this
+# never asks for anything longer than what the learner is already asked to
+# write.
 MAX_PASTED_SENTENCE_CHARS = 30
 
 # Caps the checklist list_importable_sentences returns to the Overview tab's
@@ -1369,8 +1369,7 @@ class JuziEngine:
                     continue
                 # A practice item is written by hand one character at a
                 # time, so an over-long one is not a hard sentence, it is
-                # an unfinishable one -- and personal sentences outrank the
-                # whole corpus, so it would be served first.
+                # an unfinishable one.
                 if len(re.findall(r'[一-龥]', chi)) > MAX_PASTED_SENTENCE_CHARS:
                     oversized_sentence_count += 1
                     continue
@@ -2073,7 +2072,7 @@ class JuziEngine:
         return never_graded, remaining
 
     @staticmethod
-    def _fill_batch(candidates: list, count: int, budget: int, reserved: list = None) -> list:
+    def _fill_batch(candidates: list, count: int, budget: int) -> list:
         """
         Takes up to `count` sentences off an already-ranked list, spending at
         most `budget` never-graded characters across the batch as a whole.
@@ -2091,29 +2090,11 @@ class JuziEngine:
         character set, and an empty session teaches nothing at all.
         Overshooting the cap is the lesser harm, and it only happens when
         respecting it would mean serving nothing.
-
-        `reserved`, if given, is filled first, ahead of `candidates`' own
-        ranking -- see pick_hsk_sentences' use of this to guarantee a
-        non-personal sentence a slot. Identity-matched (`id()`) against
-        `candidates` so a reserved item already present there is not also
-        picked a second time by the ranked pass below.
         """
         picked, chosen, spent = [], set(), set()
-        reserved_ids = {id(c) for c in (reserved or [])}
-
-        for cand in (reserved or []):
-            if len(picked) >= count:
-                break
-            new = cand["_new_chars"] - spent
-            picked.append(cand)
-            budget -= len(new)
-            spent |= new
-
         for i, cand in enumerate(candidates):
             if len(picked) >= count:
                 break
-            if id(cand) in reserved_ids:
-                continue
             new = cand["_new_chars"] - spent
             if len(new) <= budget:
                 picked.append(cand)
@@ -2125,7 +2106,7 @@ class JuziEngine:
             for i, cand in enumerate(candidates):
                 if len(picked) >= count:
                     break
-                if i not in chosen and id(cand) not in reserved_ids:
+                if i not in chosen:
                     picked.append(cand)
         return picked
 
@@ -2212,7 +2193,6 @@ class JuziEngine:
             "kind": "character",
             "_fresh": _freshness(char, completed, today_iso),
             "_due_ratio": _due_ratio(char, due_set),
-            "_personal": False,
             "_new_chars": {char} if char in never_graded else set(),
             "_fits": (char not in never_graded) or budget >= 1,
         }
@@ -2235,7 +2215,6 @@ class JuziEngine:
             "kind": "word",
             "_fresh": _freshness(word, completed, today_iso),
             "_due_ratio": _due_ratio(word, due_set),
-            "_personal": False,
             "_new_chars": {word} if word in never_graded else set(),
             "_fits": (word not in never_graded) or budget >= 1,
         }
@@ -2397,13 +2376,22 @@ class JuziEngine:
         Picks real example sentences -- from the hand-curated HSK corpora, the
         larger Tatoeba-derived corpus, and the user's own saved pasted
         sentences -- whose characters are entirely within the user's currently
-        unlocked pool. No AI, no network call, no API key required. The
-        user's own pasted sentences are always ranked ahead of corpus
-        sentences (real content they chose to study takes priority over
-        anything the offline corpus happens to contain); within each of
-        those two groups, sentences that reuse characters currently due for
+        unlocked pool. No AI, no network call, no API key required. A
+        personal pasted sentence and a corpus sentence compete on equal
+        footing here -- standard SRS logic decides, same as everything else
+        this app serves: sentences that reuse characters currently due for
         SM-2 review are preferred over ones that don't, so practice
-        naturally reinforces what's due.
+        naturally reinforces what's due, regardless of where the sentence
+        came from.
+
+        (Personal sentences used to be ranked ahead of corpus sentences
+        unconditionally, on the theory that content the learner chose to
+        study should take priority. Removed per explicit user request: with
+        a small personal bank and a small per-batch slot count, that
+        absolute priority could crowd out corpus sentences entirely --
+        forever, for as long as the personal bank stayed at or above the
+        slot count -- which is exactly the behavior that prompted this
+        removal rather than a further tweak to it.)
 
         That preference is measured as a *proportion* of the sentence, not a
         raw count of due characters. Counting hits made length the dominant
@@ -2499,7 +2487,7 @@ class JuziEngine:
         candidates = []
         seen_chinese = set()
 
-        def add_candidate(chinese, english, personal):
+        def add_candidate(chinese, english):
             seen_chinese.add(chinese)
             new_chars = {c for c in chinese if c in never_graded}
             candidates.append({
@@ -2507,7 +2495,6 @@ class JuziEngine:
                 "kind": "sentence",
                 "_fresh": _freshness(chinese, completed, today_iso),
                 "_due_ratio": _due_ratio(chinese, due_set),
-                "_personal": personal,
                 "_new_chars": new_chars,
                 "_fits": len(new_chars) <= budget,
             })
@@ -2518,19 +2505,19 @@ class JuziEngine:
             if not chinese or not english or chinese in seen_chinese:
                 continue
             if all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese):
-                add_candidate(chinese, english, True)
+                add_candidate(chinese, english)
 
         if restrict_to_bank:
             bank_chinese = {c for c in completed if c not in seen_chinese}
             for chinese, english in self._corpus_english_lookup(bank_chinese).items():
                 if all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese):
-                    add_candidate(chinese, english, False)
+                    add_candidate(chinese, english)
         else:
             for chinese, english in load_sentence_corpus():
                 if chinese in seen_chinese:
                     continue
                 if all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese):
-                    add_candidate(chinese, english, False)
+                    add_candidate(chinese, english)
 
         # A pool past the threshold that still closes over no sentence gets
         # character practice rather than nothing.
@@ -2546,29 +2533,10 @@ class JuziEngine:
         # different order each time rather than in corpus order.
         random.shuffle(candidates)
         candidates.sort(
-            key=lambda c: (c["_personal"], c["_fits"], c["_fresh"], c["_due_ratio"]),
+            key=lambda c: (c["_fits"], c["_fresh"], c["_due_ratio"]),
             reverse=True)
 
-        # Personal sentences are ranked first deliberately (see this
-        # function's docstring), but that ranking is absolute, not a nudge:
-        # a learner with as many pasted sentences as the batch has slots gets
-        # nothing else, forever -- every corpus sentence they've completed
-        # or newly could, permanently unreachable, no matter how many times
-        # the session regenerates. Reported directly: a user with exactly
-        # two pasted sentences and a two-slot sentence batch never once saw
-        # a different sentence across dozens of regenerations. Reserving one
-        # slot for the best-ranked non-personal candidate closes that off
-        # while leaving personal sentences the rest of the batch -- still a
-        # priority, just not an absolute one. Only kicks in at count > 1 so a
-        # one-slot batch doesn't flip the priority the other way.
-        reserved = []
-        if count > 1:
-            non_personal = [c for c in candidates if not c["_personal"]]
-            if non_personal:
-                reserved = self._fill_batch(non_personal, 1, budget)
-
-        return self._strip_ranking_keys(
-            self._fill_batch(candidates, count, budget, reserved=reserved))
+        return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
     def generate_fresh_session(self, count: int = 5, styles: set = None,
                                 allow_character_fallback: bool = None,
@@ -2597,7 +2565,7 @@ class JuziEngine:
         against genuinely different due sets and different daily-intake
         budgets (a due character and a due word are not the same kind of
         "due"), and pick_hsk_sentences' own internal ranking is already
-        carefully tuned (freshness/due-ratio/personal/new-chars-budget) --
+        carefully tuned (freshness/due-ratio/new-chars-budget) --
         folding a second currency (new *words*) into that would risk
         breaking it in ways worth avoiding for what a Settings toggle needs.
         `count` is split evenly across whichever styles are enabled, with a
