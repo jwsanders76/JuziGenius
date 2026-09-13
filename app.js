@@ -775,6 +775,54 @@ function renderAssemblyLine() {
         }
         elements.assemblyLine.appendChild(slot);
     });
+
+    fitAssemblyLineToOneLine(chineseChars.length);
+}
+
+/**
+ * Shrinks the character-slot boxes -- and, once they're visibly compressed,
+ * the writing canvas and pinyin hint alongside them -- just enough to keep
+ * a sentence's whole assembly line on one row instead of wrapping to a
+ * second. A long sentence wrapping used to just grow the page taller with
+ * no upper bound, which got more noticeable once the canvas itself grew
+ * (see the layout redesign this follows) -- per explicit user request.
+ *
+ * Driven by the actual available width (elements.assemblyLine.clientWidth),
+ * not a character-count threshold, since the same sentence wraps on a phone
+ * long before it would on desktop: a fixed threshold could only be right
+ * for one screen size. Reading clientWidth right after the slots above are
+ * appended forces the layout the browser would do anyway, so this reflects
+ * genuinely current sizing, not last sentence's.
+ *
+ * Purely presentational -- charIndex/completion logic never reads slot
+ * size, so this can't affect scoring or progress, and a failed/zero
+ * measurement (e.g. the element not yet laid out) just leaves the CSS
+ * custom properties at their unshrunk defaults via the `available > 0` guard.
+ */
+function fitAssemblyLineToOneLine(charCount) {
+    const container = elements.assemblyLine;
+    if (!container || charCount === 0) return;
+
+    const FULL_SLOT = 40, FULL_GAP = 8, MIN_SCALE = 0.55;
+    const available = container.clientWidth;
+    const natural = charCount * FULL_SLOT + (charCount - 1) * FULL_GAP;
+
+    const scale = available > 0
+        ? Math.max(MIN_SCALE, Math.min(1, available / natural))
+        : 1;
+
+    const root = document.documentElement.style;
+    root.setProperty("--slot-size", `${(FULL_SLOT * scale).toFixed(1)}px`);
+    root.setProperty("--slot-gap", `${(FULL_GAP * scale).toFixed(1)}px`);
+
+    // The canvas and pinyin hint only give up a little room, and only once
+    // the slots themselves are visibly compressed -- a mild squeeze (scale
+    // close to 1) shouldn't touch the writing surface at all. 0.4 keeps
+    // their shrink at less than half the slots' own, since unlike the
+    // slots (pure indicators) the canvas is where the user actually writes.
+    const softenedScale = 1 - (1 - scale) * 0.4;
+    root.setProperty("--canvas-max", `${Math.round(420 * softenedScale)}px`);
+    root.setProperty("--hint-scale", softenedScale.toFixed(2));
 }
 
 /**

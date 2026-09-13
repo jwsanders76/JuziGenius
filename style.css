@@ -16,6 +16,16 @@
     --accent-blue: #2980b9;
     --accent-purple: #8e44ad;
     --border-color: #3f3f50;
+
+    /* Overridden per-sentence by fitAssemblyLineToOneLine() (app.js) once a
+       sentence's character count is known, so a long sentence's slots (and,
+       proportionally, the canvas and pinyin hint) shrink just enough to
+       stay on one row instead of wrapping and growing the page taller with
+       no upper bound. Defaults here are the un-shrunk, "fits fine" values. */
+    --slot-size: 40px;
+    --slot-gap: 8px;
+    --canvas-max: 420px;
+    --hint-scale: 1;
 }
 
 * {
@@ -201,24 +211,24 @@ body {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
+    gap: var(--slot-gap);
     margin-bottom: 18px;
     min-height: 45px;
 }
 
 .character-slot {
-    width: 40px;
-    height: 40px;
+    width: var(--slot-size);
+    height: var(--slot-size);
     background-color: var(--card-bg);
     border: 2px solid var(--border-color);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.3rem;
+    font-size: calc(var(--slot-size) * 0.5);
     font-weight: bold;
     color: var(--text-primary);
-    transition: all 0.25s ease;
+    transition: width 0.2s ease, height 0.2s ease, all 0.25s ease;
 }
 
 .character-slot.active {
@@ -231,7 +241,7 @@ body {
     background-color: transparent;
     border: none;
     color: var(--text-secondary);
-    font-size: 1.2rem;
+    font-size: calc(var(--slot-size) * 0.45);
 }
 
 /* Celebratory Flash on Complete */
@@ -339,7 +349,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.9rem;
+    font-size: calc(1.9rem * var(--hint-scale));
     font-weight: bold;
     color: var(--accent-gold);
     margin-bottom: 6px;
@@ -358,7 +368,7 @@ body {
        (container.clientWidth/clientHeight), so however big CSS makes this
        square, the writer matches it exactly with no separate value to keep
        in sync. Square via aspect-ratio so one dimension drives both. */
-    width: min(420px, 100%);
+    width: min(var(--canvas-max), 100%);
     aspect-ratio: 1 / 1;
     display: flex;
     align-items: center;
