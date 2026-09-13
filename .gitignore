@@ -7,6 +7,13 @@ project_state.md
 goal_prompt
 .env
 .session_secret
+# Backup credentials (Backblaze key + restic repository password). These live
+# in ~/.restic-env, deliberately OUTSIDE this directory, on both the droplet
+# and the dev machine -- see the Audio/backup notes in project_state.md. This
+# line is belt and braces: if a copy ever does land in the repo, git refuses
+# to stage it rather than letting `git add -A` sweep a live key into a public
+# repository.
+.restic-env
 
 # --- Python Clutter ---
 __pycache__/
