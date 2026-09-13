@@ -564,7 +564,23 @@ body {
     background-color: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(4px);
     justify-content: center;
+    /* `align-items: center` alone clips a card taller than the viewport
+       symmetrically top and bottom, with no scroll able to reach either end
+       -- reported directly (iPhone, DuckDuckGo browser): the Progress
+       modal's own internal content scrolled, but its Close button (outside
+       that scrollable region, in .modal-actions) stayed clipped off the
+       bottom no matter what, forcing a page reload to escape. `safe center`
+       falls back to start-aligned, scrollable-into-view behavior exactly
+       when the content overflows; plain `center` above it is the fallback
+       for a browser that doesn't recognize the `safe` keyword, which would
+       otherwise drop the whole declaration and leave items unaligned. This
+       overlay's own overflow-y is the other half of the fix -- `safe`
+       alignment only helps if the overlay can scroll at all. */
     align-items: center;
+    align-items: safe center;
+    overflow-y: auto;
+    padding: 24px 0;
+    box-sizing: border-box;
     z-index: 1000;
 }
 
