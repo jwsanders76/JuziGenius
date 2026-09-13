@@ -198,6 +198,10 @@ const pregeneratedAudioCache = new Map();
 // can stop the previous one instead of overlapping it.
 let currentAudioEl = null;
 
+// A 45-byte, 1-sample silent WAV -- see unlockAudioPlayback below.
+const SILENT_AUDIO_DATA_URI =
+    "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
+
 // DOM Elements Cache
 const elements = {};
 
@@ -209,7 +213,60 @@ document.addEventListener("DOMContentLoaded", () => {
     // Chrome loads its voice list asynchronously; kick it off early so it's
     // ready by the time a sentence completes and the victory card needs it.
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
+    // See unlockAudioPlayback's own comment for why this has to be the very
+    // first pointer interaction with the page, not something wired to a
+    // specific button.
+    document.addEventListener("pointerdown", unlockAudioPlayback, { once: true, capture: true });
 });
+
+/**
+ * Primes both playback paths (pre-generated <audio> elements and
+ * speechSynthesis) against the strictest autoplay policies, which only
+ * allow HTMLMediaElement.play()/speechSynthesis.speak() to succeed when
+ * called synchronously from within a genuine user gesture's own event
+ * handler. Reported directly: sentence-completion audio still needing a
+ * manual "Listen Again" toggle despite the prefetching above, which only
+ * ever fixed the case where an `await` inside playNativeTTS itself broke
+ * the gesture chain -- it can't help when the chain was already broken
+ * before playNativeTTS is even called, which is exactly triggerSentence
+ * Completion's situation: it fires from Hanzi Writer's own quiz onComplete
+ * callback, not straight from the stroke's touchend/mouseup, and there is
+ * no guarantee that callback still counts as "the same gesture" on every
+ * browser.
+ *
+ * The standard fix, used by most audio libraries for this exact problem:
+ * once ANY playback succeeds during an undisputed direct user gesture, a
+ * browser typically unlocks programmatic playback for the rest of the
+ * page's life. So this plays (and immediately discards) a silent clip on
+ * the very first pointerdown anywhere on the page -- well before the first
+ * character is even written -- rather than waiting for whichever gesture
+ * happens to trigger the first real playback. One-shot; nothing left to do
+ * once a browser has been unlocked.
+ */
+function unlockAudioPlayback() {
+    try {
+        const silence = new Audio(SILENT_AUDIO_DATA_URI);
+        silence.volume = 0;
+        silence.play().catch(() => {});
+    } catch (err) {
+        // Audio() can throw in some restrictive/embedded contexts -- nothing
+        // to recover from here beyond letting the speechSynthesis half below
+        // still get a chance.
+    }
+
+    if ("speechSynthesis" in window) {
+        try {
+            // A bare space rather than an empty string: some engines treat
+            // "" as nothing to say at all and never fire, which would skip
+            // the unlock entirely.
+            const utterance = new SpeechSynthesisUtterance(" ");
+            utterance.volume = 0;
+            window.speechSynthesis.speak(utterance);
+        } catch (err) {
+            // Same as above.
+        }
+    }
+}
 
 /**
  * Registers the service worker that makes JuziGenius installable and lets it
@@ -1680,22 +1737,46 @@ function prefetchPregeneratedAudio(text) {
 
 /**
  * Falls back to the browser's Web Speech API -- the only playback path for a
- * user's own pasted sentences, and the only one on a device where
+ * user's own pasted sentences and for a "word" item (build_speech_audio.py
+ * only pre-generates full corpus sentences and single characters, never an
+ * arbitrary compound word), and the only one on a device where
  * speechSynthesis itself is unavailable is simply silent (checked below).
  */
 function playBrowserTTS(text) {
     if (!('speechSynthesis' in window)) return;
 
-    currentUtterance = new SpeechSynthesisUtterance(text);
-    currentUtterance.lang = 'zh-CN';
-    currentUtterance.rate = 1.0;
+    const token = state.audioToken;
 
-    const voice = getPreferredChineseVoice();
-    if (voice) {
-        currentUtterance.voice = voice;
-    }
+    // A known, widely-reported Chrome/WebKit bug: speak() called too soon
+    // after cancel() (stopSentenceAudio calls it at the top of every
+    // playNativeTTS) can start the new utterance and then cut it off after
+    // only the first character or two, rather than erroring -- reported
+    // directly for a two-character word losing its second character. The
+    // engine needs a moment to actually finish canceling before a new
+    // utterance is reliable; a short delay gives it that moment. Guarded by
+    // audioToken so a superseded call (the learner already moved on to the
+    // next item during the wait) doesn't speak stale text.
+    setTimeout(() => {
+        if (token !== state.audioToken) return;
 
-    window.speechSynthesis.speak(currentUtterance);
+        currentUtterance = new SpeechSynthesisUtterance(text);
+        currentUtterance.lang = 'zh-CN';
+        currentUtterance.rate = 1.0;
+
+        const voice = getPreferredChineseVoice();
+        if (voice) {
+            currentUtterance.voice = voice;
+        }
+
+        // A related quirk: the engine can end up internally paused
+        // (backgrounding the tab, or this same cancel()/speak() race) with
+        // nothing here having asked for that, and a paused engine can speak
+        // a new utterance for only a moment before stalling. resume() is a
+        // no-op when the engine isn't actually paused, so it's safe to call
+        // unconditionally rather than trying to detect the stuck state first.
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(currentUtterance);
+    }, 150);
 }
 
 // Name substrings from known TTS voice packs (Microsoft/Apple/Amazon Mandarin
