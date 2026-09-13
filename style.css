@@ -259,27 +259,36 @@ body {
     color: #e8f8f0;
 }
 
-/* --- Workspace Layout (Sidebar + Canvas) --- */
+/* --- Workspace Layout (Canvas, Action Row Below It) --- */
 #workspace-main {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     gap: 16px;
     align-items: center;
     justify-content: center;
     width: 100%;
 }
 
-/* --- Action Sidebar (Vertical on the Left) --- */
+/* --- Action Row (below the canvas) ---
+   Was a fixed-width column beside the canvas; moved below it and turned
+   sideways (row, wrapping) per explicit user request to let the canvas use
+   the width that freed up, and the app's overall height, instead of sharing
+   both with a narrow sidebar. flex-wrap is the safety net a fixed-width
+   column never needed: five controls in one row is fine down to a phone's
+   width at the current sizes, but wrapping rather than clipping/shrinking
+   further protects against a future sixth control or an unusually narrow
+   view rather than reproducing the old off-screen-button bug sideways. */
 #action-sidebar {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 90px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
 }
 
 .action-btn {
-    width: 100%;
-    padding: 12px 8px;
+    flex: 1 1 70px;
+    padding: 14px 8px;
     border-radius: 8px;
     border: none;
     font-size: 0.95rem;
@@ -321,6 +330,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 100%;
 }
 
 /* --- Reserved Hint Container Space --- */
@@ -340,8 +350,16 @@ body {
     border: 3px solid #3d2f24 !important;
     border-radius: 12px;
     box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.3);
-    width: 240px;
-    height: 240px;
+    /* Bigger in both dimensions per explicit user request, now that moving
+       the action row below the canvas (see #workspace-main/#action-sidebar)
+       frees up the width a fixed-width sidebar used to claim. Responsive via
+       min() rather than a media-query breakpoint -- setupCurrentCharacterWriter
+       reads this box's actual rendered size for Hanzi Writer's own canvas
+       (container.clientWidth/clientHeight), so however big CSS makes this
+       square, the writer matches it exactly with no separate value to keep
+       in sync. Square via aspect-ratio so one dimension drives both. */
+    width: min(420px, 100%);
+    aspect-ratio: 1 / 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -460,14 +478,16 @@ body {
     margin-bottom: 10px;
 }
 
-/* Pronunciation controls, sitting in the action sidebar above Clear/Hint/Skip,
-   in a row across the sidebar's width. Available from the moment a sentence
-   loads, not gated behind completion -- icon-only, with the label as a hover
-   tooltip rather than visible text, so they read as a small always-there
-   toolbar rather than a fourth and fifth action button. */
+/* Pronunciation controls, sitting in the action row beside Clear/Hint/Skip.
+   Available from the moment a sentence loads, not gated behind completion --
+   icon-only, with the label as a hover tooltip rather than visible text, so
+   they read as a small always-there toolbar rather than a fourth and fifth
+   action button. Same flex-basis as .action-btn so all four items in the
+   row (this pair counts as one) get comparable visual weight. */
 #sentence-audio-controls {
     display: flex;
     gap: 10px;
+    flex: 1 1 70px;
 }
 
 #sentence-audio-controls[hidden] {
@@ -1512,25 +1532,15 @@ body {
     .cov-row { grid-template-columns: 62px 1fr 92px; }
 }
 
-/* #workspace-main lays the action sidebar and the writing canvas out in a
-   row with no wrap: at the old fixed sizes (90px sidebar + 16px gap + 240px
-   canvas = 346px) that needs 394px of viewport width just to clear
-   #app-container's own 48px of horizontal padding, which most phones in
-   portrait don't have (390px/393px/375px are all common widths) -- and
-   body's overflow-x: hidden (relied on elsewhere to keep an accidental
-   horizontal scrollbar from ever appearing) clips whatever doesn't fit
-   rather than making it reachable. Reported directly: the Listen/Hint/Skip
-   buttons sometimes missing entirely on a phone -- they were never gone,
-   just pushed past the clipped edge. setupCurrentCharacterWriter reads the
-   canvas's actual size from the DOM rather than a hardcoded value, so
-   shrinking it here is enough on its own to keep Hanzi Writer in sync. */
+/* The action row's five controls (audio pair + Clear/Hint/Skip) get tight at
+   a phone's width once each is holding a multi-word label -- flex-wrap on
+   #action-sidebar already keeps them from clipping off-screen (the bug
+   fixed above, before the action row moved below the canvas and stopped
+   competing with it for width), this just keeps them from wrapping onto an
+   awkward extra line at the sizes a phone actually has room for. */
 @media (max-width: 480px) {
-    #workspace-main { gap: 10px; }
-    #action-sidebar { width: 72px; }
-    #tian-zi-ge { width: 180px; height: 180px; }
-
     .action-btn {
-        padding: 10px 4px;
-        font-size: 0.8rem;
+        padding: 12px 4px;
+        font-size: 0.85rem;
     }
 }

@@ -55,16 +55,22 @@
         <!-- Assembly Line (Slots) -->
         <div id="assembly-line"></div>
 
-        <!-- Main Workspace Area: Sidebar (Clear, Hint) + Central Canvas -->
+        <!-- Main Workspace Area: Central Canvas, Action Row (Clear, Hint, Skip) below it -->
         <div id="workspace-main">
-            <!-- Action Sidebar (Vertical on the left) -->
+            <!-- InkStone Canvas Container Wrapper -->
+            <div id="canvas-wrapper">
+                <!-- Reserved space for hints to avoid layout shift -->
+                <div id="hint-display-container"></div>
+                <div id="tian-zi-ge"></div>
+            </div>
+
+            <!-- Action Row (below the canvas, not beside it -- see #action-sidebar) -->
             <div id="action-sidebar">
-                <!-- Pronunciation controls for the item on screen, sitting
-                     above Clear/Hint/Skip in a row. Available from the moment
-                     a sentence loads, not just after it's completed -- per
-                     explicit user decision, a deliberate departure from "no
-                     predictive assistance" for audio specifically. Icon-only;
-                     the label is a hover tooltip. -->
+                <!-- Pronunciation controls for the item on screen. Available
+                     from the moment a sentence loads, not just after it's
+                     completed -- per explicit user decision, a deliberate
+                     departure from "no predictive assistance" for audio
+                     specifically. Icon-only; the label is a hover tooltip. -->
                 <div id="sentence-audio-controls" hidden>
                     <button id="btn-replay-audio" class="btn-audio-icon" title="Listen Again" aria-label="Listen Again">🔊</button>
                     <button id="btn-switch-voice" class="btn-audio-icon" title="Switch Voice" aria-label="Switch Voice">🔄</button>
@@ -72,13 +78,6 @@
                 <button id="btn-clear" class="action-btn">Clear</button>
                 <button id="btn-hint" class="action-btn">Hints (3)</button>
                 <button id="btn-skip" class="action-btn">Skip</button>
-            </div>
-
-            <!-- InkStone Canvas Container Wrapper -->
-            <div id="canvas-wrapper">
-                <!-- Reserved space for hints to avoid layout shift -->
-                <div id="hint-display-container"></div>
-                <div id="tian-zi-ge"></div>
             </div>
         </div>
     </div>
