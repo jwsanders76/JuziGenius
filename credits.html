@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credits &amp; Licenses — JuziGenius</title>
+    <link rel="icon" href="/icon-192.png" type="image/png">
+    <style>
+        :root {
+            --bg-color: #121214;
+            --surface-color: #1e1e24;
+            --card-bg: #262630;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --accent-gold: #f39c12;
+            --accent-orange: #e67e22;
+            --border-color: #3f3f50;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0 20px 64px;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         Helvetica, Arial, sans-serif;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrap { max-width: 720px; margin: 0 auto; }
+
+        header.page-head {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 32px 0 24px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 32px;
+        }
+        header.page-head img { width: 56px; height: 56px; flex-shrink: 0; }
+        header.page-head h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            line-height: 1.2;
+            font-weight: 700;
+        }
+        header.page-head p {
+            margin: 4px 0 0;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+        }
+
+        .intro {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid var(--accent-orange);
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 36px;
+            font-size: 0.95rem;
+        }
+        .intro p { margin: 0; }
+
+        h2 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin: 36px 0 14px;
+            color: var(--accent-gold);
+        }
+
+        .entry {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+        }
+        .entry h3 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .entry .lic {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--accent-orange);
+            border: 1px solid var(--accent-orange);
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin-bottom: 10px;
+        }
+        .entry p {
+            margin: 0 0 8px;
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+        }
+        .entry p:last-child { margin-bottom: 0; }
+        .entry a { color: var(--accent-gold); }
+        .entry a:hover { color: var(--accent-orange); }
+
+        .note {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            margin-top: 36px;
+            padding-top: 20px;
+        }
+        .note a { color: var(--accent-gold); }
+
+        .back {
+            display: inline-block;
+            margin-top: 28px;
+            padding: 10px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .back:hover { border-color: var(--accent-orange); color: var(--accent-orange); }
+        .back:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+
+    <header class="page-head">
+        <img src="/avatar-nobg-128.png" alt="Juzi the mascot">
+        <div>
+            <h1>Credits &amp; Licenses</h1>
+            <p>The open projects JuziGenius is built on.</p>
+        </div>
+    </header>
+
+    <div class="intro">
+        <p>Learning Chinese with this app is only possible because other people
+        gave their work away first — stroke-order data traced from decades-old
+        fonts, sentences written by volunteers, dictionaries built over years.
+        They are credited below, with their licenses.</p>
+    </div>
+
+    <h2>Handwriting</h2>
+
+    <div class="entry">
+        <h3>Stroke-order data</h3>
+        <span class="lic">Arphic Public License</span>
+        <p>Every stroke you trace comes from character outlines extracted from
+        Arphic Technology's AR PL fonts, released in 1999.</p>
+        <p>© 1999 Arphic Technology Co., Ltd. — extracted by
+        <a href="https://github.com/skishore/makemeahanzi">Make Me a Hanzi</a>,
+        packaged by
+        <a href="https://github.com/chanind/hanzi-writer-data">hanzi-writer-data</a>.
+        Full license: <a href="/ARPHICPL.TXT">ARPHICPL.TXT</a>.</p>
+    </div>
+
+    <div class="entry">
+        <h3>Hanzi Writer</h3>
+        <span class="lic">MIT</span>
+        <p>The library that animates stroke order and grades what you write.</p>
+        <p>Copyright © 2014 David Chanin —
+        <a href="https://chanind.github.io/hanzi-writer">chanind.github.io/hanzi-writer</a></p>
+    </div>
+
+    <h2>Sentences &amp; dictionaries</h2>
+
+    <div class="entry">
+        <h3>Tatoeba</h3>
+        <span class="lic">CC BY 2.0 FR</span>
+        <p>Most example sentences are Mandarin–English pairs written and
+        proofread by volunteers at the Tatoeba Project.</p>
+        <p><a href="https://tatoeba.org">tatoeba.org</a> —
+        <a href="https://creativecommons.org/licenses/by/2.0/fr/">license</a></p>
+    </div>
+
+    <div class="entry">
+        <h3>Unicode Han Database (Unihan)</h3>
+        <span class="lic">Unicode License</span>
+        <p>Character definitions, radicals and stroke counts.</p>
+        <p>© 1991–present Unicode, Inc. —
+        <a href="https://www.unicode.org/charts/unihan.html">unicode.org</a></p>
+    </div>
+
+    <div class="entry">
+        <h3>CC-CEDICT</h3>
+        <span class="lic">CC BY-SA 4.0</span>
+        <p>Word glosses for the higher HSK levels appear to derive from
+        CC-CEDICT, the community Chinese–English dictionary. Credited here while
+        that provenance is being confirmed.</p>
+        <p><a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">mdbg.net/chinese</a></p>
+    </div>
+
+    <div class="entry">
+        <h3>HSK vocabulary lists</h3>
+        <span class="lic">Reference data</span>
+        <p>HSK levels are published by Hanban / Chinese Testing International.
+        Level 4–6 word lists via
+        <a href="https://github.com/clem109/hsk-vocabulary">clem109/hsk-vocabulary</a>.</p>
+    </div>
+
+    <h2>Tools used to build the app's data</h2>
+
+    <div class="entry">
+        <h3>pypinyin, OpenCC, Piper</h3>
+        <span class="lic">MIT · Apache 2.0 · MIT</span>
+        <p>Pinyin readings come from
+        <a href="https://github.com/mozillazg/python-pinyin">pypinyin</a> (MIT).
+        Simplified-to-Traditional conversion uses tables from
+        <a href="https://github.com/BYVoid/OpenCC">OpenCC</a> (Apache 2.0),
+        © BYVoid. Spoken audio is generated with
+        <a href="https://github.com/rhasspy/piper">Piper</a> (MIT).</p>
+    </div>
+
+    <div class="note">
+        <p>JuziGenius' own source code is open under the MIT license. The data
+        above is not ours to relicense and keeps its original terms — the full
+        breakdown, including chain of provenance for each item, is in
+        <a href="https://github.com/jwsanders76/JuziGenius/blob/main/THIRD-PARTY-LICENSES.md">THIRD-PARTY-LICENSES.md</a>.</p>
+        <p>Attribution mistakes are bugs. If something here is miscredited or
+        missing, please
+        <a href="https://github.com/jwsanders76/JuziGenius/issues">open an issue</a>.</p>
+    </div>
+
+    <a class="back" href="/">← Back to JuziGenius</a>
+
+</div>
+</body>
+</html>

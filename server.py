@@ -60,6 +60,12 @@ ALLOWED_STATIC_PATHS = {
     # it's reached only via the /login route (see do_GET), the same pattern
     # index.html and landing.html already use.
     "/auth.js",
+    # Attribution for the bundled third-party data (see
+    # THIRD-PARTY-LICENSES.md). Served to everyone, logged in or not: the
+    # Tatoeba sentences are CC BY and the stroke data is under the Arphic
+    # Public License, and both require their notices to reach the people
+    # actually using the work -- which a page behind a login does not do.
+    "/credits.html", "/ARPHICPL.TXT",
 }
 
 STROKE_DATA_PATH = "stroke_data.json"

@@ -23,8 +23,16 @@ might paste in via text import -- still fall back to the CDN when you're
 online, and surface a readable error instead of a dead canvas when you aren't
 (see charDataLoader in app.js).
 
-Source: the hanzi-writer-data npm package (MIT). Fetched as a single tarball
-rather than thousands of individual requests.
+Source: the hanzi-writer-data npm package. Fetched as a single tarball rather
+than thousands of individual requests.
+
+LICENSING -- the data is NOT MIT. This docstring said it was, and that was
+wrong: the Hanzi Writer *library* (vendor/hanzi-writer.min.js) is MIT, but the
+*character data* this script downloads is under the Arphic Public License. It
+was extracted by the Make Me a Hanzi project from Arphic Technology's AR PL
+fonts, and the license travels with it: notices must be preserved, derivative
+data stays under the same terms. See ARPHICPL.TXT and THIRD-PARTY-LICENSES.md.
+The obligation attaches to stroke_data.json, not to this project's own code.
 
 Usage:
     python3 fetch_stroke_data.py
@@ -32,6 +40,7 @@ Usage:
 """
 import argparse
 import csv
+import datetime
 import hashlib
 import io
 import json
@@ -122,6 +131,31 @@ def file_digest(path, chunk_size=1 << 20):
     return digest.hexdigest()
 
 
+def modification_notice(character_count):
+    """
+    The Arphic Public License 2(a) notice embedded in stroke_data.json.
+
+    Says how the file differs from upstream and when it was made, which is
+    what 2(a) asks for. Generated rather than hardcoded so the date and
+    character count describe the file actually being written, instead of
+    whichever run first added the notice.
+    """
+    return (
+        "This file is a MODIFIED subset of the hanzi-writer-data character set, "
+        "which the Make Me a Hanzi project derived from Arphic Technology's "
+        "AR PL UMing / AR PL KaitiM fonts (c) 1999 Arphic Technology Co., Ltd. "
+        f"Modified by JuziGenius on {datetime.date.today().isoformat()}: "
+        f"(1) reduced to the {character_count} characters this application can "
+        "present, omitting the rest of the upstream set; (2) repacked from the "
+        "upstream per-character files into a single JSON object with compact "
+        "separators, indexed by byte offset in stroke_data.index.json. Stroke "
+        "paths, medians and glyph geometry are unaltered -- only which "
+        "characters are included and how they are packaged. Distributed under "
+        "the Arphic Public License; the full text is in ARPHICPL.TXT and must "
+        "accompany this file. Rebuild with fetch_stroke_data.py."
+    )
+
+
 def write_with_index(data, output_path, index_path):
     """
     Writes stroke_data.json and, beside it, a byte-offset index into it.
@@ -143,13 +177,25 @@ def write_with_index(data, output_path, index_path):
     server.py can refuse a stale index rather than serving one character's
     strokes under another character's name -- the kind of corruption that is
     very hard to diagnose from the symptom.
+
+    The file opens with a "_modifications" key because the Arphic Public
+    License, section 2(a), requires a prominent notice in each modified file
+    saying how and when it was changed -- and subsetting the upstream
+    character set and repacking it into one object is a modification under
+    that license's own definition ("converting format", "adding/deleting some
+    characters in/from glyph table"). It is written first so it is the first
+    thing anyone opening the file sees, and deliberately kept out of `entries`
+    so that index stays what server.py documents it to be: characters only.
     """
     offsets = {}
     with open(output_path, "wb") as f:
         f.write(b"{")
-        for i, (char, entry) in enumerate(data.items()):
-            if i:
-                f.write(b",")
+        f.write(json.dumps("_modifications", ensure_ascii=False).encode("utf-8"))
+        f.write(b":")
+        f.write(json.dumps(modification_notice(len(data)),
+                           ensure_ascii=False).encode("utf-8"))
+        for char, entry in data.items():
+            f.write(b",")
             f.write(json.dumps(char, ensure_ascii=False).encode("utf-8"))
             f.write(b":")
             blob = json.dumps(entry, ensure_ascii=False,

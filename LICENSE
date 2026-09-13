@@ -1,6 +1,26 @@
+SCOPE OF THIS LICENSE
+
+The MIT license below covers the source code written for JuziGenius -- the
+Python, JavaScript, HTML and CSS authored in this repository.
+
+It does NOT cover the third-party data bundled alongside that code. Those files
+keep the licenses of the projects they came from, and some carry conditions the
+MIT license does not impose. In particular:
+
+  stroke_data.json        Arphic Public License (see ARPHICPL.TXT)
+  tatoeba_sentences.csv   CC BY 2.0 FR -- attribution required
+  words_freq.json         mixed; HSK 4-6 provenance unresolved
+  master_dictionary.json  derived from Unicode Han Database (Unihan)
+  vendor/                 MIT, each file under its own copyright
+
+See THIRD-PARTY-LICENSES.md for the full attribution list, license texts and
+chain of provenance for each.
+
+-------------------------------------------------------------------------------
+
 MIT License
 
-Copyright (c) [2026] [John Sanders]
+Copyright (c) 2026 John Sanders
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
