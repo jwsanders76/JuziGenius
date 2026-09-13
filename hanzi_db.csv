@@ -2148,7 +2148,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 2147,钦,qīn,"respect, admire; respectful",金,167.4,9,6,1532
 2148,庸,yōng,"usual, common, ordinary, mediocre",广,53.8,11,6,2386
 2149,歉,qiàn,"deficient, lacking, insufficient",欠,76.10,14,4,3155
-2150,芝,zhī,,艸,140.4,6,,0374
+2150,芝,zhī,a fragrant plant; used in 芝麻 (sesame) and 灵芝 (lingzhi mushroom),艸,140.4,6,,0374
 2151,吼,hǒu,"roar, shout; bark, howl",口,30.4,7,6,0749
 2152,甫,fǔ,"begin; man, father; great; a distance of ten li",用,101.2,7,,0691
 2153,衫,shān,shirt; robe; gown; jacket,衣,145.3,8,3,1293
@@ -2540,7 +2540,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 2539,芯,xīn,pith from rush (juncus effusus),艸,140.4,7,,0673
 2540,汁,zhī,"juice, liquor, fluid, sap, gravy, sauce",水,85.2,5,4,0308
 2541,桓,huán,variety of tree; surname,木,75.6,10,,4450
-2542,坊,fāng,,土,32.4,7,,0647
+2542,坊,fāng,"workshop, mill; neighborhood, lane (in place names)",土,32.4,7,,0647
 2543,驴,lǘ,"donkey, ass",馬,187.4,7,,0941
 2544,朽,xiǔ,"decayed, rotten; rot, decay",木,75.2,6,6,0375
 2545,靖,jìng,"pacify; appease; calm, peaceful",青,174.5,13,,2993
@@ -2679,7 +2679,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 2678,绒,róng,"silk, cotton, or woolen fabric",糸,120.6,9,6,1753
 2679,搅,jiǎo,"disturb, agitate, stir up",手,64.9,12,6,2536
 2680,凳,dèng,bench; stool,几,16.12,14,,3186
-2681,梭,suō,,木,75.7,11,,2231
+2681,梭,suō,shuttle (weaving tool); to move quickly back and forth,木,75.7,11,,2231
 2682,丫,yā,forked; bifurcation,丨,2.2,3,,0056
 2683,姬,jī,beauty; imperial concubine,女,38.7,10,,4687
 2684,诏,zhào,"decree, proclaim; imperial decree",言,149.5,7,,3799
@@ -2969,7 +2969,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 2968,悯,mǐn,"pity, sympathize with, grieve for",心,61.7,10,,2095
 2969,汰,tài,"excessive; scour, wash out",水,85.4,7,6,0858
 2970,慑,shè,"afraid, scared, fearful",心,61.10,13,,5589
-2971,婶,shěn,,女,38.8,11,,2482
+2971,婶,shěn,aunt (father's younger brother's wife),女,38.8,11,,2482
 2972,斐,fěi,"graceful, elegant, beautiful",文,67.8,12,,5122
 2973,嘘,xū,exhale; blow out; deep sigh; hiss; praise,口,30.11,14,,5715
 2974,镶,xiāng,"insert, inlay, set, mount; fill",金,167.17,22,6,3497
@@ -3311,7 +3311,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 3310,惰,duò,"indolent, careless, lazy, idle",心,61.9,12,6,2772
 3311,喳,zhā,whispering,口,30.9,12,,2619
 3312,椭,tuǒ,"oval-shaped, elliptical, tubular",木,75.8,12,6,2579
-3313,咪,mī,,口,30.6,9,,1514
+3313,咪,mī,meow (cat's cry); used in phonetic transliterations,口,30.6,9,,1514
 3314,霎,shà,"light rain, drizzle; an instant; passing",雨,173.8,16,,3338
 3315,侃,kǎn,upright and strong; amiable,人,9.6,8,6,3958
 3316,猝,cù,"abruptly, suddenly; abrupt",犬,94.8,11,,4928
@@ -3807,7 +3807,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 3806,沓,dá,"connected, joined; repeated",水,85.4,8,,3936
 3807,撂,liào,"put down, put aside; drop",手,64.11,14,,5633
 3808,蛊,gǔ,poison; venom; harm; bewitch,虫,142.5,11,,4836
-3809,甥,shēng,,生,100.7,12,,2667
+3809,甥,shēng,nephew (sister's son),生,100.7,12,,2667
 3810,璐,lù,beautiful variety of jade,玉,96.12,17,,6197
 3811,晏,yàn,"peaceful, quiet; clear; late in the day",日,72.6,10,,4502
 3812,瘪,biě,"shrivelled up, dried up; vexed",疒,104.10,15,,3281
@@ -3935,7 +3935,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 3934,蟾,chán,toad,虫,142.13,19,,6392
 3935,蹊,qī,"footpath, trail; track",足,157.10,17,,6229
 3936,泞,nìng,"mud; miry, muddy, stagnant",水,85.5,8,,1254
-3937,撸,lū,,手,64.12,15,,5864
+3937,撸,lū,to rub or stroke down; to roll up (sleeves),手,64.12,15,,5864
 3938,螃,páng,crab,虫,142.10,16,,3347
 3939,檬,méng,type of locust oracacia,木,75.14,17,,3394
 3940,猓,guǒ,monkey,犬,94.8,11,,
@@ -4072,7 +4072,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 4071,呷,gā,"suck, swallow, drink",口,30.5,8,,3912
 4072,萼,è,the stem and calyx of a flower; a younger brother,艸,140.9,12,,5086
 4073,妩,wǔ,"charming, enchanting",女,38.4,7,,3807
-4074,伫,zhù,,人,9.4,6,,3610
+4074,伫,zhù,"to stand for a long time, waiting (伫立)",人,9.4,6,,3610
 4075,彤,tóng,"red, vermilion; name of ancient",彡,59.4,7,,0817
 4076,莓,méi,moss; edible berries,艸,140.7,10,,4433
 4077,岬,jiǎ,"cape; promontory, headland",山,46.5,8,,3925
@@ -4559,7 +4559,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 4558,镳,biāo,"bit, bridle; ride",金,167.15,20,,6435
 4559,雉,zhì,pheasant; crenellated wall,隹,172.5,13,,5493
 4560,橐,tuó,"a sack, a bag opening at both ends",木,75.12,16,,6066
-4561,陽,yáng,,阜,170.9,11,,
+4561,陽,yáng,"the sun; positive/male principle (yang); open, overt",阜,170.9,11,,
 4562,骈,pián,"team of horses; associate, join",馬,187.6,9,,4398
 4563,蛉,líng,"dragonfly, libellulidae",虫,142.5,11,,4839
 4564,艮,gěn,seventh of eight diagrams,艮,138.0,6,,3636
@@ -6598,7 +6598,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 6597,雰,fēn,"atmosphere; mist, fog",雨,173.4,12,,
 6598,穩,wěn,"stable, firm, solid, steady",禾,115.14,19,,
 6599,藴,yùn,collect,艸,140.15,18,,
-6600,責,zé,,貝,154.4,11,,
+6600,責,zé,"duty, responsibility; to blame, reproach",貝,154.4,11,,
 6601,鮮,xiān,"fresh, new, delicious; rare, few",魚,195.6,17,,
 6602,鳑,páng,,魚,195.10,18,,8015
 6603,豨,xī,"pig, hog",豕,152.7,14,,5682
@@ -7137,7 +7137,7 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 7136,鍵,jiàn,"door bolt, lock bolt; key",金,167.9,16,,
 7137,閮,tíng,,門,169.7,14,,
 7138,隻,zhī,"single, one of pair, lone",隹,172.2,10,,
-7139,飽,bǎo,,食,184.5,13,,
+7139,飽,bǎo,"full, satiated (after eating)",食,184.5,13,,
 7140,齒,chǐ,"teeth; gears, cogs; age; KangXi radical 211",齒,211.0,15,,
 7141,鯆,pū,the skate or ray,魚,195.7,18,,
 7142,逿,dàng,"a time; a row; to fall, miss",辵,162.9,12,,
@@ -9899,3 +9899,4 @@ frequency_rank,character,pinyin,definition,radical,radical_code,stroke_count,hsk
 9898,縛,fù,to tie,糸,120.10,16,,
 9899,縧,tāo,"silk cord, ribbon",糸,120.10,16,,
 9900,荙,dá,plantago major,艸,140.6,9,,6785
+,啰,luō,"verbose, long-winded (啰唆); sentence-final particle (like 了)",口,,11,,

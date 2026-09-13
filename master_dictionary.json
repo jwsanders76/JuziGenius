@@ -14910,7 +14910,7 @@
   },
   "芝": {
     "pinyin": "zhī",
-    "meaning": "",
+    "meaning": "a fragrant plant; used in 芝麻 (sesame) and 灵芝 (lingzhi mushroom)",
     "freq": 2150,
     "strokes": 6
   },
@@ -17538,7 +17538,7 @@
   },
   "坊": {
     "pinyin": "fāng",
-    "meaning": "",
+    "meaning": "workshop, mill; neighborhood, lane (in place names)",
     "freq": 2542,
     "strokes": 7
   },
@@ -18446,7 +18446,7 @@
   },
   "梭": {
     "pinyin": "suō",
-    "meaning": "",
+    "meaning": "shuttle (weaving tool); to move quickly back and forth",
     "freq": 2681,
     "strokes": 11
   },
@@ -20306,7 +20306,7 @@
   },
   "婶": {
     "pinyin": "shěn",
-    "meaning": "",
+    "meaning": "aunt (father's younger brother's wife)",
     "freq": 2971,
     "strokes": 11
   },
@@ -22455,7 +22455,7 @@
   },
   "咪": {
     "pinyin": "mī",
-    "meaning": "",
+    "meaning": "meow (cat's cry); used in phonetic transliterations",
     "freq": 3313,
     "strokes": 9
   },
@@ -25491,7 +25491,7 @@
   },
   "甥": {
     "pinyin": "shēng",
-    "meaning": "",
+    "meaning": "nephew (sister's son)",
     "freq": 3809,
     "strokes": 12
   },
@@ -26266,7 +26266,7 @@
   },
   "撸": {
     "pinyin": "lū",
-    "meaning": "",
+    "meaning": "to rub or stroke down; to roll up (sleeves)",
     "freq": 3937,
     "strokes": 15
   },
@@ -27092,7 +27092,7 @@
   },
   "伫": {
     "pinyin": "zhù",
-    "meaning": "",
+    "meaning": "to stand for a long time, waiting (伫立)",
     "freq": 4074,
     "strokes": 6
   },
@@ -30021,7 +30021,7 @@
   },
   "陽": {
     "pinyin": "yáng",
-    "meaning": "",
+    "meaning": "the sun; positive/male principle (yang); open, overt",
     "freq": 4561,
     "strokes": 11
   },
@@ -42256,7 +42256,7 @@
   },
   "責": {
     "pinyin": "zé",
-    "meaning": "",
+    "meaning": "duty, responsibility; to blame, reproach",
     "freq": 6600,
     "strokes": 11
   },
@@ -45490,7 +45490,7 @@
   },
   "飽": {
     "pinyin": "bǎo",
-    "meaning": "",
+    "meaning": "full, satiated (after eating)",
     "freq": 7139,
     "strokes": 13
   },
@@ -62059,5 +62059,10 @@
     "meaning": "plantago major",
     "freq": 9900,
     "strokes": 9
+  },
+  "啰": {
+    "pinyin": "luō",
+    "meaning": "verbose, long-winded (啰唆); sentence-final particle (like 了)",
+    "strokes": 11
   }
 }
