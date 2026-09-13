@@ -18,7 +18,6 @@ as registry.json): keyed by lowercase username ->
     {user_id, password_hash, display_name, session_version, created}
 """
 import datetime
-import json
 import os
 import re
 import secrets
@@ -26,6 +25,7 @@ import secrets
 from auth import hash_password, verify_password
 from seed_brain import empty_brain
 from user_registry import USERS_DIR, load_index, save_index
+from atomic_io import write_json
 
 ACCOUNTS_PATH = os.path.join(USERS_DIR, "accounts.json")
 
@@ -83,8 +83,7 @@ def create_account(accounts, username, password):
     user_id = secrets.token_urlsafe(16)
     user_dir = os.path.join(USERS_DIR, user_id)
     os.makedirs(user_dir, exist_ok=False)
-    with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
-        json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
+    write_json(os.path.join(user_dir, "brain.json"), empty_brain())
 
     accounts[username.lower()] = {
         "user_id": user_id,

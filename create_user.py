@@ -31,12 +31,12 @@ Usage:
 """
 import argparse
 import datetime
-import json
 import os
 import secrets
 
 from seed_brain import empty_brain
 from user_registry import USERS_DIR, load_registry, save_registry
+from atomic_io import write_json
 
 BASE_URL = "https://juzigenius.com"
 
@@ -51,8 +51,7 @@ def create_user():
     # Same shape a self-service reset returns an account to, from one
     # definition -- see seed_brain.empty_brain and server.py's
     # POST /api/account/reset.
-    with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
-        json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
+    write_json(os.path.join(user_dir, "brain.json"), empty_brain())
 
     return slug
 

@@ -26,6 +26,7 @@ import os
 from seed_brain import (MASTER_DICT_PATH, SIZE_CHOICES, TIER_NAMES, build_brain,
                         empty_brain)
 from user_registry import USERS_DIR, find_by_name, load_registry
+from atomic_io import write_json
 
 # Every account link points at the one live domain -- see create_user.py's
 # BASE_URL for the same constant.
@@ -74,8 +75,7 @@ def main():
 
     if args.size is None:
         brain = empty_brain()
-        with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
-            json.dump(brain, f, ensure_ascii=False, indent=4)
+        write_json(os.path.join(user_dir, "brain.json"), brain)
         print(
             f"Reset {name}'s account ({slug}) to an empty, unonboarded state. "
             "All prior progress on this account was discarded. "
@@ -88,8 +88,7 @@ def main():
         master = json.load(f)
 
     brain = build_brain(args.size, master)
-    with open(os.path.join(user_dir, "brain.json"), "w", encoding="utf-8") as f:
-        json.dump(brain, f, ensure_ascii=False, indent=4)
+    write_json(os.path.join(user_dir, "brain.json"), brain)
 
     tier_name = TIER_NAMES.get(args.size, "")
     print(

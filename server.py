@@ -12,6 +12,7 @@ import invites
 from juzi_engine import JuziEngine
 from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
+from atomic_io import write_json
 
 PORT = 8000
 
@@ -1007,8 +1008,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return None
 
             new_brain = seed_build_brain(size, engine.load_master_dictionary())
-            with open(engine.brain_path, "w", encoding="utf-8") as f:
-                json.dump(new_brain, f, ensure_ascii=False, indent=4)
+            write_json(engine.brain_path, new_brain)
 
         return {
             "size": size,
@@ -1058,8 +1058,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                       ("unlocked_chars", "unlocked_words",
                        "completed_sentences", "pasted_sentences")}
 
-            with open(engine.brain_path, "w", encoding="utf-8") as f:
-                json.dump(empty_brain(), f, ensure_ascii=False, indent=4)
+            write_json(engine.brain_path, empty_brain())
 
         # Logged because it is irreversible and someone will ask what
         # happened to their progress. The account is not named: the slug is

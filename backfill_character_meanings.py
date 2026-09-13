@@ -28,6 +28,7 @@ Usage:
 """
 import json
 import os
+from atomic_io import write_json
 
 MASTER_DICT_PATH = "master_dictionary.json"
 USERS_DIR = "users"
@@ -61,8 +62,7 @@ def backfill(brain_path, master):
             fixed.append(char)
 
     if fixed:
-        with open(brain_path, "w", encoding="utf-8") as f:
-            json.dump(brain_data, f, ensure_ascii=False, indent=4)
+        write_json(brain_path, brain_data)
     return fixed
 
 

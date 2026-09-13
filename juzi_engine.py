@@ -6,6 +6,7 @@ import re
 import threading
 import unicodedata
 from datetime import date, timedelta
+from atomic_io import write_json
 
 HSK_SOURCE_FILES = ["hsk_level1and2_words_with_sentences.csv", "hsk_level3_words_with_sentences.csv"]
 # Real sentences beyond the hand-curated HSK 1-3 set: 16,832 pairs filtered
@@ -588,8 +589,7 @@ class JuziEngine:
             # prune_single_char_words heals unlocked_words in place.
             for dead in DEAD_SETTING_KEYS:
                 settings.pop(dead, None)
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
         return self.read_settings()
 
@@ -1034,8 +1034,7 @@ class JuziEngine:
             # discarding it would leave introduced_today permanently
             # undercounted and the day's allowance too generous.
             if advanced or newly_introduced:
-                with open(self.brain_path, "w", encoding="utf-8") as f:
-                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+                write_json(self.brain_path, brain_data)
 
             return {
                 label: key,
@@ -1386,8 +1385,7 @@ class JuziEngine:
                 saved_sentence_count += 1
 
             # Save updates back to brain.json
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
             total_unlocked = len(unlocked)
 
@@ -1616,8 +1614,7 @@ class JuziEngine:
                 }
                 added.append(char)
 
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
             return {
                 "added_chars": added,
@@ -1694,8 +1691,7 @@ class JuziEngine:
                         }
                         added_chars += 1
 
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
         return {
             "added_words": added_words,
@@ -2006,8 +2002,7 @@ class JuziEngine:
                 added += 1
 
             if added:
-                with open(self.brain_path, "w", encoding="utf-8") as f:
-                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+                write_json(self.brain_path, brain_data)
 
         return {"added": added, "total_completed": len(completed)}
 
@@ -2039,8 +2034,7 @@ class JuziEngine:
             entry["last"] = today
             completed[chinese] = entry
 
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
         return {"recorded": True, "chinese": chinese,
                 "count": entry["count"], "last": entry["last"],
@@ -2145,8 +2139,7 @@ class JuziEngine:
             match["chinese"] = chinese
             match["english"] = english
 
-            with open(self.brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+            write_json(self.brain_path, brain_data)
 
         return {"chinese": chinese, "english": english,
                 "added_chars": added_chars, "added_words": added_words}
@@ -2180,8 +2173,7 @@ class JuziEngine:
             if deleted:
                 brain_data["pasted_sentences"] = remaining
                 (brain_data.get("completed_sentences") or {}).pop(chinese, None)
-                with open(self.brain_path, "w", encoding="utf-8") as f:
-                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+                write_json(self.brain_path, brain_data)
 
         return {"deleted": deleted}
 
@@ -2772,8 +2764,7 @@ class JuziEngine:
 
             if new_sentences:
                 brain_data["sentences"] = new_sentences
-                with open(self.brain_path, "w", encoding="utf-8") as f:
-                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+                write_json(self.brain_path, brain_data)
 
             # Converted here, on the way out, never before the write above --
             # brain_data["sentences"] on disk always stays simplified (see

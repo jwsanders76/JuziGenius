@@ -8,6 +8,7 @@ you've shared accounts with, not app code.
 """
 import json
 import os
+from atomic_io import write_json
 
 USERS_DIR = "users"
 REGISTRY_PATH = os.path.join(USERS_DIR, "registry.json")
@@ -28,8 +29,7 @@ def load_index(path):
 def save_index(path, data):
     """Writes one of those index files, creating users/ if it's not there."""
     os.makedirs(USERS_DIR, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    write_json(path, data)
 
 
 def load_registry():

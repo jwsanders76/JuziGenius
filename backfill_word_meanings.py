@@ -35,6 +35,7 @@ Usage:
 """
 import json
 import os
+from atomic_io import write_json
 
 USERS_DIR = "users"
 ROOT_BRAIN_PATH = "brain.json"
@@ -446,8 +447,7 @@ def backfill(brain_path):
             fixed.append(word)
 
     if fixed:
-        with open(brain_path, "w", encoding="utf-8") as f:
-            json.dump(brain_data, f, ensure_ascii=False, indent=4)
+        write_json(brain_path, brain_data)
     return fixed
 
 
