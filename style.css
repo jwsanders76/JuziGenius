@@ -646,11 +646,21 @@ body {
     line-height: 1.4;
 }
 
-/* --- Import Modal: Mode Tabs --- */
+/* --- Mode Tabs (Import and Progress modals) ---
+   Sticky rather than sitting in normal flow: now that .modal-overlay is the
+   only scroll region a modal has (see .progress-body's comment), a long
+   panel would otherwise carry the tab row out of view as you scroll it,
+   with no way back to it short of scrolling all the way back up. Solid
+   background rather than the original translucent rgba() -- an approximation
+   of what that looked like over --surface-color, since sticky content needs
+   an opaque backing or whatever scrolls underneath shows through it. */
 .mode-tabs {
     display: flex;
     gap: 6px;
-    background-color: rgba(0, 0, 0, 0.25);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: #17171b;
     border: 1px solid var(--border-color);
     border-radius: 10px;
     padding: 4px;
@@ -971,9 +981,17 @@ body {
     width: min(620px, 94vw);
 }
 
+/* Used to be its own 68vh scroll region nested inside .modal-overlay's own
+   scroll -- two independent scrollers stacked on top of each other. Reported
+   directly: the Settings tab (grown a lot since -- writing grid, study
+   styles, character script, daily limit, start over) "froze": scrolling
+   inside this box hits its own bottom and stops, and on at least some
+   touch browsers that doesn't hand off to the outer scroll the way a mouse
+   wheel does, reading as the whole popup being stuck. Removed so there is
+   only ever one scrollable region (.modal-overlay, see its own comment) --
+   .mode-tabs below is sticky to compensate for the tab row no longer
+   staying put on its own as you scroll a long panel. */
 .progress-body {
-    max-height: 68vh;
-    overflow-y: auto;
     padding-right: 6px;
 }
 
