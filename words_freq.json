@@ -141,7 +141,7 @@
     },
     "杯": {
         "pinyin": "bēi",
-        "meaning": "(counter for bottles)",
+        "meaning": "(counter for cups)",
         "rank": 29
     },
     "一": {
@@ -191,7 +191,7 @@
     },
     "人": {
         "pinyin": "rén",
-        "meaning": "man",
+        "meaning": "person",
         "rank": 39
     },
     "几": {
@@ -261,12 +261,12 @@
     },
     "长": {
         "pinyin": "zhǎng",
-        "meaning": "grow",
+        "meaning": "long",
         "rank": 53
     },
     "钱": {
         "pinyin": "qián",
-        "meaning": "coin",
+        "meaning": "money",
         "rank": 54
     },
     "没": {
@@ -496,7 +496,7 @@
     },
     "点": {
         "pinyin": "diǎn",
-        "meaning": "o'ckock",
+        "meaning": "o'clock; a bit; point",
         "rank": 100
     },
     "起床": {
@@ -1046,7 +1046,7 @@
     },
     "非常": {
         "pinyin": "fēi cháng",
-        "meaning": "unusual",
+        "meaning": "very; extremely",
         "rank": 210
     },
     "雪": {
@@ -1276,7 +1276,7 @@
     },
     "得": {
         "pinyin": "děi",
-        "meaning": "to have to",
+        "meaning": "particle used after a verb",
         "rank": 256
     },
     "医院": {
@@ -1526,7 +1526,7 @@
     },
     "跑步": {
         "pinyin": "pǎo bù",
-        "meaning": "runing",
+        "meaning": "running",
         "rank": 306
     },
     "运动": {
@@ -1546,7 +1546,7 @@
     },
     "爷爷": {
         "pinyin": "yé ye",
-        "meaning": "grandgather",
+        "meaning": "grandfather",
         "rank": 310
     },
     "奶奶": {
@@ -1696,7 +1696,7 @@
     },
     "只": {
         "pinyin": "zhǐ",
-        "meaning": "only",
+        "meaning": "(counter for birds and some animals)",
         "rank": 340
     },
     "有名": {
@@ -3069,7 +3069,7 @@
     },
     "暗": {
         "pinyin": "àn",
-        "meaning": "to close (a door); to eclipse; muddled; stupid; ignorant; variant of 暗[àn]",
+        "meaning": "to close (a door); to eclipse; muddled; stupid; ignorant",
         "rank": 614
     },
     "按时": {
@@ -3629,7 +3629,7 @@
     },
     "份": {
         "pinyin": "fèn",
-        "meaning": "classifier for gifts; newspaper; magazine; papers; reports; contracts etc; variant of 分[fèn]",
+        "meaning": "classifier for gifts; newspaper; magazine; papers; reports; contracts etc; variant of 分",
         "rank": 726
     },
     "风景": {
@@ -4614,7 +4614,7 @@
     },
     "陪": {
         "pinyin": "péi",
-        "meaning": "to accompany; to keep sb company; to assist; old variant of 賠|赔[péi]",
+        "meaning": "to accompany; to keep sb company; to assist; old variant of 赔",
         "rank": 923
     },
     "批评": {
@@ -8109,7 +8109,7 @@
     },
     "胡同": {
         "pinyin": "hú tòng",
-        "meaning": "variant of 胡同[hú tòng]",
+        "meaning": "hutong; lane; alley",
         "rank": 1622
     },
     "胡须": {
@@ -8879,7 +8879,7 @@
     },
     "克": {
         "pinyin": "kè",
-        "meaning": "variant of 克[kè]; to subdue; to overthrow; to restrain",
+        "meaning": "to subdue; to overthrow; to restrain",
         "rank": 1776
     },
     "克服": {
@@ -9669,7 +9669,7 @@
     },
     "平": {
         "pinyin": "píng",
-        "meaning": "flat; level; equal; to tie (make the same score); to draw (score); calm; peaceful; see also 平聲|平声[píng shēng]",
+        "meaning": "flat; level; equal; to tie (make the same score); to draw (score); calm; peaceful; see also 平声",
         "rank": 1934
     },
     "平常": {
@@ -10269,7 +10269,7 @@
     },
     "升": {
         "pinyin": "shēng",
-        "meaning": "variant of 升[shēng]",
+        "meaning": "liter (l); to rise; to ascend; to promote",
         "rank": 2054
     },
     "生产": {
@@ -10814,7 +10814,7 @@
     },
     "铜": {
         "pinyin": "tóng",
-        "meaning": "copper (chemistry); see also 紅銅|红铜[hóng tóng]",
+        "meaning": "copper (chemistry); see also 红铜",
         "rank": 2163
     },
     "同时": {
@@ -12489,7 +12489,7 @@
     },
     "祖国": {
         "pinyin": "zǔ guó",
-        "meaning": "ancestral land CL:個|个[gè]; homeland; used for PRC",
+        "meaning": "ancestral land; homeland; used for PRC",
         "rank": 2498
     },
     "祖先": {
@@ -13234,7 +13234,7 @@
     },
     "别致": {
         "pinyin": "bié zhì",
-        "meaning": "variant of 別緻|别致[bié zhì]",
+        "meaning": "unique; novel; delicate and unusual in style",
         "rank": 2647
     },
     "别扭": {
@@ -14399,7 +14399,7 @@
     },
     "大伙儿": {
         "pinyin": "dà huǒ r",
-        "meaning": "erhua variant of 大伙[dà huǒ]",
+        "meaning": "erhua variant of 大伙",
         "rank": 2880
     },
     "大厦": {
@@ -14469,7 +14469,7 @@
     },
     "淡季": {
         "pinyin": "dàn jì",
-        "meaning": "off season; slow business season; see also 旺季[wàng jì]",
+        "meaning": "off season; slow business season; see also 旺季",
         "rank": 2894
     },
     "淡水": {
@@ -14604,7 +14604,7 @@
     },
     "得罪": {
         "pinyin": "dé zuì",
-        "meaning": "to commit an offense; to violate the law; excuse me! (formal); see also 得罪[dé zui]",
+        "meaning": "to commit an offense; to violate the law; excuse me! (formal)",
         "rank": 2921
     },
     "蹬": {
@@ -15129,7 +15129,7 @@
     },
     "法人": {
         "pinyin": "fǎ rén",
-        "meaning": "legal person; corporation; see also 自然人[zì rán rén]",
+        "meaning": "legal person; corporation; see also 自然人",
         "rank": 3026
     },
     "番": {
@@ -18799,7 +18799,7 @@
     },
     "弥漫": {
         "pinyin": "mí màn",
-        "meaning": "variant of 彌漫|弥漫[mí màn]",
+        "meaning": "to fill the air; to spread all over; to pervade",
         "rank": 3760
     },
     "迷惑": {
@@ -21269,7 +21269,7 @@
     },
     "摊儿": {
         "pinyin": "tān r",
-        "meaning": "erhua variant of 攤|摊[tān]",
+        "meaning": "erhua variant of 摊",
         "rank": 4254
     },
     "弹性": {
@@ -21319,7 +21319,7 @@
     },
     "掏": {
         "pinyin": "tāo",
-        "meaning": "variant of 掏[tāo]",
+        "meaning": "to dig out; to scoop out; to fish out (e.g. from a pocket)",
         "rank": 4264
     },
     "滔滔不绝": {
@@ -21784,7 +21784,7 @@
     },
     "玩意儿": {
         "pinyin": "wán yì r",
-        "meaning": "erhua variant of 玩意[wán yì]",
+        "meaning": "erhua variant of 玩意",
         "rank": 4357
     },
     "顽固": {
@@ -22149,7 +22149,7 @@
     },
     "溪": {
         "pinyin": "xī",
-        "meaning": "variant of 溪; creek; rivulet",
+        "meaning": "creek; rivulet",
         "rank": 4430
     },
     "膝盖": {
@@ -22349,7 +22349,7 @@
     },
     "馅儿": {
         "pinyin": "xiàn r",
-        "meaning": "erhua variant of 餡|馅; stuffing; filling; e.g. in 包子 or 饺子[jiǎo zi]",
+        "meaning": "erhua variant of 馅; stuffing; filling; e.g. in 包子 or 饺子",
         "rank": 4470
     },
     "线索": {
@@ -22684,7 +22684,7 @@
     },
     "凶恶": {
         "pinyin": "xiōng è",
-        "meaning": "variant of 兇惡|凶恶; fierce; ferocious; fiendish; frightening",
+        "meaning": "fierce; ferocious; fiendish; frightening",
         "rank": 4537
     },
     "凶手": {
@@ -24054,7 +24054,7 @@
     },
     "折": {
         "pinyin": "zhé",
-        "meaning": "variant of 折[zhé]; to fold",
+        "meaning": "to fold",
         "rank": 4811
     },
     "折磨": {
