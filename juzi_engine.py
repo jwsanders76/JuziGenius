@@ -1819,6 +1819,9 @@ class JuziEngine:
                 "meaning": meta.get("meaning", ""),
                 "stage": stage,
                 "freq": master.get(char, {}).get("freq"),
+                # Lets the Character Bank offer a stroke-count sort alongside
+                # frequency and pinyin, per explicit user request.
+                "strokes": master.get(char, {}).get("strokes"),
             })
 
             if not last:

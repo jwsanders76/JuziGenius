@@ -1163,6 +1163,34 @@ body {
 }
 
 /* --- Progress view: Characters tab --- */
+.char-bank-sort-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.char-bank-sort-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.char-bank-sort-btn:hover {
+    color: var(--text-primary);
+}
+
+.char-bank-sort-btn.active {
+    background-color: var(--accent-purple);
+    border-color: var(--accent-purple);
+    color: white;
+}
+
 .char-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));

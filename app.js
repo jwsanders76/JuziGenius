@@ -2,6 +2,14 @@
  * JuziGenius (句子Genius) - Main Application Controller
  */
 
+// Character Bank sort orders -- see state.characterBankSort and
+// sortCharacterBank().
+const CHARACTER_BANK_SORTS = ["frequency", "pinyin", "strokes"];
+// Sorts after any real pinyin string, so a character missing one (rare, but
+// master_dictionary.json isn't guaranteed exhaustive) sorts last rather than
+// first -- localeCompare would otherwise treat "" as before every letter.
+const PINYIN_SORT_FALLBACK = "￿";
+
 // Global App State
 const state = {
     sentences: [],
@@ -40,6 +48,18 @@ const state = {
     // it has no bearing on what gets served, so it lives only in localStorage.
     // Defaults on, matching real tian zi ge practice paper.
     showGrid: localStorage.getItem("juzi_show_grid") !== "0",
+    // Character Bank display order -- a per-device preference with no
+    // bearing on what gets served (unlike settings.study_styles etc.), so it
+    // lives only in localStorage, same as showGrid/ttsVoice above. The raw
+    // list itself is re-fetched each time Progress opens (see
+    // openProgressView); only the chosen order persists across visits.
+    characterBankSort: CHARACTER_BANK_SORTS.includes(localStorage.getItem("juzi_char_bank_sort"))
+        ? localStorage.getItem("juzi_char_bank_sort")
+        : "frequency",
+    // The last /api/progress response's character list, unsorted (server
+    // order is frequency), so switching sort mode can re-render instantly
+    // without a round trip.
+    characterBankRaw: [],
     isCompleted: false,
     importMode: "paste",
     // Last payload from /api/settings -- held so the Settings panel can
@@ -1992,7 +2012,8 @@ async function openProgressView() {
         if (!response.ok) throw new Error("Failed to load progress.");
         const data = await response.json();
         renderProgress(data);
-        renderProgressCharacters(data.characters || []);
+        state.characterBankRaw = data.characters || [];
+        renderProgressCharacters(state.characterBankRaw);
         renderProgressWords(data.words || []);
         renderProgressSentences(data.sentence_bank || []);
         renderResetSummary(data);
@@ -2544,11 +2565,46 @@ function renderProgress(p) {
 }
 
 /**
- * The Characters tab: every unlocked character at a glance, sorted most-
- * common-first (same order as the frequency-coverage bars), for a quick
- * "what have I learned so far" refresher. Reuses STAGE_STYLE's colors so
- * the left-edge color on each tile means the same thing it does in the
- * Overview tab's Study stages legend.
+ * Orders a copy of the Character Bank's raw list per `sort`. "frequency"
+ * trusts the server's own order (already frequency-sorted, most-common-
+ * first -- see progress_summary in juzi_engine.py) rather than re-deriving
+ * it. "pinyin" and "strokes" sort locally, each falling back to frequency
+ * then the character itself to break ties and to keep the result stable;
+ * a character missing that field (rare, but master_dictionary.json isn't
+ * guaranteed exhaustive) sorts last rather than first.
+ */
+function sortCharacterBank(characters, sort) {
+    if (sort === "frequency") return characters;
+
+    const byFreq = c => c.freq ?? Infinity;
+    const sorted = [...characters];
+    if (sort === "pinyin") {
+        sorted.sort((a, b) =>
+            (a.pinyin || PINYIN_SORT_FALLBACK).localeCompare(b.pinyin || PINYIN_SORT_FALLBACK)
+            || byFreq(a) - byFreq(b)
+            || a.char.localeCompare(b.char));
+    } else if (sort === "strokes") {
+        sorted.sort((a, b) =>
+            (a.strokes ?? Infinity) - (b.strokes ?? Infinity)
+            || byFreq(a) - byFreq(b)
+            || a.char.localeCompare(b.char));
+    }
+    return sorted;
+}
+
+const CHARACTER_BANK_SORT_LABELS = {
+    frequency: { button: "Frequency", note: "most common first" },
+    pinyin: { button: "Pinyin", note: "alphabetical by pinyin" },
+    strokes: { button: "Strokes", note: "fewest strokes first" },
+};
+
+/**
+ * The Characters tab: every unlocked character at a glance, for a quick
+ * "what have I learned so far" refresher, with a choice of sort order (per
+ * explicit user request) -- frequency (the default), alphabetical by
+ * pinyin, or by stroke count. Reuses STAGE_STYLE's colors so the left-edge
+ * color on each tile means the same thing it does in the Overview tab's
+ * Study stages legend.
  */
 function renderProgressCharacters(characters) {
     if (!elements.progressCharacters) return;
@@ -2559,8 +2615,14 @@ function renderProgressCharacters(characters) {
     }
 
     const stageColor = Object.fromEntries(STAGE_STYLE.map(s => [s.key, s.color]));
+    const sorted = sortCharacterBank(characters, state.characterBankSort);
 
-    const tiles = characters.map(c => {
+    const sortButtons = CHARACTER_BANK_SORTS.map(key => `
+        <button type="button" class="char-bank-sort-btn${key === state.characterBankSort ? " active" : ""}"
+                data-sort="${key}">${CHARACTER_BANK_SORT_LABELS[key].button}</button>
+    `).join("");
+
+    const tiles = sorted.map(c => {
         const title = `${c.char}${c.pinyin ? ` — ${c.pinyin}` : ""}${c.meaning ? ` — ${c.meaning}` : ""}`;
         return `<div class="char-tile" style="--stage-color:${stageColor[c.stage] || "transparent"}" title="${escapeAttr(title)}">
             <div class="char-tile-hanzi">${escapeHtml(c.char)}</div>
@@ -2569,10 +2631,24 @@ function renderProgressCharacters(characters) {
         </div>`;
     }).join("");
 
+    const noteText = `${characters.length.toLocaleString()} character${characters.length === 1 ? "" : "s"} unlocked, `
+        + `${CHARACTER_BANK_SORT_LABELS[state.characterBankSort].note}.`;
+
     elements.progressCharacters.innerHTML = `
-        <p class="progress-note">${characters.length.toLocaleString()} character${characters.length === 1 ? "" : "s"} unlocked, most common first.</p>
+        <div class="char-bank-sort-row">${sortButtons}</div>
+        <p class="progress-note">${noteText}</p>
         <div class="char-grid">${tiles}</div>
     `;
+
+    elements.progressCharacters.querySelectorAll(".char-bank-sort-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const sort = btn.dataset.sort;
+            if (sort === state.characterBankSort) return;
+            state.characterBankSort = sort;
+            localStorage.setItem("juzi_char_bank_sort", sort);
+            renderProgressCharacters(state.characterBankRaw);
+        });
+    });
 }
 
 /**
