@@ -214,9 +214,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // ready by the time a sentence completes and the victory card needs it.
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
     // See unlockAudioPlayback's own comment for why this has to be the very
-    // first pointer interaction with the page, not something wired to a
-    // specific button.
-    document.addEventListener("pointerdown", unlockAudioPlayback, { once: true, capture: true });
+    // first interaction with the page, not something wired to a specific
+    // button. Bound to several event types, not just pointerdown, in case a
+    // given browser doesn't synthesize Pointer Events for every input
+    // method -- unlockAudioPlayback removes the others itself once one
+    // fires, so this doesn't run twice.
+    ["pointerdown", "touchend", "mousedown", "keydown"].forEach(type =>
+        document.addEventListener(type, unlockAudioPlayback, { capture: true }));
 });
 
 /**
@@ -224,29 +228,42 @@ document.addEventListener("DOMContentLoaded", () => {
  * speechSynthesis) against the strictest autoplay policies, which only
  * allow HTMLMediaElement.play()/speechSynthesis.speak() to succeed when
  * called synchronously from within a genuine user gesture's own event
- * handler. Reported directly: sentence-completion audio still needing a
- * manual "Listen Again" toggle despite the prefetching above, which only
- * ever fixed the case where an `await` inside playNativeTTS itself broke
- * the gesture chain -- it can't help when the chain was already broken
- * before playNativeTTS is even called, which is exactly triggerSentence
- * Completion's situation: it fires from Hanzi Writer's own quiz onComplete
- * callback, not straight from the stroke's touchend/mouseup, and there is
- * no guarantee that callback still counts as "the same gesture" on every
- * browser.
+ * handler. Reported directly, twice: sentence-completion audio needing a
+ * manual "Listen Again" toggle on the first completion of every fresh
+ * session, working automatically for every completion after that one
+ * manual play -- exactly the signature of a browser waiting for one
+ * undisputed direct gesture to unlock the rest of the page's life, since
+ * triggerSentenceCompletion's own automatic playback call fires from Hanzi
+ * Writer's quiz onComplete callback, not straight from the stroke's
+ * touchend/mouseup, and there's no guarantee that still counts as "the same
+ * gesture" on every browser.
  *
- * The standard fix, used by most audio libraries for this exact problem:
- * once ANY playback succeeds during an undisputed direct user gesture, a
- * browser typically unlocks programmatic playback for the rest of the
- * page's life. So this plays (and immediately discards) a silent clip on
- * the very first pointerdown anywhere on the page -- well before the first
- * character is even written -- rather than waiting for whichever gesture
- * happens to trigger the first real playback. One-shot; nothing left to do
- * once a browser has been unlocked.
+ * First attempt at this used a muted <audio> element and a volume: 0
+ * utterance, reasoning that a genuinely silent WAV didn't need muting to
+ * stay silent -- but volume: 0 turned out to be exactly the problem: at
+ * least some engines detect that nothing audible would play and skip
+ * actually engaging the audio subsystem at all, which means no real
+ * playback ever happens for the browser to credit as a user gesture, and
+ * the whole primer is a no-op. Fixed by never setting volume on the (still
+ * silent, since the WAV's own samples are silence) <audio> element, and by
+ * speaking a real utterance and cancelling it a moment later instead of
+ * muting it -- the same "speak, then cancel" pattern other libraries use to
+ * unlock speechSynthesis, which still engages the engine for the brief
+ * window before cancellation. The trade-off is a barely-there, ~100ms blip
+ * of actual sound on the very first tap of a session, which is a small
+ * price for audio that isn't silently broken until a manual toggle.
+ *
+ * Bound to several event types (see the DOMContentLoaded handler), not just
+ * one, in case a given browser doesn't synthesize Pointer Events for every
+ * input method; removes all of them itself on first fire so this only ever
+ * runs once regardless of which event got there first.
  */
 function unlockAudioPlayback() {
+    ["pointerdown", "touchend", "mousedown", "keydown"].forEach(type =>
+        document.removeEventListener(type, unlockAudioPlayback, { capture: true }));
+
     try {
         const silence = new Audio(SILENT_AUDIO_DATA_URI);
-        silence.volume = 0;
         silence.play().catch(() => {});
     } catch (err) {
         // Audio() can throw in some restrictive/embedded contexts -- nothing
@@ -256,12 +273,9 @@ function unlockAudioPlayback() {
 
     if ("speechSynthesis" in window) {
         try {
-            // A bare space rather than an empty string: some engines treat
-            // "" as nothing to say at all and never fire, which would skip
-            // the unlock entirely.
             const utterance = new SpeechSynthesisUtterance(" ");
-            utterance.volume = 0;
             window.speechSynthesis.speak(utterance);
+            setTimeout(() => window.speechSynthesis.cancel(), 100);
         } catch (err) {
             // Same as above.
         }
