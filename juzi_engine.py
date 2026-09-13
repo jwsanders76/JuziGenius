@@ -2046,6 +2046,120 @@ class JuziEngine:
                 "count": entry["count"], "last": entry["last"],
                 "total_completed": len(completed)}
 
+    def edit_pasted_sentence(self, old_chinese: str, chinese: str, english: str) -> dict:
+        """
+        Corrects a personal sentence already saved via Paste Text -- a typo
+        in the Chinese, a wrong translation, or both. Reported directly:
+        pasted material sometimes has an error in it with no way to fix it
+        short of deleting and re-pasting, which also throws away whatever
+        completion history that exact Chinese text carries.
+
+        Matched by its current (pre-edit) Chinese text -- pasted_sentences
+        has no separate id, and the Chinese text has always been this data's
+        real identity (it's what completed_sentences keys on, what
+        /api/sentence/complete and bulk_add_to_sentence_bank match against).
+        Editing the Chinese text is therefore not the same practice item
+        afterward for completion-tracking purposes: any completed_sentences
+        record under the old text is dropped rather than migrated, since
+        inventing a "same sentence, edited" identity that survives a text
+        change would need a real id this data doesn't have. The English side
+        alone can change freely with no such consequence.
+
+        Same validation a fresh paste gets: every Chinese character must
+        already be unlockable (unlocked here exactly like
+        import_text_locally, so an edit can introduce a new character same
+        as a paste can), and the same length cap applies. Raises ValueError
+        with a message fit to show the user directly on anything that fails.
+        """
+        old_chinese = (old_chinese or "").strip()
+        chinese = re.sub(r'\s+', '', chinese or "")
+        english = (english or "").strip()
+
+        if not old_chinese:
+            raise ValueError("No sentence specified to edit.")
+        if not chinese or not english:
+            raise ValueError("Both Chinese and English are required.")
+        hanzi = re.findall(r'[一-龥]', chinese)
+        if not hanzi:
+            raise ValueError("No Chinese characters found.")
+        if len(hanzi) > MAX_PASTED_SENTENCE_CHARS:
+            raise ValueError(
+                f"That's too long for one practice item (max {MAX_PASTED_SENTENCE_CHARS} characters).")
+
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            pasted_sentences = brain_data.get("pasted_sentences") or []
+            match = next((s for s in pasted_sentences
+                         if (s.get("chinese") or "").strip() == old_chinese), None)
+            if match is None:
+                raise ValueError("That sentence is no longer in your bank.")
+
+            if chinese != old_chinese and any(
+                (s.get("chinese") or "").strip() == chinese for s in pasted_sentences
+            ):
+                raise ValueError("You already have a sentence with that exact Chinese text.")
+
+            unlocked = brain_data.setdefault("unlocked_chars", {})
+            master = self.load_master_dictionary()
+            missing = [c for c in hanzi if c not in unlocked and c not in master]
+            if missing:
+                raise ValueError(f"'{missing[0]}' isn't in the dictionary, so it can't be unlocked.")
+
+            added_chars = 0
+            for c in hanzi:
+                if c not in unlocked:
+                    unlocked[c] = {
+                        "pinyin": master[c].get("pinyin", ""),
+                        "meaning": master[c].get("meaning", ""),
+                        "interval": 0, "factor": 2.5, "reps": 0, "last": None,
+                    }
+                    added_chars += 1
+
+            if chinese != old_chinese:
+                (brain_data.get("completed_sentences") or {}).pop(old_chinese, None)
+
+            match["chinese"] = chinese
+            match["english"] = english
+
+            with open(self.brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {"chinese": chinese, "english": english, "added_chars": added_chars}
+
+    def delete_pasted_sentence(self, chinese: str) -> dict:
+        """
+        Removes a personal sentence from pasted_sentences -- and any
+        completed_sentences record for that exact text, so it's genuinely
+        gone from the Sentence Bank rather than lingering as an orphaned
+        completion entry nothing displays anymore.
+
+        Never touches unlocked_chars: a character this sentence unlocked may
+        still be load-bearing for other sentences or words already in the
+        pool, and safely re-locking it would mean checking every one of
+        those first. Not worth it for what this feature is for -- fixing or
+        removing a bad entry, not reclaiming pool space -- so a deleted
+        sentence's characters simply stay unlocked, same as they would if
+        the sentence had never existed once its characters came from
+        somewhere else too.
+        """
+        chinese = (chinese or "").strip()
+        if not chinese:
+            return {"deleted": False}
+
+        with self.brain_lock:
+            brain_data = self._read_brain()
+            pasted_sentences = brain_data.get("pasted_sentences") or []
+            remaining = [s for s in pasted_sentences
+                        if (s.get("chinese") or "").strip() != chinese]
+            deleted = len(remaining) != len(pasted_sentences)
+            if deleted:
+                brain_data["pasted_sentences"] = remaining
+                (brain_data.get("completed_sentences") or {}).pop(chinese, None)
+                with open(self.brain_path, "w", encoding="utf-8") as f:
+                    json.dump(brain_data, f, ensure_ascii=False, indent=4)
+
+        return {"deleted": deleted}
+
     def _new_item_budget(self, unlocked: dict, brain_data: dict,
                          today_iso: str) -> tuple:
         """

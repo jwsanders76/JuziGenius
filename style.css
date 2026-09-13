@@ -1320,6 +1320,70 @@ body {
     vertical-align: middle;
 }
 
+/* A personal row (only) gets Edit/Delete below its text; a corpus row has
+   no .sentence-row-actions at all, so this never shows for one. */
+.sentence-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.sentence-row-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.sentence-row-btn:hover {
+    color: var(--text-primary);
+}
+
+.sentence-row-btn-danger {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.sentence-row-confirm {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* Editing state replaces the row's plain display with two inputs -- same
+   Chinese/English shape Paste Text itself uses, so fixing a typo here reads
+   as the same kind of action, not a different one. */
+.sentence-row-editing {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sentence-edit-input {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    padding: 6px 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.sentence-edit-chinese {
+    font-size: 1.05rem;
+}
+
+.sentence-row-error {
+    color: var(--accent-red);
+    font-size: 0.75rem;
+    margin: 0;
+}
+
 /* --- Quick Sentence Import modal (triggered from the Overview stat tile) --- */
 .import-list-actions {
     display: flex;

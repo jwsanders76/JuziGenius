@@ -2087,7 +2087,18 @@ async function openProgressView() {
     setProgressModalGroup("progress");
     switchProgressTab("overview");
     elements.progressBody.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
+    await refreshProgressData();
+}
 
+/**
+ * Fetches /api/progress and re-renders every tab it feeds. Split out of
+ * openProgressView so an action taken *inside* the modal -- editing or
+ * deleting a personal sentence, so far -- can pull the account back into
+ * sync (unlocked-character counts, the Character Bank list, the Sentence
+ * Bank list all potentially shift together) without closing and reopening
+ * the whole modal.
+ */
+async function refreshProgressData() {
     try {
         const response = await fetch(`${API_BASE}/api/progress`);
         if (!response.ok) throw new Error("Failed to load progress.");
@@ -2760,10 +2771,23 @@ function renderProgressWords(words) {
 }
 
 /**
+ * Which personal sentence's row is showing something other than its plain
+ * display state -- { chinese, mode: "edit" | "confirmDelete" } or null.
+ * Session-only UI state (not persisted): re-rendering the Sentence Bank
+ * (renderProgressSentences) reads it to know which single row, if any, to
+ * draw differently. Keyed by Chinese text, same identity pasted_sentences
+ * itself uses -- see edit_pasted_sentence's docstring for why that's safe.
+ */
+let sentenceBankRowMode = null;
+
+/**
  * Sentence Bank tab: everything accrued -- personal sentences saved via
  * Paste Text plus every corpus sentence ever completed -- not the live
  * practice queue, which empties out on every new batch (see
- * generate_fresh_session / progress_summary).
+ * generate_fresh_session / progress_summary). Only a personal sentence gets
+ * Edit/Delete controls (per explicit user request, to fix a paste that came
+ * in with a typo or a wrong translation) -- a corpus sentence's text isn't
+ * this account's to change or remove.
  */
 function renderProgressSentences(sentences) {
     if (!elements.progressSentences) return;
@@ -2773,17 +2797,128 @@ function renderProgressSentences(sentences) {
         return;
     }
 
-    const rows = sentences.map(s => `
-        <div class="sentence-row">
-            <div class="sentence-row-hanzi">${escapeHtml(s.chinese || "")}${s.personal ? ' <span class="sentence-row-tag">Personal</span>' : ""}</div>
-            <div class="sentence-row-english">${escapeHtml(s.english || "")}</div>
-        </div>
-    `).join("");
+    const rows = sentences.map(s => renderSentenceBankRow(s)).join("");
 
     elements.progressSentences.innerHTML = `
         <p class="progress-note">${sentences.length.toLocaleString()} sentence${sentences.length === 1 ? "" : "s"} learned.</p>
         <div class="sentence-list">${rows}</div>
     `;
+
+    wireSentenceBankRowActions(sentences);
+}
+
+function renderSentenceBankRow(s) {
+    const chinese = s.chinese || "";
+    const rowState = sentenceBankRowMode && sentenceBankRowMode.chinese === chinese
+        ? sentenceBankRowMode.mode : null;
+
+    if (rowState === "edit") {
+        return `
+        <div class="sentence-row sentence-row-editing" data-chinese="${escapeAttr(chinese)}">
+            <input type="text" class="sentence-edit-input sentence-edit-chinese" value="${escapeAttr(chinese)}" aria-label="Chinese">
+            <input type="text" class="sentence-edit-input sentence-edit-english" value="${escapeAttr(s.english || "")}" aria-label="English">
+            <p class="sentence-row-error" hidden></p>
+            <div class="sentence-row-actions">
+                <button type="button" class="sentence-row-btn" data-action="save">Save</button>
+                <button type="button" class="sentence-row-btn" data-action="cancel">Cancel</button>
+            </div>
+        </div>`;
+    }
+
+    const personalActions = s.personal ? `
+            <div class="sentence-row-actions">
+                ${rowState === "confirmDelete" ? `
+                <span class="sentence-row-confirm">Delete this sentence?</span>
+                <button type="button" class="sentence-row-btn sentence-row-btn-danger" data-action="confirmDelete">Delete</button>
+                <button type="button" class="sentence-row-btn" data-action="cancel">Cancel</button>
+                ` : `
+                <button type="button" class="sentence-row-btn" data-action="edit">Edit</button>
+                <button type="button" class="sentence-row-btn sentence-row-btn-danger" data-action="delete">Delete</button>
+                `}
+            </div>` : "";
+
+    return `
+        <div class="sentence-row" data-chinese="${escapeAttr(chinese)}">
+            <div class="sentence-row-main">
+                <div class="sentence-row-hanzi">${escapeHtml(chinese)}${s.personal ? ' <span class="sentence-row-tag">Personal</span>' : ""}</div>
+                <div class="sentence-row-english">${escapeHtml(s.english || "")}</div>
+            </div>
+            ${personalActions}
+        </div>`;
+}
+
+function wireSentenceBankRowActions(sentences) {
+    elements.progressSentences.querySelectorAll(".sentence-row").forEach(row => {
+        const chinese = row.dataset.chinese || "";
+
+        const editBtn = row.querySelector('[data-action="edit"]');
+        if (editBtn) editBtn.addEventListener("click", () => {
+            sentenceBankRowMode = { chinese, mode: "edit" };
+            renderProgressSentences(sentences);
+        });
+
+        const deleteBtn = row.querySelector('[data-action="delete"]');
+        if (deleteBtn) deleteBtn.addEventListener("click", () => {
+            sentenceBankRowMode = { chinese, mode: "confirmDelete" };
+            renderProgressSentences(sentences);
+        });
+
+        const cancelBtn = row.querySelector('[data-action="cancel"]');
+        if (cancelBtn) cancelBtn.addEventListener("click", () => {
+            sentenceBankRowMode = null;
+            renderProgressSentences(sentences);
+        });
+
+        const confirmDeleteBtn = row.querySelector('[data-action="confirmDelete"]');
+        if (confirmDeleteBtn) confirmDeleteBtn.addEventListener("click", () => deleteSentenceBankRow(chinese));
+
+        const saveBtn = row.querySelector('[data-action="save"]');
+        if (saveBtn) saveBtn.addEventListener("click", () => saveSentenceBankRow(row, chinese));
+    });
+}
+
+async function deleteSentenceBankRow(chinese) {
+    try {
+        const response = await apiPost("/api/sentence/delete", { chinese });
+        if (!response.ok) throw new Error(`Delete failed (${response.status}).`);
+    } catch (err) {
+        console.error(err);
+        alert("Couldn't delete that sentence. Please try again.");
+        return;
+    }
+    sentenceBankRowMode = null;
+    await refreshProgressData();
+}
+
+async function saveSentenceBankRow(row, oldChinese) {
+    const chineseInput = row.querySelector(".sentence-edit-chinese");
+    const englishInput = row.querySelector(".sentence-edit-english");
+    const errorEl = row.querySelector(".sentence-row-error");
+    const saveBtn = row.querySelector('[data-action="save"]');
+    if (!chineseInput || !englishInput) return;
+
+    if (errorEl) errorEl.hidden = true;
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+        const response = await apiPost("/api/sentence/edit", {
+            old_chinese: oldChinese,
+            chinese: chineseInput.value,
+            english: englishInput.value,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Save failed (${response.status}).`);
+
+        sentenceBankRowMode = null;
+        await refreshProgressData();
+    } catch (err) {
+        console.error(err);
+        if (errorEl) {
+            errorEl.textContent = err.message || "Couldn't save that edit.";
+            errorEl.hidden = false;
+        }
+        if (saveBtn) saveBtn.disabled = false;
+    }
 }
 
 /* ==========================================================================

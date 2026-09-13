@@ -965,6 +965,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         "/api/settings": ("_post_settings", 500, False),
         "/api/characters/add": ("_post_characters_add", 500, False),
         "/api/sentence/complete": ("_post_sentence_complete", 500, False),
+        "/api/sentence/edit": ("_post_sentence_edit", 500, True),
+        "/api/sentence/delete": ("_post_sentence_delete", 500, False),
         "/api/sentences/import": ("_post_sentences_import", 500, False),
         "/api/import": ("_post_import", 500, False),
         # 502 rather than 500: generating a batch is the one thing that can
@@ -1226,6 +1228,28 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if data is None:
             return None
         return engine.add_words(data.get("words", []))
+
+    def _post_sentence_edit(self, engine):
+        """
+        Corrects a personal sentence's Chinese and/or English -- fixing a
+        typo or a wrong translation without deleting and re-pasting it.
+        Body: { "old_chinese": "...", "chinese": "...", "english": "..." }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        return engine.edit_pasted_sentence(
+            data.get("old_chinese", ""), data.get("chinese", ""), data.get("english", ""))
+
+    def _post_sentence_delete(self, engine):
+        """
+        Removes a personal sentence from the Sentence Bank entirely.
+        Body: { "chinese": "..." }
+        """
+        data = self._json_body()
+        if data is None:
+            return None
+        return engine.delete_pasted_sentence(data.get("chinese", ""))
 
     def _post_character_review(self, engine):
         """
