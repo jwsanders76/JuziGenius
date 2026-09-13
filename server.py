@@ -71,15 +71,15 @@ ALLOWED_STATIC_PATHS = {
 STROKE_DATA_PATH = "stroke_data.json"
 STROKE_INDEX_PATH = "stroke_data.index.json"
 
-# Pre-generated sentence audio (see build_speech_audio.py). Content-addressed
-# by sha256(sentence text), sharded by the hash's first two hex characters,
-# so no in-memory index is needed the way stroke_data.index.json is -- the
-# path is derived, not looked up. Only covers SENTENCE_SOURCE_FILES; a
-# pasted sentence (or anything else not in that corpus at build time) simply
-# has no file here, and a 404 is the intended signal for app.js to fall back
-# to the browser's Web Speech API -- not an error to fix on this end.
-SPEECH_AUDIO_DIR = "speech_audio"
-SPEECH_VOICES = {"chaowen", "huayan"}
+# Sentence audio is spoken by the browser's own Web Speech API (see
+# playBrowserTTS in app.js). There was a pre-generated path here -- 699 MB of
+# MP3s synthesized by build_speech_audio.py and served from /api/speech -- and
+# it was removed, along with this server's ability to serve it, because the
+# Piper voice models it came from trace to a dataset whose licence the
+# upstream model card records as "Unknown". That is not permission to
+# distribute the output, and this app is heading for a paid tier. See
+# THIRD-PARTY-LICENSES.md. If a properly-licensed voice is adopted later, the
+# removed code is in the history of this file.
 
 
 def build_manifest(start_url="/"):
@@ -314,19 +314,6 @@ def stroke_entry_bytes(char):
     return json.dumps(entry, ensure_ascii=False).encode("utf-8")
 
 
-def speech_audio_path(voice, chinese):
-    """
-    The on-disk path build_speech_audio.py would have written this sentence
-    to for this voice, or None if `voice` isn't one we generate. Derived,
-    not looked up -- see SPEECH_AUDIO_DIR's comment. Existence is checked by
-    the caller; this just computes where to look.
-    """
-    if voice not in SPEECH_VOICES:
-        return None
-    h = hashlib.sha256(chinese.encode("utf-8")).hexdigest()
-    return os.path.join(SPEECH_AUDIO_DIR, voice, h[:2], f"{h}.mp3")
-
-
 class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # Without this, a connection that stops sending data mid-request (or
     # never finishes a declared body) blocks its handler thread forever --
@@ -454,8 +441,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         304 rather than a re-download.
 
         A handler that has already set its own Cache-Control keeps it --
-        /api/strokes and /api/speech set a long immutable one, since their
-        content is addressed by something that changes when it does. The
+        /api/strokes sets a long immutable one, since its content is
+        addressed by something that changes when it does. The
         check must be case-insensitive: _headers_buffer_names lowercases, so
         comparing against a capitalised "Cache-Control" silently never
         matches and appends a contradictory second `no-cache`, which wins
@@ -486,7 +473,6 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         "/api/settings": "_get_settings",
         "/api/onboarding/tiers": "_get_onboarding_tiers",
         "/api/strokes": "_get_strokes",
-        "/api/speech": "_get_speech",
     }
 
     def _handle_api_get(self, path, engine):
@@ -636,32 +622,6 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # A character's stroke data never changes; let the browser keep it so
         # repeat characters don't re-request every time.
         self._send_bytes(payload, "application/json; charset=utf-8", immutable=True)
-        return None
-
-    def _get_speech(self, _engine):
-        """
-        One sentence's pre-generated audio (build_speech_audio.py), replacing
-        the browser's Web Speech API for anything in the local corpus. A 404
-        here is not an error -- it's how app.js knows to fall back to
-        speechSynthesis, which is the intended (and only) path for a user's
-        own pasted sentences, since those don't exist at build time. Shared
-        reference data, so the engine is unused.
-        """
-        text = self._query_param("text")
-        file_path = speech_audio_path(self._query_param("voice"), text) if text else None
-        if file_path is None or not os.path.exists(file_path):
-            self._send_json_error(404, "No pre-generated audio for this sentence/voice.")
-            return None
-
-        # Opened per request, like _get_strokes, rather than through a shared
-        # handle -- a seek/read on a shared file object isn't thread-safe and
-        # ThreadingHTTPServer makes concurrent requests real.
-        with open(file_path, "rb") as f:
-            payload = f.read()
-        # This exact (text, voice) pair's audio never changes -- the hash is
-        # of the text itself, so any edit produces a different path rather
-        # than a stale file at this one.
-        self._send_bytes(payload, "audio/mpeg", immutable=True)
         return None
 
     def _csrf_check_failed(self):

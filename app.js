@@ -31,26 +31,20 @@ const state = {
     totalUnlockedCount: 0,
     totalDueCount: 0,
     newBacklog: 0,
-    // Which pre-generated voice (see build_speech_audio.py / PREGENERATED_VOICES)
-    // to request for corpus sentences; also picks which gender of browser
-    // voice to fall back to for a user's own pasted sentences, which have no
-    // pre-generated audio. Defaults to "huayan" (female) on a fresh install.
-    ttsVoice: localStorage.getItem("juzi_tts_voice") || "huayan",
     // Index into getOrderedChineseVoices() -- which installed browser voice to
-    // use for browser-TTS playback (single characters, and a user's own
-    // pasted sentences). Kept separate from ttsVoice: the browser's voice list
-    // has no reliable gender field, so switching voices here just steps
-    // through whatever the device actually has rather than pretending it can
-    // pick "the male one" (see getPreferredChineseVoice).
+    // speak with. The browser's voice list has no reliable gender field, so
+    // switching voices just steps through whatever the device actually has
+    // rather than pretending it can pick "the male one" (see
+    // getPreferredChineseVoice).
     browserVoiceIndex: parseInt(localStorage.getItem("juzi_browser_voice_index"), 10) || 0,
     // Light 田字格 registration grid overlaid on the writing canvas, purely a
-    // client-side display preference -- unlike ttsVoice/settings.daily_new_limit
+    // client-side display preference -- unlike settings.daily_new_limit
     // it has no bearing on what gets served, so it lives only in localStorage.
     // Defaults on, matching real tian zi ge practice paper.
     showGrid: localStorage.getItem("juzi_show_grid") !== "0",
     // Character Bank display order -- a per-device preference with no
     // bearing on what gets served (unlike settings.study_styles etc.), so it
-    // lives only in localStorage, same as showGrid/ttsVoice above. The raw
+    // lives only in localStorage, same as showGrid above. The raw
     // list itself is re-fetched each time Progress opens (see
     // openProgressView); only the chosen order persists across visits.
     characterBankSort: CHARACTER_BANK_SORTS.includes(localStorage.getItem("juzi_char_bank_sort"))
@@ -186,17 +180,6 @@ function skipCurrentCharacter() {
 
 // Global audio reference to prevent garbage collection
 let currentUtterance = null;
-// Pre-generated audio blobs fetched ahead of playback, keyed by "voice::text".
-// Populated as soon as a sentence loads (see loadSession) so that autoplay on
-// sentence completion isn't the first thing to await the network -- an await
-// there breaks the user-gesture chain that some browsers (notably iOS Safari)
-// require for HTMLMediaElement.play() to succeed, which made audio silently
-// fail on completion until the user manually replayed it.
-const pregeneratedAudioCache = new Map();
-// The <audio> element currently playing pre-generated sentence audio (see
-// playNativeTTS), held so a second playback (Replay, or advancing quickly)
-// can stop the previous one instead of overlapping it.
-let currentAudioEl = null;
 
 // A 45-byte, 1-sample silent WAV -- see unlockAudioPlayback below.
 const SILENT_AUDIO_DATA_URI =
@@ -400,14 +383,14 @@ function initEventListeners() {
     if (elements.btnSkip) elements.btnSkip.addEventListener("click", handleSkipSentence);
     
     if (elements.btnReplayAudio) {
-        elements.btnReplayAudio.addEventListener("click", () => playNativeTTS(currentSentenceText()));
+        elements.btnReplayAudio.addEventListener("click", () => playBrowserTTS(currentSentenceText()));
     }
 
     if (elements.btnSwitchVoice) {
         elements.btnSwitchVoice.addEventListener("click", () => {
             switchToNextVoice();
             updateSwitchVoiceButton(elements.btnSwitchVoice);
-            playNativeTTS(currentSentenceText());
+            playBrowserTTS(currentSentenceText());
         });
     }
 
@@ -760,8 +743,6 @@ function loadSession() {
     // completed.
     state.itemQualities = [];
     updateHintButtonLabel();
-
-    prefetchPregeneratedAudio(currentSentence.chinese);
 
     advancePastPunctuation();
     renderAssemblyLine();
@@ -1148,7 +1129,7 @@ function triggerSentenceCompletion() {
     // 2. Trigger native audio speech playback (the pronunciation controls
     //    are already visible -- loadSession() shows them as soon as the
     //    sentence loads, not just on success).
-    playNativeTTS(currentSentence.chinese);
+    playBrowserTTS(currentSentence.chinese);
 
     // 3. Render Victory Card with Mascot and Next button inside Tian Zi Ge
     const container = document.getElementById('tian-zi-ge');
@@ -1635,118 +1616,17 @@ async function handleGenerateSession() {
 }
 
 /**
- * Sentence playback. Tries pre-generated audio for the corpus sentence first
- * (GET /api/speech) -- this is the offline path, and covers everything in
- * SENTENCE_SOURCE_FILES. A 404 there is expected, not an error: it's exactly
- * what a user's own pasted sentence produces, since that text didn't exist
- * at build time, and playback falls back to the browser's Web Speech API for
- * it, same as before this feature existed. Fully offline for corpus
- * sentences; still network-dependent for pasted ones (see §1's TTS caveat
- * in project_state.md).
- *
- * A single-character item (the beginner character-only phase, or a stranded-
- * character slot -- see project_state.md) is a deliberate exception: it always
- * goes straight to the browser voice rather than the pre-generated models,
- * per explicit user decision. Multi-character sentences are unaffected.
- */
-async function playNativeTTS(text) {
-    if (!text) return;
-
-    const token = stopSentenceAudio();
-
-    if (text.length === 1) {
-        playBrowserTTS(text);
-        return;
-    }
-
-    const audioBlob = await fetchPregeneratedAudio(text);
-    // This await can outlast the item it was started for -- a fetch that
-    // resolves after the learner has already advanced to the next sentence
-    // would otherwise play stale audio over it (originally reported as a
-    // single-character mix-up, before single characters moved to the browser
-    // voice above and stopped taking this path). A superseded playback is
-    // dropped, not heard.
-    if (token !== state.audioToken) return;
-
-    if (audioBlob) {
-        // Deliberately not folded into the fetch's own try/catch: a fetch
-        // 404/network failure means "no pre-generated audio, use the
-        // browser instead," but a play() rejection (e.g. no user-gesture
-        // yet) is a different problem that speechSynthesis.speak() would
-        // likely hit too -- swapping providers on it would just fail a
-        // second way instead of surfacing the real one.
-        currentAudioEl = new Audio(URL.createObjectURL(audioBlob));
-        currentAudioEl.play().catch(err => console.error("Audio playback failed.", err));
-        return;
-    }
-
-    playBrowserTTS(text);
-}
-
-/**
- * Silences whatever is playing and invalidates any playback still waiting on
- * its audio, returning the new token. Called both when starting a fresh
- * playback and when the practice item changes (loadSession) -- audio belongs
- * to the item that was on screen when it started, and nothing else stops it:
- * the clip plays to its end on its own, so advancing mid-clip would otherwise
- * leave the previous item audible over the new one.
+ * Silences whatever is speaking and invalidates any playback still pending,
+ * returning the new token. Called when starting a fresh playback and when the
+ * practice item changes (loadSession) -- audio belongs to the item that was on
+ * screen when it started, and advancing mid-utterance would otherwise leave
+ * the previous item audible over the new one.
  */
 function stopSentenceAudio() {
-    if (currentAudioEl) {
-        currentAudioEl.pause();
-        currentAudioEl = null;
-    }
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
     return ++state.audioToken;
-}
-
-/**
- * Fetches this sentence's pre-generated audio for the current voice, or null
- * if there isn't any -- a 404 (not in the corpus) or a network error are
- * treated the same way here, since both mean "fall back to the browser."
- */
-function fetchPregeneratedAudio(text) {
-    const key = `${state.ttsVoice}::${text}`;
-    let pending = pregeneratedAudioCache.get(key);
-    if (!pending) {
-        pending = (async () => {
-            try {
-                const url = `${API_BASE}/api/speech?text=${encodeURIComponent(text)}&voice=${state.ttsVoice}`;
-                const resp = await fetch(url);
-                if (resp.ok) return await resp.blob();
-                // 404 means the corpus genuinely has no audio for this sentence
-                // (e.g. it's user-pasted) -- that won't change on retry, so the
-                // cached null stands.
-            } catch (err) {
-                // A network hiccup, unlike a 404, might not recur -- don't let
-                // a transient failure permanently pin this sentence to the
-                // browser-voice fallback for the rest of the session.
-                pregeneratedAudioCache.delete(key);
-                console.error("Could not fetch pre-generated audio, falling back to the browser voice.", err);
-            }
-            return null;
-        })();
-        pregeneratedAudioCache.set(key, pending);
-    }
-    return pending;
-}
-
-/**
- * Kicks off fetchPregeneratedAudio ahead of playback so its result is already
- * cached (or in flight) by the time playNativeTTS needs it -- called as soon
- * as a sentence becomes current, well before the user gesture that will
- * eventually trigger playback. Fire-and-forget: a failed prefetch just means
- * playNativeTTS falls back to the browser voice, same as today.
- *
- * A single character never uses the pre-generated models (see playNativeTTS),
- * so there's nothing worth prefetching for one -- skipping it avoids a fetch
- * whose result will never be read.
- */
-function prefetchPregeneratedAudio(text) {
-    if (!text || text.length === 1) return;
-    fetchPregeneratedAudio(text);
 }
 
 /**
@@ -1757,13 +1637,15 @@ function prefetchPregeneratedAudio(text) {
  * speechSynthesis itself is unavailable is simply silent (checked below).
  */
 function playBrowserTTS(text) {
+    if (!text) return;
+
+    const token = stopSentenceAudio();
+
     if (!('speechSynthesis' in window)) return;
 
-    const token = state.audioToken;
-
     // A known, widely-reported Chrome/WebKit bug: speak() called too soon
-    // after cancel() (stopSentenceAudio calls it at the top of every
-    // playNativeTTS) can start the new utterance and then cut it off after
+    // after cancel() (stopSentenceAudio calls it just above, on every
+    // playback) can start the new utterance and then cut it off after
     // only the first character or two, rather than erroring -- reported
     // directly for a two-character word losing its second character. The
     // engine needs a moment to actually finish canceling before a new
@@ -1844,14 +1726,11 @@ function getOrderedChineseVoices() {
 }
 
 /**
- * Returns the browser voice for browser-TTS playback: a single-character
- * item (see playNativeTTS) and a user's own pasted sentence, which has no
- * pre-generated audio. Cycles by state.browserVoiceIndex rather than trying
- * to match a gender -- most devices report every Mandarin voice as
- * "unknown" gender, which made the old gender-matching lookup silently
- * resolve to the same voice every time, so Switch Voice had no audible
- * effect for either of these cases. Returns null if the device has no
- * Mandarin voice at all.
+ * Returns the browser voice to speak with. Cycles by state.browserVoiceIndex
+ * rather than trying to match a gender -- most devices report every Mandarin
+ * voice as "unknown" gender, which made the old gender-matching lookup
+ * silently resolve to the same voice every time, so Switch Voice had no
+ * audible effect at all. Returns null if the device has no Mandarin voice.
  */
 function getPreferredChineseVoice() {
     const ordered = getOrderedChineseVoices();
@@ -1860,23 +1739,17 @@ function getPreferredChineseVoice() {
 }
 
 /**
- * Advances to the next voice for BOTH playback paths at once, so the same
- * button and the same click always move things forward together: the
- * pre-generated voice (chaowen/huayan) used for multi-character sentences,
- * and the browser voice (see getPreferredChineseVoice) used for
- * single-character items and pasted sentences. Persists both choices.
+ * Steps to the next Mandarin voice the device has installed, and remembers it.
+ * A device with one Mandarin voice (or none) has nothing to step through, so
+ * the button is a no-op there rather than an error -- see
+ * updateSwitchVoiceButton for why it stays enabled anyway.
  */
 function switchToNextVoice() {
-    state.ttsVoice = state.ttsVoice === "chaowen" ? "huayan" : "chaowen";
-    localStorage.setItem("juzi_tts_voice", state.ttsVoice);
-
     const voiceCount = getOrderedChineseVoices().length;
     if (voiceCount > 0) {
         state.browserVoiceIndex = (state.browserVoiceIndex + 1) % voiceCount;
         localStorage.setItem("juzi_browser_voice_index", String(state.browserVoiceIndex));
     }
-
-    prefetchPregeneratedAudio(currentSentenceText());
 }
 
 /**

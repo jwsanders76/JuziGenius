@@ -1,4 +1,24 @@
 """
+*** NOT IN USE -- READ THIS BEFORE RUNNING IT ***
+
+The audio this produces was removed from the app and deleted from the server,
+and /api/speech no longer exists. Sentence playback is the browser's Web
+Speech API (playBrowserTTS in app.js). Running this script will happily
+regenerate ~700 MB of audio that nothing serves.
+
+Why it was dropped: piper's *engine* is MIT, but voice models are licensed
+separately, and both zh_CN voices below (huayan, chaowen) trace to the
+HuaYan_TTS dataset, whose licence the upstream Piper model card records as
+"Unknown". That is not permission to distribute the output, and this app is
+heading for a paid tier. See THIRD-PARTY-LICENSES.md.
+
+Kept rather than deleted because the pipeline itself is sound and worth
+reusing if a properly-licensed voice is ever adopted. If you do that, change
+PIPER_MODELS to the new voice, confirm its licence permits commercial
+distribution, and restore the serving path from this file's git history.
+
+---
+
 Pre-generates offline sentence audio for the local corpus with piper (MIT),
 so sentence playback stops depending on the browser's Web Speech API -- see
 project_state.md, section 7 item 15, for the full investigation and the
