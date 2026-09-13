@@ -2068,8 +2068,15 @@ class JuziEngine:
         Same validation a fresh paste gets: every Chinese character must
         already be unlockable (unlocked here exactly like
         import_text_locally, so an edit can introduce a new character same
-        as a paste can), and the same length cap applies. Raises ValueError
-        with a message fit to show the user directly on anything that fails.
+        as a paste can), and the same length cap applies. New compound words
+        are detected and unlocked the same way too (analyze_text_compounds).
+        Raises ValueError with a message fit to show the user directly on
+        anything that fails.
+
+        A character or word the *old* text needed but the new one doesn't is
+        never re-locked -- same rule as delete_pasted_sentence, and for the
+        same reason: it may still be load-bearing for other content already
+        in the pool, and there's no cheap way to check that here.
         """
         old_chinese = (old_chinese or "").strip()
         chinese = re.sub(r'\s+', '', chinese or "")
@@ -2115,6 +2122,23 @@ class JuziEngine:
                     }
                     added_chars += 1
 
+            # Same compound-word detection import_text_locally runs on a
+            # fresh paste -- an edit that introduces a new word (not just new
+            # characters) should register it too, the same as pasting it
+            # would have.
+            unlocked_words = brain_data.setdefault("unlocked_words", {})
+            added_words = 0
+            for item in self.analyze_text_compounds(chinese):
+                word = item["word"]
+                if word not in unlocked_words:
+                    unlocked_words[word] = {
+                        "pinyin": item.get("pinyin", ""),
+                        "meaning": item.get("meaning", ""),
+                        "rank": item.get("rank", 99999),
+                        "interval": 0, "factor": 2.5, "reps": 0, "last": None,
+                    }
+                    added_words += 1
+
             if chinese != old_chinese:
                 (brain_data.get("completed_sentences") or {}).pop(old_chinese, None)
 
@@ -2124,7 +2148,8 @@ class JuziEngine:
             with open(self.brain_path, "w", encoding="utf-8") as f:
                 json.dump(brain_data, f, ensure_ascii=False, indent=4)
 
-        return {"chinese": chinese, "english": english, "added_chars": added_chars}
+        return {"chinese": chinese, "english": english,
+                "added_chars": added_chars, "added_words": added_words}
 
     def delete_pasted_sentence(self, chinese: str) -> dict:
         """
