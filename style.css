@@ -325,11 +325,11 @@ body {
 
 /* --- Reserved Hint Container Space --- */
 #hint-display-container {
-    height: 28px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 1.9rem;
     font-weight: bold;
     color: var(--accent-gold);
     margin-bottom: 6px;

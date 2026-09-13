@@ -1210,10 +1210,12 @@ function showPinyinPush(char, sentenceObj, charIndex) {
 
     // No reading available. The old fallback here printed the literal string
     // "pīn yīn", which reads as a real answer and teaches a nonsense one;
-    // saying so plainly is the honest degradation.
+    // saying so plainly is the honest degradation. No "Pinyin:" label on the
+    // success path -- the hint button the user just pressed already says
+    // that's what this is, per explicit user request.
     hintContainer.textContent = pinyinResult
-        ? `Pinyin: ${pinyinResult}`
-        : "Pinyin: unavailable for this character";
+        ? pinyinResult
+        : "No pinyin available for this character";
 }
 
 /**
