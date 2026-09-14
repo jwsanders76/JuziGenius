@@ -30,7 +30,7 @@ import secrets
 from auth import hash_password, verify_password
 from seed_brain import empty_brain
 from user_registry import USERS_DIR, load_index, save_index
-from atomic_io import write_json
+from brain_history import save_brain
 
 ACCOUNTS_PATH = os.path.join(USERS_DIR, "accounts.json")
 
@@ -187,7 +187,7 @@ def create_account(accounts, username, password, email=None):
     user_id = secrets.token_urlsafe(16)
     user_dir = os.path.join(USERS_DIR, user_id)
     os.makedirs(user_dir, exist_ok=False)
-    write_json(os.path.join(user_dir, "brain.json"), empty_brain())
+    save_brain(os.path.join(user_dir, "brain.json"), empty_brain())
     _add_entry(accounts, user_id, username, password, email)
     return user_id
 

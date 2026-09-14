@@ -41,7 +41,7 @@ import secrets
 
 from seed_brain import empty_brain
 from user_registry import USERS_DIR, load_registry, save_registry
-from atomic_io import write_json
+from brain_history import save_brain
 
 BASE_URL = "https://juzigenius.com"
 
@@ -56,7 +56,7 @@ def create_user():
     # Same shape a self-service reset returns an account to, from one
     # definition -- see seed_brain.empty_brain and server.py's
     # POST /api/account/reset.
-    write_json(os.path.join(user_dir, "brain.json"), empty_brain())
+    save_brain(os.path.join(user_dir, "brain.json"), empty_brain())
 
     return slug
 

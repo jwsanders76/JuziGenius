@@ -403,7 +403,9 @@
                  and scrolled through on every visit, and an irreversible
                  action should not sit at the end of a scroll people take for
                  other reasons. Two steps, the second requiring the word to be
-                 typed, because there is no undo and no backup. -->
+                 typed, because there is no undo in the app. (The state it
+                 replaces is kept in brain-history for two days, but only an
+                 operator can bring it back -- see restore_brain.py.) -->
             <div class="mode-panel" data-progress-panel="reset" hidden>
                 <div class="progress-body">
                     <section class="danger-zone">
@@ -420,9 +422,9 @@
                         </ul>
 
                         <p class="danger-warning">
-                            This cannot be undone. There is no backup and no way to recover
-                            any of it afterwards &mdash; least of all the sentences you saved
-                            from your own reading, which nothing else can reconstruct.
+                            You can't undo this from the app, so treat it as permanent &mdash;
+                            especially the sentences you saved from your own reading, which
+                            nothing else can reconstruct.
                         </p>
 
                         <div class="danger-actions">

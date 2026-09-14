@@ -40,7 +40,7 @@ import os
 import statistics
 from datetime import date, timedelta
 
-from atomic_io import write_json
+from brain_history import save_brain
 from juzi_engine import MAX_INTERVAL_DAYS, JuziEngine
 from user_registry import USERS_DIR
 
@@ -135,7 +135,7 @@ def main():
         print(f"account #{number}:")
         print("\n".join(lines))
         if args.apply:
-            write_json(path, brain)
+            save_brain(path, brain, force_snapshot=True)
 
     if not changed_accounts:
         print("Nothing to repair.")

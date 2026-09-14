@@ -2,6 +2,8 @@
 # Do NOT remove these; they protect your keys and progress
 config.py
 brain.json
+# Per-account save history of brain.json (brain_history.py): personal data.
+brain-history/
 users/
 project_state.md
 goal_prompt

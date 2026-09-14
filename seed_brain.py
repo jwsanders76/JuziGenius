@@ -48,7 +48,7 @@ import os
 
 from juzi_engine import (ALLOWED_PUNCT, DEFAULT_DAILY_NEW_LIMIT,
                          load_sentence_corpus)
-from atomic_io import write_json
+from brain_history import save_brain
 
 MASTER_DICT_PATH = "master_dictionary.json"
 BRAIN_PATH = "brain.json"
@@ -362,7 +362,7 @@ def main():
 
     if not exists or args.force:
         brain = build_brain(args.size, master)
-        write_json(BRAIN_PATH, brain)
+        save_brain(BRAIN_PATH, brain)
         playable = count_playable(brain["unlocked_chars"], master)
         verb = "Reseeded" if exists else "Seeded"
         print(
@@ -386,7 +386,7 @@ def main():
         )
         return
 
-    write_json(BRAIN_PATH, brain_data)
+    save_brain(BRAIN_PATH, brain_data)
 
     after = len(brain_data["unlocked_chars"])
     playable = count_playable(brain_data["unlocked_chars"], master)

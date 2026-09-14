@@ -16,7 +16,7 @@ import user_registry
 from juzi_engine import JuziEngine
 from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
-from atomic_io import write_json
+from brain_history import save_brain
 
 PORT = 8000
 
@@ -1457,7 +1457,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 return None
 
             new_brain = seed_build_brain(size, engine.load_master_dictionary())
-            write_json(engine.brain_path, new_brain)
+            save_brain(engine.brain_path, new_brain)
 
         return {
             "size": size,
@@ -1507,7 +1507,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                       ("unlocked_chars", "unlocked_words",
                        "completed_sentences", "pasted_sentences")}
 
-            write_json(engine.brain_path, empty_brain())
+            save_brain(engine.brain_path, empty_brain(), force_snapshot=True)
 
         # Logged because it is irreversible and someone will ask what
         # happened to their progress. The account is not named: the slug is
