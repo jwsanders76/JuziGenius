@@ -34,6 +34,10 @@ Environment=JUZI_BIND_HOST=127.0.0.1
 # leading "-" makes the file optional: without it the service still starts,
 # and emails are printed to the journal instead of being sent.
 EnvironmentFile=-/home/deploy/.juzi-env
+# Lets GET /healthz report a stale or failed nightly backup (see server.py's
+# health_problems). The log is written by ~/bin/juzi-backup.sh, which lives
+# outside this repository.
+Environment=JUZI_BACKUP_LOG=/home/deploy/backup.log
 ExecStart=/usr/bin/python3 server.py
 Restart=on-failure
 RestartSec=5

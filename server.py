@@ -1,9 +1,11 @@
+import datetime
 import hashlib
 import http.cookies
 import http.server
 import json
 import os
 import re
+import shutil
 import threading
 import urllib.parse
 import accounts
@@ -69,6 +71,20 @@ ALLOWED_STATIC_PATHS = {
     # actually using the work -- which a page behind a login does not do.
     "/credits.html", "/ARPHICPL.TXT",
 }
+
+# --- Health check for an external uptime monitor (GET/HEAD /healthz) ---
+# A monitor on the far side of the internet only sees HTTP status codes, so
+# anything worth an alert has to surface here as a non-200. The process not
+# answering at all needs nothing extra -- Caddy returns 502 on its behalf --
+# and the checks below cover the failures an outside probe can't see.
+HEALTH_DISK_LIMIT_PERCENT = 80
+# The nightly backup's log, written by ~/bin/juzi-backup.sh on the droplet --
+# infrastructure that lives outside this repository (see project_state.md's
+# Backups section). Unset, as in local development, skips the check.
+BACKUP_LOG_PATH = os.environ.get("JUZI_BACKUP_LOG", "")
+# The backup runs nightly, so a healthy log is never much more than 24 hours
+# old. 30 leaves room for a slow run without raising an alert over it.
+BACKUP_MAX_AGE_HOURS = 30
 
 STROKE_DATA_PATH = "stroke_data.json"
 STROKE_INDEX_PATH = "stroke_data.index.json"
@@ -176,6 +192,62 @@ engines_lock = threading.Lock()
 # slugs. Login and session-cookie checks only read, but take the same lock
 # so they can never observe a signup's writes half-applied.
 ACCOUNTS_LOCK = threading.Lock()
+
+
+def _last_backup_age_hours(log_path):
+    """
+    Hours since the backup log last recorded success. None if the log can't
+    be read, has never recorded a success, or its most recent outcome was a
+    failure -- a failed run should raise an alert that night, not a day later
+    once the previous success finally ages out.
+    """
+    try:
+        with open(log_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            # Only the tail matters, and the log grows every night with
+            # restic's own output. 64 KB holds several nights of it.
+            f.seek(max(0, f.tell() - 65536))
+            tail = f.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    # Status lines are "<date -Is>  <message>"; restic's interleaved output
+    # never starts with either message, so it falls through harmlessly.
+    for line in reversed(tail.splitlines()):
+        stamp, _, message = line.partition("  ")
+        if message.startswith("FAILED:"):
+            return None
+        if message.startswith("backup OK"):
+            try:
+                finished = datetime.datetime.fromisoformat(stamp)
+            except ValueError:
+                return None
+            now = datetime.datetime.now(datetime.timezone.utc)
+            return (now - finished).total_seconds() / 3600
+    return None
+
+
+def health_problems():
+    """
+    What is wrong right now, as a list of short words; empty means healthy.
+    /healthz is unauthenticated, so these name a category and never a number
+    or a path.
+    """
+    problems = []
+    # used / (used + free) is what `df` reports as Use%, so the threshold
+    # means the same thing here as on the command line.
+    usage = shutil.disk_usage(USERS_DIR)
+    if usage.used * 100 >= (usage.used + usage.free) * HEALTH_DISK_LIMIT_PERCENT:
+        problems.append("disk")
+    try:
+        with ACCOUNTS_LOCK:
+            accounts.load_accounts()
+    except Exception:
+        problems.append("accounts")
+    if BACKUP_LOG_PATH:
+        age = _last_backup_age_hours(BACKUP_LOG_PATH)
+        if age is None or age > BACKUP_MAX_AGE_HOURS:
+            problems.append("backup")
+    return problems
 
 
 def get_engine_for_id(account_id):
@@ -364,6 +436,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
 
+        if path == "/healthz":
+            self._send_health()
+            return
+
         if path == "/login":
             # Same bypass-the-allowlist pattern as index.html/landing.html
             # below: rewrite and hand off to SimpleHTTPRequestHandler's own
@@ -444,6 +520,57 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         return super().do_GET()
+
+    def do_HEAD(self):
+        """
+        HEAD answers for exactly what GET would serve, and nothing else.
+
+        Without this override, SimpleHTTPRequestHandler's own do_HEAD answered
+        for ANY file under the working directory, skipping do_GET's allowlist
+        entirely: HEAD /.session_secret and HEAD /users/accounts.json returned
+        200 with each file's real size and modification time. No contents left
+        -- HEAD carries no body, verified both through Caddy and directly --
+        but it confirmed which secrets exist and when accounts last changed.
+        Found September 14, 2026 while adding /healthz, which uptime monitors
+        commonly probe with HEAD.
+        """
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/healthz":
+            self._send_health(head_only=True)
+            return
+        if path == "/login":
+            self.path = "/login.html"
+            return super().do_HEAD()
+        if path in ("/", "/index.html"):
+            # GET picks landing.html or index.html by session; a HEAD needs
+            # no body to decide between them, so it answers for the public one.
+            self.path = "/landing.html"
+            return super().do_HEAD()
+        if path in ALLOWED_STATIC_PATHS:
+            return super().do_HEAD()
+        self._send_404()
+
+    def _send_health(self, head_only=False):
+        """
+        GET/HEAD /healthz. 200 "ok" when healthy, otherwise 503 with the
+        problem words from health_problems(), so a single uptime monitor
+        alerts on the disk filling, accounts.json becoming unreadable, or the
+        nightly backup going stale -- as well as on the site being down, which
+        Caddy reports as 502. No session needed: the monitor has none.
+        """
+        try:
+            problems = health_problems()
+        except Exception:
+            problems = ["check"]
+        body = (" ".join(problems) if problems else "ok").encode("ascii") + b"\n"
+        self.send_response(503 if problems else 200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        # A cached "ok" is worse than no answer at all.
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(body)
 
     def end_headers(self):
         """
