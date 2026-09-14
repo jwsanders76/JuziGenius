@@ -5,6 +5,7 @@ import random
 import re
 import threading
 import unicodedata
+import statistics
 from datetime import date, timedelta
 from atomic_io import write_json
 
@@ -299,6 +300,29 @@ _LATIN_LETTER_RE = re.compile(r'[A-Za-z]')
 _LEADING_LIST_MARKER_RE = re.compile(r'^\s*(?:[0-9]+|[a-zA-Z])[.\)、]\s*')
 _TRAILING_SEPARATOR_RE = re.compile(r'[\s\-–—:|,]+$')
 _LEADING_SEPARATOR_RE = re.compile(r'^[\s\-–—:|,]+')
+
+
+# The longest any item may be scheduled out, in days. A backstop, not the
+# main defence against runaway intervals (that is _advance_sm2 refusing to
+# advance an item that isn't due yet), so that nothing else going wrong can
+# ever again schedule a character centuries away.
+MAX_INTERVAL_DAYS = 365
+
+
+def _sm2_is_due(entry, today_iso):
+    """
+    Whether an SM-2 entry is due on `today_iso` -- the same rule _due_items
+    uses to build the due set. A missing or unparseable `last` counts as due.
+    """
+    last = entry.get("last")
+    if not last:
+        return True
+    try:
+        last_date = date.fromisoformat(last)
+    except ValueError:
+        return True
+    interval = entry.get("interval", 0) or 0
+    return last_date + timedelta(days=interval) <= date.fromisoformat(today_iso)
 
 
 class JuziEngine:
@@ -960,11 +984,15 @@ class JuziEngine:
         characters', and duplicating this math would risk the two schedules
         drifting apart on a future tweak to one but not the other.
 
-        Returns False (entry left untouched) for a same-day successful
-        repeat -- see review_character for why that has to be a no-op
-        rather than compounding the interval multiplier against itself.
-        Quality < 3 always counts, including a same-day repeat: forgetting
-        an item later in the same session is real evidence it isn't known.
+        Returns False (entry left untouched) for a successful review of an
+        item that isn't due yet -- a same-day repeat, or simply meeting a
+        common character in a sentence days before its review date. See
+        review_character for why both have to be no-ops rather than
+        compounding the interval multiplier against itself. Quality < 3
+        always counts, due or not: forgetting an item is real evidence it
+        isn't known, whenever it happens.
+
+        A success on a due item never schedules it beyond MAX_INTERVAL_DAYS.
         """
         already_reviewed_today = entry.get("last") == today_iso
         reps = entry.get("reps", 0) or 0
@@ -979,13 +1007,15 @@ class JuziEngine:
             factor = max(1.3, factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
         elif already_reviewed_today and reps > 0:
             return False
+        elif reps > 0 and not _sm2_is_due(entry, today_iso):
+            return False
         else:
             if reps == 0:
                 interval = 1
             elif reps == 1:
                 interval = 6
             else:
-                interval = round(interval * factor)
+                interval = min(round(interval * factor), MAX_INTERVAL_DAYS)
             reps += 1
             factor = max(1.3, factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)))
 
@@ -1061,6 +1091,16 @@ class JuziEngine:
         _advance_sm2). A *failed* repeat still applies its lapse: forgetting
         a character later in the same session is real evidence it isn't
         known, and ignoring it would let the loop paper over real failures.
+
+        The same compounding happens across days, which the same-day rule
+        alone did not stop. Common characters (一, 人, 了) appear in nearly
+        every sentence, so they were graded once a day, every day, whether or
+        not they were due -- and each day multiplied the interval again. Two
+        real accounts reached intervals of 43,411 and 2,023,815 days within
+        two weeks (found September 14, 2026). A successful grading now
+        advances the schedule only when the character is actually due; seen
+        early, it is practice, not a review. repair_sm2_intervals.py fixed
+        the data that had already inflated.
         """
         return self._review_item("unlocked_chars", "char", "Character",
                                  char, quality)
@@ -1874,6 +1914,12 @@ class JuziEngine:
             "stages": stages,
             "avg_factor": round(sum(factors) / len(factors), 2) if factors else None,
             "avg_interval": round(sum(intervals) / len(intervals), 1) if intervals else None,
+            # The figure the Progress view shows. A mean is dragged around by
+            # a handful of outliers -- one runaway character once pushed an
+            # account's "average interval" past 32,000 days while its typical
+            # character was on a 6-day cycle. avg_interval stays in the
+            # payload so a cached older app.js keeps rendering.
+            "median_interval": round(statistics.median(intervals), 1) if intervals else None,
             "frequency_bands": frequency_bands,
             "hsk_levels": [hsk_levels[k] for k in sorted(hsk_levels)],
             "sentences_completed_unique": len(completed),

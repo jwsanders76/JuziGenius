@@ -2744,7 +2744,7 @@ function renderProgress(p) {
             <p class="progress-note">Where your unlocked characters sit in the review schedule.</p>
             <div class="stage-bar">${segments}</div>
             <div class="legend">${legend}</div>
-            ${p.avg_interval !== null ? `<p class="progress-note">Average review interval <strong>${p.avg_interval} days</strong>, average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
+            ${p.median_interval != null ? `<p class="progress-note">Typical review interval <strong>${p.median_interval} days</strong> (median), average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
         </section>
 
         <section class="progress-section">
