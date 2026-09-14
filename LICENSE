@@ -16,6 +16,14 @@ MIT license does not impose. In particular:
 See THIRD-PARTY-LICENSES.md for the full attribution list, license texts and
 chain of provenance for each.
 
+It also does NOT cover the JuziGenius brand: the names JuziGenius and Juzi, the
+Juzi mascot character, and the images that depict it (avatar-nobg.png,
+avatar-nobg-128.png, icon-192.png, icon-512.png, icon-maskable-512.png). These
+are trademarks of John Sanders, and no license to use them is granted here.
+You are free to copy, modify and redistribute the code under the MIT license,
+but a fork that is distributed or run as a service needs its own name and
+artwork. Saying accurately that it is based on JuziGenius is fine.
+
 -------------------------------------------------------------------------------
 
 MIT License
