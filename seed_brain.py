@@ -141,7 +141,14 @@ def load_stroke_counts():
         return {}
     with open(STROKE_DATA_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return {char: len(entry.get("strokes", [])) for char, entry in data.items()}
+    # Only character entries are dicts. The file opens with a "_modifications"
+    # licence notice whose value is a string (see fetch_stroke_data.py's
+    # write_with_index, and THIRD-PARTY-LICENSES.md for why it has to be
+    # there). Iterating that notice as if it were a character crashed First
+    # Peel seeding in production from the day it was added, September 13,
+    # 2026, until this check; the other tiers never read stroke counts.
+    return {char: len(entry.get("strokes", []))
+            for char, entry in data.items() if isinstance(entry, dict)}
 
 
 def select_beginner_characters(size, master, start_pool=None):
