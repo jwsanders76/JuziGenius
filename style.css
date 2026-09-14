@@ -26,6 +26,16 @@
     --slot-gap: 8px;
     --canvas-max: 420px;
     --hint-scale: 1;
+
+    /* Height of everything on the practice card except the canvas, measured
+       by fitCanvasToViewportHeight() (app.js), so the canvas can take only
+       what's left of the screen. --layout-slack is breathing room above and
+       below the card. --canvas-min stops a very short screen (a phone in
+       landscape) shrinking the canvas past usefulness; there the page
+       scrolls instead. */
+    --layout-chrome: 0px;
+    --layout-slack: 24px;
+    --canvas-min: 200px;
 }
 
 * {
@@ -42,6 +52,10 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    /* The small viewport height, where supported. On iOS Safari 100vh is the
+       height with the toolbars collapsed, so centring the card in it pushed
+       its bottom edge under the toolbar. */
+    min-height: 100svh;
     overflow-x: hidden;
 }
 
@@ -65,6 +79,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     margin-bottom: 14px;
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -128,6 +143,7 @@ body {
     border: 1px solid var(--border-color);
     padding: 4px 12px;
     border-radius: 20px;
+    white-space: nowrap;
 }
 
 /* The avatar art is a self-contained round mascot on a transparent
@@ -367,14 +383,26 @@ body {
        reads this box's actual rendered size for Hanzi Writer's own canvas
        (container.clientWidth/clientHeight), so however big CSS makes this
        square, the writer matches it exactly with no separate value to keep
-       in sync. Square via aspect-ratio so one dimension drives both. */
+       in sync. Square via aspect-ratio so one dimension drives both.
+
+       Capped by height as well as width: the screen's height, less everything
+       else on the card (--layout-chrome), so the canvas and the action row
+       below it fit on one screen without scrolling. Each declaration is a
+       fallback for a browser that can't parse the next: no max() inside
+       min(), then no svh unit. svh rather than vh because it stays fixed as
+       iOS Safari's toolbars show and hide. */
     width: min(var(--canvas-max), 100%);
+    width: min(var(--canvas-max), 100%, max(var(--canvas-min), calc(100vh - var(--layout-chrome) - var(--layout-slack))));
+    width: min(var(--canvas-max), 100%, max(var(--canvas-min), calc(100svh - var(--layout-chrome) - var(--layout-slack))));
     aspect-ratio: 1 / 1;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     overflow: hidden;
+    /* Lets the cards drawn inside the canvas (the success card) size
+       themselves to the canvas rather than the screen; see @container below. */
+    container-type: inline-size;
 }
 
 #tian-zi-ge svg {
@@ -581,6 +609,44 @@ body {
 
 .btn-repeat:active {
     transform: translateY(0);
+}
+
+/* The cards drawn inside a small canvas. Sized by the canvas rather than the
+   screen, because the canvas also shrinks to fit the screen's height (see
+   #tian-zi-ge), down to 200px on a phone or in a short desktop window. At
+   that size the success card still fit, but Repeat and Next each wrapped
+   onto two lines, and the no-stroke-data card ran past the bottom. Its note
+   is an instruction for whoever runs the server rather than the learner, so
+   it's the part that goes. Browsers without container queries keep the
+   full-size cards. */
+@container (max-width: 260px) {
+    .stroke-error-card { padding: 8px; }
+    .stroke-error-char {
+        font-size: 2rem;
+        margin-bottom: 4px;
+    }
+    .stroke-error-title {
+        font-size: 0.85rem;
+        margin-bottom: 10px;
+    }
+    .stroke-error-note { display: none; }
+    .victory-card { padding: 8px; }
+    .victory-mascot {
+        width: 56px;
+        height: 56px;
+        margin-bottom: 4px;
+    }
+    .victory-title {
+        font-size: 1rem;
+        margin-bottom: 8px;
+    }
+    .victory-actions { gap: 6px; }
+    .btn-repeat,
+    .btn-next {
+        padding: 7px 10px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
 }
 
 /* --- Import Modal Overlay --- */
@@ -1735,5 +1801,107 @@ body {
     .action-btn {
         padding: 12px 4px;
         font-size: 0.85rem;
+    }
+}
+
+/* --- Narrow screens: Settings joins the top bar ---
+   Fixed to the viewport's bottom-left corner, the Settings button sat on top
+   of the writing canvas on any screen too narrow to keep the two apart, so a
+   stroke started under it hit the button. Here it drops into the top bar's
+   flow as a gear. The label stays in the markup, and so for screen readers;
+   only its visual size goes to zero. */
+@media (max-width: 760px) {
+    #corner-bar {
+        position: static;
+        flex-shrink: 0;
+    }
+    #btn-settings {
+        font-size: 0;
+        padding: 6px 10px;
+        line-height: 1;
+    }
+    #btn-settings::before {
+        content: "⚙";
+        font-size: 1.05rem;
+    }
+}
+
+/* --- Phones: the card fills the screen ---
+   Edge to edge instead of a floating bordered card, with every vertical gap
+   tightened. The canvas takes whatever height is left over (see
+   --layout-chrome), so each pixel saved here goes straight into the writing
+   surface. Safe-area insets keep the top bar clear of the status bar when
+   installed to the home screen. */
+@media (max-width: 480px) {
+    :root { --layout-slack: 0px; }
+    body { align-items: flex-start; }
+    #app-container {
+        background-color: transparent;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        padding: max(10px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
+    }
+    #top-bar {
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+    }
+    .top-nudge {
+        margin-bottom: 8px;
+        padding: 8px 10px;
+    }
+    #english-prompt {
+        font-size: 1.1rem;
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    #assembly-line {
+        min-height: 40px;
+        margin-bottom: 8px;
+    }
+    #hint-display-container {
+        height: 30px;
+        margin-bottom: 4px;
+        font-size: calc(1.45rem * var(--hint-scale));
+    }
+    #workspace-main { gap: 10px; }
+}
+
+/* --- Narrower screens: a shorter unlocked counter ---
+   With Settings in the top bar there's less room for the counter, and a top
+   bar wider than the screen pushes the Progress button past the right edge,
+   making the whole page scroll sideways. The Beta badge goes first, then the
+   word "Unlocked", leaving "汉字 500". */
+@media (max-width: 540px) {
+    #beta-badge { display: none; }
+}
+
+@media (max-width: 430px) {
+    .counter-label-long { display: none; }
+}
+
+/* --- The narrowest screens: a smaller top bar and action row ---
+   Includes an ordinary iPhone with Safari's page zoom turned up: 393px at
+   125% leaves 314. Before this the action row wrapped onto a second line. */
+@media (max-width: 360px) {
+    #top-bar { gap: 6px; }
+    #character-counter {
+        padding: 4px 8px;
+        gap: 6px;
+    }
+    .top-btn {
+        padding: 6px 9px;
+        font-size: 0.8rem;
+    }
+    #btn-settings { padding: 6px 8px; }
+    #action-sidebar { gap: 6px; }
+    .action-btn {
+        flex-basis: 56px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+    #sentence-audio-controls {
+        flex-basis: 56px;
+        gap: 6px;
     }
 }

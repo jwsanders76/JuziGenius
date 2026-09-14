@@ -21,6 +21,8 @@ const state = {
     // loadSession/triggerSentenceCompletion.
     itemQualities: [],
     writer: null,
+    // The canvas size the live writer was last drawn at (see syncWriterToCanvas).
+    writerSize: null,
     writerToken: 0,
     // Same guard shape as writerToken, for sentence audio: bumped whenever
     // playback is superseded, either by a new playback or by the practice item
@@ -191,6 +193,7 @@ const elements = {};
 document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
+    watchLayoutSize();
     registerServiceWorker();
     fetchNewSession();
     loadAccount();
@@ -300,6 +303,7 @@ function cacheDomElements() {
     elements.englishPrompt = document.getElementById("english-prompt");
     elements.assemblyLine = document.getElementById("assembly-line");
     elements.canvasContainer = document.getElementById("tian-zi-ge");
+    elements.appContainer = document.getElementById("app-container");
     elements.btnClear = document.getElementById("btn-clear");
     elements.btnHint = document.getElementById("btn-hint");
     elements.btnSkip = document.getElementById("btn-skip");
@@ -964,6 +968,70 @@ function fitAssemblyLineToOneLine(charCount) {
     const softenedScale = 1 - (1 - scale) * 0.4;
     root.setProperty("--canvas-max", `${Math.round(420 * softenedScale)}px`);
     root.setProperty("--hint-scale", softenedScale.toFixed(2));
+
+    fitCanvasToViewportHeight();
+}
+
+/**
+ * Sizes the writing canvas to the screen's height as well as its width, so
+ * the whole practice card -- prompt, slots, canvas and the action row under
+ * it -- fits on one screen without scrolling. Reported from an iPhone, where
+ * the card was ~820px tall in a Safari window showing ~660: the Clear/Hint/
+ * Skip row sat below the fold and the bottom of the canvas was cut off, and
+ * with Safari's page zoom at 125% it was worse still.
+ *
+ * Measures everything on the card except the canvas and hands that to CSS
+ * as --layout-chrome; #tian-zi-ge's width rule subtracts it from the small
+ * viewport height. None of the measured height depends on the canvas's own
+ * size, so setting it can't feed back into itself. Runs before each
+ * sentence's writer is created (via fitAssemblyLineToOneLine), and again
+ * from watchLayoutSize whenever the card changes size afterwards.
+ */
+function fitCanvasToViewportHeight() {
+    const card = elements.appContainer;
+    const canvas = elements.canvasContainer;
+    if (!card || !canvas || !canvas.offsetHeight) return;
+
+    const chrome = `${card.offsetHeight - canvas.offsetHeight}px`;
+    const root = document.documentElement.style;
+    if (root.getPropertyValue("--layout-chrome") !== chrome) {
+        root.setProperty("--layout-chrome", chrome);
+    }
+}
+
+/**
+ * Refits the canvas whenever the card changes size once a writer exists: a
+ * reminder banner appearing or being dismissed, a phone rotating, a window
+ * being resized.
+ */
+function watchLayoutSize() {
+    const refit = () => {
+        fitCanvasToViewportHeight();
+        syncWriterToCanvas();
+    };
+    if ("ResizeObserver" in window && elements.appContainer) {
+        new ResizeObserver(refit).observe(elements.appContainer);
+    } else {
+        window.addEventListener("resize", refit);
+    }
+}
+
+/**
+ * Resizes the live writer to match its canvas rather than rebuilding it.
+ * Hanzi Writer's updateDimensions re-points an in-progress quiz at the new
+ * size, so strokes already drawn on the current character survive a resize.
+ */
+function syncWriterToCanvas() {
+    const canvas = elements.canvasContainer;
+    if (!state.writer || !canvas || state.isCompleted) return;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const drawn = state.writerSize;
+    if (!width || (drawn && drawn.width === width && drawn.height === height)) return;
+
+    state.writerSize = { width, height };
+    state.writer.updateDimensions({ width, height });
 }
 
 /**
@@ -1019,9 +1087,10 @@ function setupCurrentCharacterWriter() {
     // clipping inside a smaller box -- found while fixing a report of the
     // sidebar's Listen/Hint/Skip buttons being pushed off-screen on phones,
     // since #tian-zi-ge's old fixed 240px left no room for them beside it.
+    state.writerSize = { width: container.clientWidth, height: container.clientHeight };
     state.writer = HanziWriter.create('tian-zi-ge', targetChar, {
-        width: container.clientWidth,
-        height: container.clientHeight,
+        width: state.writerSize.width,
+        height: state.writerSize.height,
         padding: 10,
         showCharacter: false,
         showOutline: false,
