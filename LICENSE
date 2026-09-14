@@ -9,7 +9,7 @@ MIT license does not impose. In particular:
 
   stroke_data.json        Arphic Public License (see ARPHICPL.TXT)
   tatoeba_sentences.csv   CC BY 2.0 FR -- attribution required
-  words_freq.json         mixed; HSK 4-6 provenance unresolved
+  words_freq.json         CC BY-SA 4.0 -- glosses adapted from CC-CEDICT
   master_dictionary.json  derived from Unicode Han Database (Unihan)
   vendor/                 MIT, each file under its own copyright
 

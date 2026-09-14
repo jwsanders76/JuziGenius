@@ -25036,5 +25036,10 @@
         "pinyin": "zuò xī",
         "meaning": "work and rest",
         "rank": 5007
+    },
+    "_license": {
+        "license": "CC BY-SA 4.0 -- https://creativecommons.org/licenses/by-sa/4.0/",
+        "attribution": "English glosses for the HSK 4-6 entries (rank 612 onward) are adapted from CC-CEDICT, (c) MDBG and the CC-CEDICT contributors -- https://www.mdbg.net/chinese/dictionary?page=cc-cedict",
+        "changes": "Classifier (CL:) annotations and dictionary markup removed; 373 glosses corrected by hand in September 2026 (see backfill_word_meanings.py in https://github.com/jwsanders76/JuziGenius). The HSK 1-3 entries (ranks 1-611) were compiled for JuziGenius and are released under the same license."
     }
 }

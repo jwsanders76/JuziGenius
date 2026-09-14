@@ -86,28 +86,53 @@ use with attribution.
 
 ## Word list and glosses — `words_freq.json`
 
-Two distinct sources:
+**License: CC BY-SA 4.0.** The whole file is distributed under the
+[Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/),
+because its HSK 4–6 glosses are adapted from CC-CEDICT. Commercial use is
+permitted. The file carries this notice in its own `_license` key, so it travels
+with the data.
+
+Two sources:
 
 - **HSK 1–3 entries (ranks 1–611)** — compiled for this project alongside the
   hand-written example sentences in `hsk_level1and2_words_with_sentences.csv` and
-  `hsk_level3_words_with_sentences.csv`.
-- **HSK 4–6 entries (ranks 612+)** — from
-  [clem109/hsk-vocabulary](https://github.com/clem109/hsk-vocabulary) (MIT),
-  which sources from
-  [gigacool/hanyu-shuiping-kaoshi](https://github.com/gigacool/hanyu-shuiping-kaoshi).
+  `hsk_level3_words_with_sentences.csv`, and released under the same license so
+  the file has a single set of terms.
+- **HSK 4–6 entries (ranks 612+)** — word lists via
+  [clem109/hsk-vocabulary](https://github.com/clem109/hsk-vocabulary), which takes
+  them from [gigacool/hanyu-shuiping-kaoshi](https://github.com/gigacool/hanyu-shuiping-kaoshi),
+  with English glosses from
+  **[CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)**
+  (© MDBG and the CC-CEDICT contributors, CC BY-SA 4.0).
 
-> **Unresolved provenance.** The HSK 4–6 glosses use formatting conventions
-> characteristic of [CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)
-> — classifier annotations (`CL:個|个[gè]`), pronunciation notes (`Taiwan pr.`),
-> and cross-references (`erhua variant of`). CC-CEDICT is distributed under
-> **CC BY-SA 4.0**, which permits commercial use but requires attribution and
-> share-alike on the data. Neither upstream repository acknowledges a dictionary
-> source, so the chain cannot be confirmed from the repositories alone.
->
-> CC-CEDICT is credited here on that basis. If you rely on this data, resolve the
-> provenance before treating `words_freq.json` as MIT-licensed. Note that CC
-> share-alike would attach to the data file, not to this application's code —
-> Creative Commons licenses do not propagate through linking the way the GPL does.
+**How the CC-CEDICT origin was established (September 14, 2026).** Neither
+upstream repository names a dictionary source, and both carry an MIT license that
+covers their code — which could not have relicensed CC-CEDICT's text in any case.
+The origin was confirmed from the data itself:
+
+- The untouched upstream copy, `hsk_level4to6_vocab_source.json`, still contains
+  CC-CEDICT's own annotations: classifier notes (`CL:個|个[gè]`), 13 `Taiwan pr.`
+  pronunciation notes, 18 `variant of` and 9 `abbr. for` cross-references.
+- Glosses match live CC-CEDICT entries sense for sense, in the same order — 一贯
+  "consistent; constant; from start to finish; all along; persistent"; 重叠 "to
+  overlap; to superimpose; to telescope; to run together; to duplicate; …".
+  Sense lists like these do not arise independently.
+- Where the wording differs slightly from today's CC-CEDICT (申请 "to apply for
+  something; application (form etc)"), it matches an older release, consistent
+  with a snapshot taken some years ago.
+
+**Changes made**, as the license requires stating: classifier (`CL:`)
+annotations were removed when the list was built (`build_words_freq.py`), and in
+September 2026 373 glosses were corrected by hand — raw dictionary markup,
+pronunciation notes, cross-references and self-referential senses removed, and a
+few emptied glosses given new definitions (`backfill_word_meanings.py` lists every
+change).
+
+**Share-alike attaches to this data file, not to the application.** Anyone may
+copy, modify and redistribute `words_freq.json` under CC BY-SA 4.0, and adapted
+versions of it must stay under the same license. Creative Commons licenses do not
+propagate through linking the way the GPL does, so JuziGenius's own code is
+unaffected, and charging for the app is permitted.
 
 ## HSK vocabulary lists
 
@@ -163,7 +188,7 @@ carve-out, collides with two of the licenses above:
   Everyone who receives the stroke data automatically receives an Arphic license
   to copy, modify and redistribute it. A blanket no-redistribution clause purports
   to take that back, which you have no standing to do.
-- **CC BY 2.0 FR / CC BY-SA 4.0** (Tatoeba, and CC-CEDICT if confirmed) grant
+- **CC BY 2.0 FR / CC BY-SA 4.0** (Tatoeba, and CC-CEDICT) grant
   recipients similar rights that your terms cannot withdraw.
 
 This matters more once the Service is paid, because that is exactly when a
@@ -173,7 +198,7 @@ restrictive redistribution clause tends to get written. Suggested wording:
 > licenses granted by their original authors, not by us. These include the
 > stroke-order data (Arphic Public License), example sentences from the Tatoeba
 > Project (CC BY 2.0 FR), character definitions derived from the Unicode Han
-> Database, and word glosses that may derive from CC-CEDICT (CC BY-SA 4.0). A
+> Database, and the word list with glosses adapted from CC-CEDICT (CC BY-SA 4.0). A
 > current list, with licenses, is published at /credits.html.
 >
 > Nothing in these Terms limits — and we do not purport to limit — any right you
