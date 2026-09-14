@@ -12,7 +12,10 @@ get_engine_for_id in server.py). A short code the operator hands out
 privately closes that off at effectively no cost to a real friend signing up.
 
 users/invite_codes.json, gitignored alongside the rest of users/:
-    {code: {created, used_by, used_at}}
+    {code: {created, used_by, used_at, plan?}}
+
+`plan`, when present, is the plan the account created with the code starts on
+instead of free (see plans.py and create_invite.py --plan).
 """
 import datetime
 import os
@@ -31,8 +34,11 @@ def save_invite_codes(codes):
     save_index(INVITE_CODES_PATH, codes)
 
 
-def create_invite_code():
-    """Mints, records, and returns one new unused code. Used by create_invite.py."""
+def create_invite_code(plan=None):
+    """
+    Mints, records, and returns one new unused code. Used by create_invite.py.
+    `plan`, if given, is the plan the account it creates starts on.
+    """
     codes = load_invite_codes()
     code = secrets.token_urlsafe(6)
     codes[code] = {
@@ -40,8 +46,15 @@ def create_invite_code():
         "used_by": None,
         "used_at": None,
     }
+    if plan:
+        codes[code]["plan"] = plan
     save_invite_codes(codes)
     return code
+
+
+def invite_plan(codes, code):
+    """The plan `code` grants its account, or None for the free plan."""
+    return (codes.get(code) or {}).get("plan")
 
 
 def redeem_invite_code(codes, code):

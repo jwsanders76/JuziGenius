@@ -58,6 +58,8 @@ const state = {
     characterBankRaw: [],
     isCompleted: false,
     importMode: "paste",
+    // The account's plan from /api/plan (see plans.py), or null until it loads.
+    plan: null,
     // Last payload from /api/settings -- held so the Settings panel can
     // validate against the server's own bounds and restore its default
     // without a second request.
@@ -197,6 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
     registerServiceWorker();
     fetchNewSession();
     loadAccount();
+    loadPlan();
     updateLoginNudge();
     // Chrome loads its voice list asynchronously; kick it off early so it's
     // ready by the time a sentence completes and the victory card needs it.
@@ -390,6 +393,18 @@ function cacheDomElements() {
     elements.onboardingModal = document.getElementById("onboarding-modal");
     elements.onboardingTiersList = document.getElementById("onboarding-tiers");
     elements.onboardingStatus = document.getElementById("onboarding-status");
+    elements.onboardingPlanNote = document.getElementById("onboarding-plan-note");
+
+    // Plans: the locked Paste Text panel, the upgrade screen, Settings' plan section.
+    elements.pasteOpen = document.getElementById("paste-open");
+    elements.pasteLocked = document.getElementById("paste-locked");
+    elements.upgradeModal = document.getElementById("upgrade-modal");
+    elements.upgradeTitle = document.getElementById("upgrade-title");
+    elements.upgradeLead = document.getElementById("upgrade-lead");
+    elements.upgradeStats = document.getElementById("upgrade-stats");
+    elements.upgradeBtnClose = document.getElementById("upgrade-btn-close");
+    elements.planSection = document.getElementById("plan-section");
+    elements.planNote = document.getElementById("plan-note");
 
     elements.sentenceImportModal = document.getElementById("sentence-import-modal");
     elements.sentenceImportList = document.getElementById("sentence-import-list");
@@ -600,8 +615,14 @@ function initEventListeners() {
             if (elements.importModal) {
                 elements.importModal.style.display = "flex";
                 elements.importTextarea.value = "";
-                switchImportMode("paste");
-                elements.importTextarea.focus();
+                // Paste Text is locked on the free plan, so open on the tab
+                // that actually unlocks something instead.
+                if (pasteLocked()) {
+                    switchImportMode("chars");
+                } else {
+                    switchImportMode("paste");
+                    elements.importTextarea.focus();
+                }
             }
         });
     }
@@ -618,6 +639,12 @@ function initEventListeners() {
 
     if (elements.modalBtnSubmit) {
         elements.modalBtnSubmit.addEventListener("click", handleModalSubmit);
+    }
+
+    if (elements.upgradeBtnClose) {
+        elements.upgradeBtnClose.addEventListener("click", () => {
+            elements.upgradeModal.style.display = "none";
+        });
     }
 
     // Keyboard navigation: Press Space or Enter to load Next sentence when completed.
@@ -728,6 +755,7 @@ async function showOnboarding() {
         if (!response.ok) throw new Error(`Failed to load tiers (${response.status}).`);
         const data = await response.json();
         renderOnboardingTiers(data.tiers || []);
+        if (elements.onboardingPlanNote) elements.onboardingPlanNote.hidden = data.full_access !== false;
     } catch (err) {
         console.error(err);
         if (elements.onboardingTiersList) {
@@ -759,6 +787,14 @@ function renderOnboardingTierButton(tier) {
         </div>
         <span class="onboarding-tier-arrow">→</span>
     `;
+    // A tier the account's plan doesn't include stays visible, so the free
+    // plan's shape is clear from the start, but explains rather than seeds.
+    if (tier.locked) {
+        btn.classList.add("is-locked");
+        btn.querySelector(".onboarding-tier-arrow").textContent = "Paid plan";
+        btn.addEventListener("click", () => showUpgrade("tier"));
+        return btn;
+    }
     btn.addEventListener("click", () => chooseOnboardingTier(tier.size));
     return btn;
 }
@@ -779,7 +815,14 @@ async function chooseOnboardingTier(size) {
 
     try {
         const response = await apiPost("/api/onboarding/seed", { size });
+        if (response.status === 402) {
+            buttons.forEach(b => (b.disabled = false));
+            if (elements.onboardingStatus) elements.onboardingStatus.hidden = true;
+            showUpgrade("tier");
+            return;
+        }
         if (!response.ok) throw new Error(`Onboarding seed failed (${response.status}).`);
+        loadPlan();
         fetchNewSession();
     } catch (err) {
         console.error(err);
@@ -1535,10 +1578,24 @@ function switchImportMode(mode) {
         panel.hidden = panel.dataset.modePanel !== mode;
     });
 
-    elements.modalBtnSubmit.textContent = SUBMIT_LABELS[mode] || "Submit";
+    const locked = mode === "paste" && pasteLocked();
+    if (elements.pasteOpen) elements.pasteOpen.hidden = locked;
+    if (elements.pasteLocked) elements.pasteLocked.hidden = !locked;
+    elements.modalBtnSubmit.textContent = locked
+        ? "About the paid plan"
+        : (SUBMIT_LABELS[mode] || "Submit");
 
     if (mode === "suggest") loadSuggestions();
     if (mode === "chars") loadCharacterSuggestions();
+}
+
+/**
+ * True when the account's plan doesn't include Paste Text. False until the
+ * plan has loaded: the server refuses the import regardless (402), so guessing
+ * open costs nothing but a round trip.
+ */
+function pasteLocked() {
+    return !!state.plan && state.plan.can_paste === false;
 }
 
 /**
@@ -1551,6 +1608,8 @@ function handleModalSubmit() {
         handleAddSuggestedCharacters();
     } else if (state.importMode === "suggest") {
         handleAddSuggestedWords();
+    } else if (pasteLocked()) {
+        showUpgrade("paste");
     } else {
         handleTextImport();
     }
@@ -1568,19 +1627,23 @@ async function loadSuggestions() {
         const response = await fetch(`${API_BASE}/api/suggestions`);
         if (!response.ok) throw new Error("Failed to fetch word suggestions.");
         const data = await response.json();
-        renderSuggestions(data.suggestions || []);
+        renderSuggestions(data.suggestions || [], data.limit_reached);
     } catch (err) {
         console.error(err);
         elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
     }
 }
 
-function renderSuggestions(suggestions) {
+function renderSuggestions(suggestions, limitReached = false) {
     if (!elements.suggestionsList) return;
     elements.suggestionsList.innerHTML = "";
 
     if (suggestions.length === 0) {
-        elements.suggestionsList.innerHTML = `<p class="suggestions-empty">No new words to suggest &mdash; you've added them all!</p>`;
+        if (limitReached) {
+            renderLimitReached(elements.suggestionsList, "words");
+        } else {
+            elements.suggestionsList.innerHTML = `<p class="suggestions-empty">No new words to suggest &mdash; you've added them all!</p>`;
+        }
         return;
     }
 
@@ -1649,9 +1712,13 @@ async function handleAddSuggestedWords() {
         if (result.rejected_single_chars && result.rejected_single_chars.length > 0) {
             summary += `\n\nSkipped ${result.rejected_single_chars.join("、")} — single characters are unlocked for practice via the Paste Text tab, not stored as compound words.`;
         }
+        if (result.locked_words && result.locked_words.length > 0) {
+            summary += `\n\nSkipped ${result.locked_words.join("、")} — they use characters beyond HSK 1, which the paid plan includes.`;
+        }
         alert(summary);
 
         elements.importModal.style.display = "none";
+        loadPlan();
         fetchNewSession();
 
     } catch (err) {
@@ -1679,6 +1746,11 @@ async function handleTextImport() {
     try {
         const response = await apiPost("/api/import", { text });
 
+        if (response.status === 402) {
+            elements.importModal.style.display = "none";
+            showUpgrade("paste");
+            return;
+        }
         if (!response.ok) throw new Error("Import failed on backend server.");
 
         const result = await response.json();
@@ -1954,20 +2026,24 @@ async function loadCharacterSuggestions() {
         const response = await fetch(`${API_BASE}/api/characters/suggestions`);
         if (!response.ok) throw new Error("Failed to fetch character suggestions.");
         const data = await response.json();
-        renderCharacterSuggestions(data.suggestions || []);
+        renderCharacterSuggestions(data.suggestions || [], data.limit_reached);
     } catch (err) {
         console.error(err);
         elements.charSuggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
     }
 }
 
-function renderCharacterSuggestions(suggestions) {
+function renderCharacterSuggestions(suggestions, limitReached = false) {
     if (!elements.charSuggestionsList) return;
     elements.charSuggestionsList.innerHTML = "";
 
     if (suggestions.length === 0) {
-        elements.charSuggestionsList.innerHTML =
-            `<p class="suggestions-empty">Nothing left to suggest &mdash; you've unlocked every character in the dictionary!</p>`;
+        if (limitReached) {
+            renderLimitReached(elements.charSuggestionsList, "characters");
+        } else {
+            elements.charSuggestionsList.innerHTML =
+                `<p class="suggestions-empty">Nothing left to suggest &mdash; you've unlocked every character in the dictionary!</p>`;
+        }
         return;
     }
 
@@ -1995,7 +2071,7 @@ function renderCharacterSuggestions(suggestions) {
 
         const statsSpan = document.createElement("span");
         statsSpan.className = "suggestion-stats";
-        const bits = [`#${item.freq}`];
+        const bits = item.freq ? [`#${item.freq}`] : [];
         if (item.strokes) bits.push(`${item.strokes} strokes`);
         if (item.hsk) bits.push(`HSK ${item.hsk}`);
         statsSpan.textContent = bits.join(" · ");
@@ -2041,9 +2117,17 @@ async function handleAddSuggestedCharacters() {
         updateCharacterCounter();
         updateDueCounter();
 
-        alert(`Unlocked ${result.added_chars.length} character(s): ${result.added_chars.join("、")}`);
+        let summary = `Unlocked ${result.added_chars.length} character(s): ${result.added_chars.join("、")}`;
+        if (result.locked && result.locked.length > 0) {
+            summary += `\n\nSkipped ${result.locked.join("、")} — beyond HSK 1, which the paid plan includes.`;
+        }
+        alert(summary);
         elements.importModal.style.display = "none";
+        await loadPlan();
         fetchNewSession();
+        // Unlocking the last HSK 1 character is the moment to say what's next.
+        const limit = state.plan && state.plan.free_limit;
+        if (limit && limit.reached && result.added_chars.length > 0) showUpgrade("limit");
     } catch (err) {
         console.error(err);
         alert("Error connecting to Python server while unlocking characters.");
@@ -2256,6 +2340,118 @@ function showAccountEmailStatus(message) {
     if (!elements.accountEmailStatus) return;
     elements.accountEmailStatus.hidden = !message;
     elements.accountEmailStatus.textContent = message;
+}
+
+/* ==========================================================================
+   Plans
+   ==========================================================================
+   The free plan is HSK 1: its characters, the two smallest starting pools,
+   and no pasting (see plans.py). The server enforces every part of that;
+   this code only explains it, so nothing here is trusted.
+   ========================================================================== */
+
+async function loadPlan() {
+    try {
+        const response = await fetch(`${API_BASE}/api/plan`);
+        if (!response.ok) return;
+        state.plan = await response.json();
+        renderPlan();
+    } catch (err) {
+        console.error("Couldn't load plan details.", err);
+    }
+}
+
+function renderPlan() {
+    const plan = state.plan;
+    if (!plan || !elements.planSection || !elements.planNote) return;
+    elements.planSection.hidden = false;
+
+    if (plan.plan === "founding") {
+        elements.planNote.textContent = "Founding member: everything is unlocked, as thanks "
+            + "for helping build JuziGenius during the beta.";
+    } else if (plan.full_access) {
+        elements.planNote.textContent = "Paid: every HSK level and beyond, pasting your own "
+            + "text, and every starting pool.";
+    } else {
+        const limit = plan.free_limit;
+        elements.planNote.textContent = `Free: all ${limit.total} HSK 1 characters. `
+            + `You've unlocked ${limit.unlocked} of them.`
+            + (limit.reached ? " That's all of HSK 1; the paid plan unlocks the rest." : "");
+    }
+}
+
+const UPGRADE_COPY = {
+    limit: {
+        title: "You've unlocked all of HSK 1",
+        lead: "That's every character the free plan includes. Keep reviewing them for as long as you like.",
+    },
+    words: {
+        title: "You've added every HSK 1 word",
+        lead: "That's every word the free plan can offer. More words come with the characters beyond HSK 1.",
+    },
+    paste: {
+        title: "Pasting your own text is a paid feature",
+        lead: "Paste vocabulary lists, textbook sentences or anything you're reading, and every character in it unlocks for practice.",
+    },
+    tier: {
+        title: "Larger starting pools are paid",
+        lead: "The free plan starts with First Peel or Sun-Ripened and grows through all of HSK 1.",
+    },
+};
+
+/**
+ * The upgrade screen, for something the free plan doesn't include. Having
+ * run out of free material, it leads with what the learner has built: that
+ * is when the evidence the method works is strongest.
+ */
+async function showUpgrade(reason) {
+    if (!elements.upgradeModal) return;
+    const copy = UPGRADE_COPY[reason] || UPGRADE_COPY.limit;
+    elements.upgradeTitle.textContent = copy.title;
+    elements.upgradeLead.textContent = copy.lead;
+    elements.upgradeStats.hidden = true;
+    elements.upgradeStats.innerHTML = "";
+    elements.upgradeModal.style.display = "flex";
+
+    if (reason !== "limit" && reason !== "words") return;
+    try {
+        const response = await fetch(`${API_BASE}/api/progress`);
+        if (!response.ok) return;
+        const progress = await response.json();
+        elements.upgradeStats.innerHTML = [
+            [progress.unlocked_chars, "characters", "Characters unlocked"],
+            [progress.unlocked_words, "words", "Words added"],
+            [progress.sentences_completed_unique, "sentences written", "Different sentences written out in full"],
+        ].map(([value, label, title]) => statTile((value || 0).toLocaleString(), label, title)).join("");
+        elements.upgradeStats.hidden = false;
+    } catch (err) {
+        console.error("Couldn't load progress for the upgrade screen.", err);
+    }
+}
+
+/**
+ * Stands in for an empty suggestion list when the free plan has nothing left
+ * to offer, so it never reads as the dictionary having run out.
+ */
+function renderLimitReached(container, noun) {
+    container.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "plan-locked";
+    const title = document.createElement("p");
+    title.className = "plan-locked-title";
+    title.textContent = noun === "words"
+        ? "You've added every word the free plan includes"
+        : "You've unlocked every HSK 1 character";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "modal-btn btn-secondary";
+    button.textContent = "What's next";
+    button.addEventListener("click", () => {
+        if (elements.importModal) elements.importModal.style.display = "none";
+        showUpgrade(noun === "words" ? "words" : "limit");
+    });
+    card.append(title, button);
+    container.appendChild(card);
 }
 
 async function saveAccountEmail() {

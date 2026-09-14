@@ -1905,3 +1905,39 @@ body {
         gap: 6px;
     }
 }
+
+/* --- Plans: locked features and the upgrade screen ---
+   See plans.py for what the free plan includes. These only explain a limit;
+   the server is what enforces it. */
+.plan-locked {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent-purple);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.plan-locked-title {
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.plan-locked .modal-btn { margin-top: 6px; }
+
+.onboarding-tier.is-locked .onboarding-tier-name { color: var(--text-secondary); }
+
+.onboarding-tier.is-locked .onboarding-tier-arrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #d2b4de;
+    border: 1px solid rgba(142, 68, 173, 0.6);
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.upgrade-card { text-align: center; }
+.upgrade-card .stat-row { justify-content: center; margin: 14px 0; }
+.upgrade-card .progress-note { margin-top: 10px; }

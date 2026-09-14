@@ -12,9 +12,10 @@ import accounts
 import auth
 import invites
 import mailer
+import plans
 import user_registry
 from juzi_engine import JuziEngine
-from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
+from seed_brain import SIZE_CHOICES, TIER_INFO, count_playable, empty_brain, select_characters
 from seed_brain import build_brain as seed_build_brain
 from brain_history import save_brain
 
@@ -277,6 +278,24 @@ def get_engine_for_id(account_id):
         engines[account_id] = engine
         return engine
 
+
+_free_tier_sentences = {}
+
+
+def free_tier_sentence_count(size, allowed_chars, master):
+    """
+    How many sentences a free account's `size` starting tier can write. The
+    counts in TIER_INFO were measured against the whole dictionary, but a free
+    account is seeded from HSK 1 alone (see _post_onboarding_seed), so the
+    picker would otherwise promise sentences the pool can't reach. Computed
+    once per size and kept for the life of the process.
+    """
+    if size not in _free_tier_sentences:
+        free_master = plans.restricted_master(master, allowed_chars)
+        pool = select_characters(size, free_master)
+        _free_tier_sentences[size] = count_playable(pool, free_master)
+    return _free_tier_sentences[size]
+
 # Vendored Hanzi Writer stroke data. This is what makes handwriting work
 # offline: without it the library fetches every character from
 # cdn.jsdelivr.net as the user is asked to write it. Tracked in the repo
@@ -455,6 +474,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if engine is None:
                 self._send_404()
                 return
+            self.account_id = user_match.group(1)
             sub_path = user_match.group(2) or "/"
             if self._link_retired(user_match.group(1), sub_path):
                 return
@@ -490,6 +510,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     self._send_account(user_id)
                 return
+            self.account_id = user_id
             engine = get_engine_for_id(user_id) if user_id else None
             if engine is not None and self._handle_api_get(path, engine):
                 return
@@ -510,8 +531,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if path.startswith("/api/"):
                 self._send_404()
                 return
-        elif self._handle_api_get(path, default_engine):
-            return
+        else:
+            self.account_id = None
+            if self._handle_api_get(path, default_engine):
+                return
 
         if path == "/manifest.json":
             self._send_manifest("/")
@@ -608,6 +631,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if b":" in line
         }
 
+    # The account the current request acts for -- its users/<id>/ directory
+    # name -- set by do_GET/do_POST once the request resolves to an engine, or
+    # None for the single-user default engine. Plan limits key off it (see
+    # _limits). Set on every request, because one handler instance serves
+    # every request on a keep-alive connection.
+    account_id = None
+
     # GET API routes: path -> method name. Each takes the resolved `engine`
     # and returns a payload to send as 200 JSON, or None having already
     # written its own response (the two that serve raw bytes). Anything
@@ -620,6 +650,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         "/api/sentences/importable": "_get_importable_sentences",
         "/api/settings": "_get_settings",
         "/api/onboarding/tiers": "_get_onboarding_tiers",
+        "/api/plan": "_get_plan",
         "/api/strokes": "_get_strokes",
     }
 
@@ -641,6 +672,29 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json_error(500, str(e))
         return True
+
+    def _limits(self, engine):
+        """
+        What this request's account may do under its plan (see plans.py). The
+        single-user default engine -- local development, never the hosted
+        site -- belongs to no account and has no limits.
+        """
+        plan = plans.plan_for(self.account_id) if self.account_id else plans.PAID
+        return plans.Limits(plan, engine.load_master_dictionary())
+
+    def _send_upgrade_required(self, reason, message):
+        """
+        402 for something the account's plan doesn't include. `reason`
+        ("paste" or "tier") tells app.js which upgrade screen to show. 402
+        rather than 403, so it can never be mistaken for a CSRF refusal.
+        """
+        self._send_json(402, {"error": message, "upgrade_required": True, "reason": reason})
+
+    def _get_plan(self, engine):
+        """The account's plan and, on the free plan, how much of HSK 1 it has unlocked."""
+        with engine.brain_lock:
+            unlocked = engine._read_brain().get("unlocked_chars", {}) or {}
+        return self._limits(engine).view(unlocked)
 
     def _get_session(self, engine):
         """The saved practice bank plus the counters the top bar shows."""
@@ -714,16 +768,27 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         }
 
     def _get_word_suggestions(self, engine):
-        """Highest-frequency compound words not yet added, for "Suggest Words"."""
-        return {"suggestions": engine.suggest_new_words(count=5)}
+        """
+        Highest-frequency compound words not yet added, for "Suggest Words".
+        `limit_reached` says an empty list means the free plan has nothing
+        left to offer, rather than the dictionary running out.
+        """
+        limits = self._limits(engine)
+        suggestions = engine.suggest_new_words(count=5, allowed_chars=limits.allowed_chars)
+        return {"suggestions": suggestions,
+                "limit_reached": not suggestions and not limits.full_access}
 
     def _get_character_suggestions(self, engine):
         """
         The most useful characters not yet unlocked, for "Suggest
         Characters" -- the same question the words tab answers, asked about
-        the actual practice unit this app is built to teach.
+        the actual practice unit this app is built to teach. `limit_reached`
+        as for words.
         """
-        return {"suggestions": engine.suggest_new_characters(count=8)}
+        limits = self._limits(engine)
+        suggestions = engine.suggest_new_characters(count=8, allowed_chars=limits.allowed_chars)
+        return {"suggestions": suggestions,
+                "limit_reached": not suggestions and not limits.full_access}
 
     def _get_progress(self, engine):
         """Everything the progress view needs, in one request."""
@@ -744,13 +809,22 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         return engine.read_settings()
 
-    def _get_onboarding_tiers(self, _engine):
+    def _get_onboarding_tiers(self, engine):
         """
         The starting-tier catalog shown to a friend who hasn't onboarded yet
-        (see /api/onboarding/seed and TIER_INFO in seed_brain.py). Static,
-        shared reference data, so the engine is unused.
+        (see /api/onboarding/seed and TIER_INFO in seed_brain.py). Each tier
+        says whether the account's plan allows it, and on the free plan the
+        sentence counts are those of the HSK 1 pool it would actually get.
         """
-        return {"tiers": [{"size": size, **TIER_INFO[size]} for size in SIZE_CHOICES]}
+        limits = self._limits(engine)
+        tiers = []
+        for size in SIZE_CHOICES:
+            tier = {"size": size, **TIER_INFO[size], "locked": not limits.allows_tier(size)}
+            if not limits.full_access and not tier["locked"] and tier.get("sentences"):
+                tier["sentences"] = free_tier_sentence_count(
+                    size, limits.allowed_chars, engine.load_master_dictionary())
+            tiers.append(tier)
+        return {"tiers": tiers, "full_access": limits.full_access}
 
     def _get_strokes(self, _engine):
         """
@@ -977,9 +1051,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                     return
 
                 user_id = accounts.create_account(accounts_data, username, password, email=email)
+                invite_plan = invites.invite_plan(invite_codes, invite_code)
                 invites.mark_invite_code_used(invite_codes, invite_code, username.lower())
                 accounts.save_accounts(accounts_data)
                 invites.save_invite_codes(invite_codes)
+                # An invite minted with --plan (see create_invite.py) starts the
+                # account on that plan instead of free.
+                if invite_plan:
+                    with plans.PLANS_LOCK:
+                        plans_data = plans.load_plans()
+                        plans.set_plan(plans_data, user_id, invite_plan, "invite")
+                        plans.save_plans(plans_data)
 
             self._send_confirmation_link(user_id, email)
             # A brand new account always starts at INITIAL_SESSION_VERSION --
@@ -1343,6 +1425,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             if sub_path == "/api/account/claim":
                 self._handle_link_claim(user_match.group(1))
                 return
+            self.account_id = user_match.group(1)
             if self._handle_api_post(sub_path, engine):
                 return
             self._send_404()
@@ -1359,12 +1442,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     self._handle_account_email(user_id)
                 return
+            self.account_id = user_id
             engine = get_engine_for_id(user_id) if user_id else None
             if engine is not None and self._handle_api_post(path, engine):
                 return
             self._send_404()
             return
 
+        self.account_id = None
         if self._handle_api_post(path, default_engine):
             return
 
@@ -1445,6 +1530,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if size not in SIZE_CHOICES:
             self._send_json_error(400, f"'size' must be one of {list(SIZE_CHOICES)}.")
             return None
+        limits = self._limits(engine)
+        if not limits.allows_tier(size):
+            self._send_upgrade_required(
+                "tier", "Starting with more than HSK 1 is part of the paid plan.")
+            return None
 
         with engine.brain_lock:
             brain_data = {}
@@ -1456,7 +1546,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json_error(409, "This account has already been set up.")
                 return None
 
-            new_brain = seed_build_brain(size, engine.load_master_dictionary())
+            # A free account's pool is chosen from HSK 1 alone, by the same
+            # selection a paid account's tier gets from the whole dictionary.
+            master = engine.load_master_dictionary()
+            if limits.allowed_chars is not None:
+                master = plans.restricted_master(master, limits.allowed_chars)
+            new_brain = seed_build_brain(size, master)
             save_brain(engine.brain_path, new_brain)
 
         return {
@@ -1555,7 +1650,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if not isinstance(chars, list):
             self._send_json_error(400, "'chars' must be a list.")
             return None
-        return engine.add_characters(chars)
+        return engine.add_characters(chars, allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_sentence_complete(self, engine):
         """
@@ -1591,6 +1686,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         data = self._json_body()
         if data is None:
+            return None
+        # Checked after the body is read, never before: an unread body would be
+        # parsed as the next request on this keep-alive connection.
+        if not self._limits(engine).can_paste:
+            self._send_upgrade_required(
+                "paste", "Pasting your own text is part of the paid plan.")
             return None
         return engine.import_text_locally(data.get("text", ""))
 
@@ -1641,7 +1742,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         data = self._json_body()
         if data is None:
             return None
-        return engine.add_words(data.get("words", []))
+        return engine.add_words(data.get("words", []),
+                                allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_sentence_edit(self, engine):
         """

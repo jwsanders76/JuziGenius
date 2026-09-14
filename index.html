@@ -134,9 +134,17 @@
                  after each word/sentence (same line or the line below) gets
                  auto-paired and saved as a practice sentence. -->
             <div class="mode-panel" data-mode-panel="paste">
-                <p class="modal-subtitle">Paste Chinese below to unlock characters and discover words. Include the English right after each word or sentence -- same line ("你好 - hello") or the line below -- and it's saved as a practice sentence too.</p>
-                <textarea id="import-textarea" maxlength="8000" placeholder="你好 - hello&#10;再见 - goodbye&#10;我喜欢在每天早上喝热茶。&#10;I like to drink hot tea every morning."></textarea>
-                <p class="import-translation-note">Fully offline, no AI needed &mdash; the English/Chinese split is detected locally from the text you paste.</p>
+                <div id="paste-open">
+                    <p class="modal-subtitle">Paste Chinese below to unlock characters and discover words. Include the English right after each word or sentence -- same line ("你好 - hello") or the line below -- and it's saved as a practice sentence too.</p>
+                    <textarea id="import-textarea" maxlength="8000" placeholder="你好 - hello&#10;再见 - goodbye&#10;我喜欢在每天早上喝热茶。&#10;I like to drink hot tea every morning."></textarea>
+                    <p class="import-translation-note">Fully offline, no AI needed &mdash; the English/Chinese split is detected locally from the text you paste.</p>
+                </div>
+                <!-- Shown instead on the free plan, which doesn't include pasting
+                     (see plans.py). The server refuses the import either way. -->
+                <div id="paste-locked" class="plan-locked" hidden>
+                    <p class="plan-locked-title">Pasting your own text is part of the paid plan</p>
+                    <p class="modal-subtitle">Paste a vocabulary list, textbook sentences or anything else you're reading, and every character in it unlocks for practice. The free plan covers all of HSK 1 through Suggest Characters, Suggest Words and HSK Sentences.</p>
+                </div>
             </div>
 
             <!-- Suggest Characters: the most frequent characters not yet unlocked.
@@ -177,7 +185,26 @@
             <div id="onboarding-tiers" class="onboarding-tiers">
                 <p class="suggestions-empty">Loading tiers…</p>
             </div>
+            <p id="onboarding-plan-note" class="progress-note" hidden>The free plan starts with First Peel or Sun-Ripened and grows through all of HSK 1. The larger starting pools come with the paid plan.</p>
             <p id="onboarding-status" class="onboarding-status" hidden></p>
+        </div>
+    </div>
+
+    <!-- Upgrade screen: shown when something the free plan doesn't include is
+         asked for -- more than HSK 1, pasting, a larger starting pool. See
+         showUpgrade in app.js. Paid plans aren't on sale yet, so it explains
+         rather than sells. -->
+    <div id="upgrade-modal" class="modal-overlay">
+        <div class="modal-card upgrade-card">
+            <img src="/avatar-nobg-128.png" alt="" class="onboarding-avatar">
+            <h2 id="upgrade-title" class="modal-title"></h2>
+            <p id="upgrade-lead" class="modal-subtitle"></p>
+            <div id="upgrade-stats" class="stat-row" hidden></div>
+            <p class="progress-note">The paid plan unlocks every HSK level and thousands of characters beyond it, pasting your own text, and the larger starting pools. <strong>Paid plans are coming soon.</strong></p>
+            <p class="progress-note">Everything you've unlocked stays yours to review, for free.</p>
+            <div class="modal-actions">
+                <button type="button" id="upgrade-btn-close" class="modal-btn btn-primary">Keep practising</button>
+            </div>
         </div>
     </div>
 
@@ -306,6 +333,13 @@
                         </div>
 
                         <p id="account-email-status" class="danger-status" role="status" hidden></p>
+                    </section>
+
+                    <!-- Every account: which plan it's on and what that includes.
+                         Filled in by renderPlan in app.js from /api/plan. -->
+                    <section class="progress-section" id="plan-section" hidden>
+                        <h3 class="progress-title">Your plan</h3>
+                        <p id="plan-note" class="progress-note"></p>
                     </section>
 
                     <section class="progress-section">

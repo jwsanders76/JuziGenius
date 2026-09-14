@@ -1466,12 +1466,16 @@ class JuziEngine:
             "message": msg
         }
 
-    def suggest_new_words(self, count: int = 5) -> list:
+    def suggest_new_words(self, count: int = 5, allowed_chars: frozenset = None) -> list:
         """
         Suggests the highest-frequency compound words from words_freq.json
         that the user hasn't already added to their vocabulary (tracked via
         brain.json's unlocked_words), so vocabulary growth follows real-world
         usage frequency rather than random order.
+
+        `allowed_chars`, when given, is the set of characters the account's
+        plan lets it unlock (see plans.py): only words written entirely in
+        them are suggested.
         """
         word_db = self.load_word_frequencies()
 
@@ -1513,6 +1517,7 @@ class JuziEngine:
             # this tab suggests 是/我/的 as "compound words".
             for word, meta in word_db.items()
             if len(word) >= 2 and not word.startswith("_") and word not in known_words
+            and (allowed_chars is None or all(c in allowed_chars for c in word))
         ]
         candidates.sort(key=lambda x: x["_sort_rank"])
         top = candidates[:count]
@@ -1550,7 +1555,7 @@ class JuziEngine:
                 credit[char] = credit.get(char, 0) + 1
         return credit
 
-    def suggest_new_characters(self, count: int = 8) -> list:
+    def suggest_new_characters(self, count: int = 8, allowed_chars: frozenset = None) -> list:
         """
         The most useful characters the user hasn't unlocked yet.
 
@@ -1580,6 +1585,13 @@ class JuziEngine:
         character-only practice, so this phase sorts by stroke count first,
         the same philosophy select_beginner_characters uses for Tier 1's
         initial five.
+
+        `allowed_chars`, when given, is the set of characters the account's
+        plan lets it unlock (see plans.py). Suggestions stay inside it, and
+        neither BEGINNER_RANK_CUTOFF nor a missing frequency rank excludes
+        anything from it: the allowed set is a syllabus already worth
+        learning, and some HSK 1 characters rank below the cutoff, so a free
+        account would otherwise never be offered them.
         """
         master = self.load_master_dictionary()
         brain_data = self._read_brain()
@@ -1589,12 +1601,15 @@ class JuziEngine:
 
         credit = self.sentences_unlocked_by(unlocked_set)
 
+        unranked = 99999  # sorts an allowed character with no frequency rank last
         candidates = []
         for char, meta in master.items():
             if char in unlocked_set:
                 continue
+            if allowed_chars is not None and char not in allowed_chars:
+                continue
             rank = meta.get("freq")
-            if not rank:
+            if not rank and allowed_chars is None:
                 continue
             candidates.append({
                 "char": char,
@@ -1611,21 +1626,28 @@ class JuziEngine:
             # is playable yet regardless of `unlocks`. Restricted to
             # BEGINNER_RANK_CUTOFF first so a rare-but-simple character can't
             # outrank a common one just for being easy to draw.
-            candidates = [c for c in candidates if c["freq"] <= BEGINNER_RANK_CUTOFF]
-            candidates.sort(key=lambda c: (c["strokes"] or FALLBACK_STROKE_COUNT, c["freq"]))
+            if allowed_chars is None:
+                candidates = [c for c in candidates if c["freq"] <= BEGINNER_RANK_CUTOFF]
+            candidates.sort(key=lambda c: (c["strokes"] or FALLBACK_STROKE_COUNT,
+                                           c["freq"] or unranked))
         else:
             # Frequency order, but a character that immediately opens up
             # practice sentences is surfaced ahead of an equally-ranked one
             # that doesn't.
-            candidates.sort(key=lambda c: (c["unlocks"] == 0, c["freq"]))
+            candidates.sort(key=lambda c: (c["unlocks"] == 0, c["freq"] or unranked))
         return candidates[:count]
 
-    def add_characters(self, chars: list) -> dict:
+    def add_characters(self, chars: list, allowed_chars: frozenset = None) -> dict:
         """
         Unlocks the given characters directly, without needing a compound word
         or a paste to carry them in. Skips anything already unlocked or absent
         from master_dictionary.json (there would be no pinyin or meaning to
         show, and no way to grade it).
+
+        `allowed_chars`, when given, is the set of characters the account's
+        plan lets it unlock (see plans.py). Anything outside it is refused and
+        reported back as `locked`, so the app can say why rather than showing
+        a character that silently didn't unlock.
         """
         master = self.load_master_dictionary()
 
@@ -1634,7 +1656,7 @@ class JuziEngine:
             unlocked = brain_data.setdefault("unlocked_chars", {})
             brain_data.setdefault("unlocked_words", {})
 
-            added, skipped = [], []
+            added, skipped, locked = [], [], []
             for char in chars:
                 if not isinstance(char, str) or len(char) != 1:
                     skipped.append(char)
@@ -1643,6 +1665,9 @@ class JuziEngine:
                     continue
                 if char not in master:
                     skipped.append(char)
+                    continue
+                if allowed_chars is not None and char not in allowed_chars:
+                    locked.append(char)
                     continue
                 unlocked[char] = {
                     "pinyin": master[char].get("pinyin", ""),
@@ -1659,17 +1684,22 @@ class JuziEngine:
             return {
                 "added_chars": added,
                 "skipped": skipped,
+                "locked": locked,
                 "total_unlocked_count": len(unlocked),
                 "total_due_count": self.total_due_count(brain_data),
                 "new_backlog": self.new_character_backlog(unlocked),
             }
 
-    def add_words(self, words: list) -> dict:
+    def add_words(self, words: list, allowed_chars: frozenset = None) -> dict:
         """
         Adds the given compound words to brain.json's unlocked_words (so
         future suggestions skip them) and unlocks any of their individual
         characters that aren't already unlocked, so the new words are
         immediately available for handwriting practice sentences.
+
+        `allowed_chars`, when given, is the set of characters the account's
+        plan lets it unlock (see plans.py). A word containing any character
+        outside it is refused whole and reported back as `locked_words`.
         """
         word_db = self.load_word_frequencies()
         master = self.load_master_dictionary()
@@ -1689,6 +1719,7 @@ class JuziEngine:
 
             added_words = []
             rejected_single_chars = []
+            locked_words = []
             added_chars = 0
 
             for word in words:
@@ -1706,6 +1737,9 @@ class JuziEngine:
                     rejected_single_chars.append(word)
                     continue
                 if not meta or word in unlocked_words:
+                    continue
+                if allowed_chars is not None and any(c not in allowed_chars for c in word):
+                    locked_words.append(word)
                     continue
 
                 unlocked_words[word] = {
@@ -1740,6 +1774,7 @@ class JuziEngine:
             "total_words_count": len(unlocked_words),
             "pruned_word_count": pruned_word_count,
             "rejected_single_chars": rejected_single_chars,
+            "locked_words": locked_words,
         }
 
     # Frequency bands the progress view reports coverage against. The point of
