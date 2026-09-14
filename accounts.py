@@ -188,7 +188,29 @@ def create_account(accounts, username, password, email=None):
     user_dir = os.path.join(USERS_DIR, user_id)
     os.makedirs(user_dir, exist_ok=False)
     write_json(os.path.join(user_dir, "brain.json"), empty_brain())
+    _add_entry(accounts, user_id, username, password, email)
+    return user_id
 
+
+def claim_link_account(accounts, slug, username, password, email):
+    """
+    Turns an existing /u/<slug>/ link account (create_user.py) into a real
+    login account, keeping all of its history. A slug is generated exactly
+    like a user_id and is already the name of the account's users/<slug>/
+    directory, so it simply becomes the new account's user_id: nothing moves,
+    nothing is copied, and JuziEngine never notices the difference.
+
+    Validation is the caller's job, as with create_account, and so is saving
+    `accounts`. Raises ValueError if the slug has already been claimed -- the
+    caller checks first, so this only guards two claims racing each other.
+    """
+    if find_account_by_user_id(accounts, slug)[1] is not None:
+        raise ValueError("This link has already been turned into a login.")
+    _add_entry(accounts, slug, username, password, email)
+
+
+def _add_entry(accounts, user_id, username, password, email):
+    """The accounts.json record both account-creation paths write."""
     accounts[username.lower()] = {
         "user_id": user_id,
         "password_hash": hash_password(password),
@@ -198,7 +220,6 @@ def create_account(accounts, username, password, email=None):
     }
     if email:
         accounts[username.lower()]["pending_email"] = email
-    return user_id
 
 
 # A fixed-format hash with no real password behind it, used only so

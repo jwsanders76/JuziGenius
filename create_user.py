@@ -26,6 +26,11 @@ gitignored along with the rest of users/ since it's personal data, not app
 code. Look accounts up with list_users.py, and reset one by name with
 reset_user.py -- both read this same file.
 
+Prefer create_invite.py for anyone new. A link account can later be turned
+into a real login from inside the app (Settings > Create a login; see
+server.py's _handle_link_claim), but an account that starts as a login never
+needs that step.
+
 Usage:
     python3 create_user.py --name Alice
 """

@@ -43,6 +43,15 @@ def main():
             )
         slug = matches[0]
 
+    converted_to = registry[slug].get("converted_to")
+    if converted_to:
+        parser.error(
+            f"That account was turned into a login ({converted_to!r}) on "
+            f"{registry[slug].get('converted_at', '?')}, and its link no longer works. "
+            f"They log in with that username; if they're locked out, use "
+            f"set_password.py --username {converted_to}."
+        )
+
     user_dir = os.path.join(USERS_DIR, slug)
     if not os.path.isdir(user_dir):
         parser.error(f"users/registry.json points at {user_dir}, but that directory doesn't exist.")

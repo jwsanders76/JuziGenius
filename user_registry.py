@@ -6,6 +6,7 @@ random /u/<slug>/ token can be tied back to who it was actually given to.
 Gitignored along with the rest of users/: this is personal data about who
 you've shared accounts with, not app code.
 """
+import datetime
 import json
 import os
 from atomic_io import write_json
@@ -49,3 +50,15 @@ def find_by_name(registry, name):
     needle = name.strip().lower()
     return [slug for slug, entry in registry.items()
             if entry.get("name", "").strip().lower() == needle]
+
+
+def mark_converted(registry, slug, username):
+    """
+    Records that a link account became a real login (accounts.claim_link_account)
+    and that its link no longer works. The entry is kept rather than deleted:
+    it is still the only record of whom the operator originally gave the link
+    to, which is how list_users.py can say who "alice_t" actually is.
+    """
+    entry = registry.setdefault(slug, {})
+    entry["converted_to"] = username.lower()
+    entry["converted_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")

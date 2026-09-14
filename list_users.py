@@ -40,7 +40,13 @@ def main():
                 status = f"{chars} characters unlocked"
 
         print(f"{entry.get('name', '(unnamed)')}")
-        print(f"  link:    {BASE_URL}/u/{slug}/")
+        if entry.get("converted_to"):
+            # See user_registry.mark_converted: the link was retired the
+            # moment they chose a username, so printing it would only mislead.
+            print(f"  login:   username {entry['converted_to']!r} since {entry.get('converted_at', '?')} "
+                  "-- the link no longer works")
+        else:
+            print(f"  link:    {BASE_URL}/u/{slug}/")
         print(f"  slug:    {slug}")
         print(f"  created: {entry.get('created', '?')}")
         print(f"  status:  {status}")

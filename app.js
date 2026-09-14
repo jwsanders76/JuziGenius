@@ -194,6 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
     registerServiceWorker();
     fetchNewSession();
     loadAccount();
+    updateLoginNudge();
     // Chrome loads its voice list asynchronously; kick it off early so it's
     // ready by the time a sentence completes and the victory card needs it.
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
@@ -362,6 +363,17 @@ function cacheDomElements() {
     elements.emailNudge = document.getElementById("email-nudge");
     elements.emailNudgeAdd = document.getElementById("email-nudge-add");
     elements.emailNudgeLater = document.getElementById("email-nudge-later");
+    elements.loginNudge = document.getElementById("login-nudge");
+    elements.loginNudgeCreate = document.getElementById("login-nudge-create");
+    elements.loginNudgeLater = document.getElementById("login-nudge-later");
+    elements.claimSection = document.getElementById("claim-section");
+    elements.claimForm = document.getElementById("claim-form");
+    elements.claimUsername = document.getElementById("claim-username");
+    elements.claimEmail = document.getElementById("claim-email");
+    elements.claimPassword = document.getElementById("claim-password");
+    elements.claimConfirm = document.getElementById("claim-confirm");
+    elements.claimBtnSubmit = document.getElementById("claim-btn-submit");
+    elements.claimStatus = document.getElementById("claim-status");
 
     elements.resetSummary = document.getElementById("reset-summary");
     elements.resetBtnBegin = document.getElementById("reset-btn-begin");
@@ -538,6 +550,26 @@ function initEventListeners() {
         elements.emailNudgeLater.addEventListener("click", () => {
             localStorage.setItem(EMAIL_NUDGE_SNOOZE_KEY, String(Date.now() + EMAIL_NUDGE_SNOOZE_MS));
             elements.emailNudge.hidden = true;
+        });
+    }
+
+    // Create a login -- /u/<slug>/ link accounts only. The section is static
+    // markup, so whether it shows depends on nothing but the URL.
+    if (elements.claimSection) elements.claimSection.hidden = !API_BASE;
+    if (elements.claimForm) elements.claimForm.addEventListener("submit", claimLinkAccount);
+    if (elements.loginNudgeCreate) {
+        elements.loginNudgeCreate.addEventListener("click", () => {
+            elements.loginNudge.hidden = true;
+            openProgressView();
+            setProgressModalGroup("settings");
+            switchProgressTab("settings");
+            if (elements.claimUsername) elements.claimUsername.focus();
+        });
+    }
+    if (elements.loginNudgeLater) {
+        elements.loginNudgeLater.addEventListener("click", () => {
+            localStorage.setItem(LOGIN_NUDGE_SNOOZE_KEY, String(Date.now() + EMAIL_NUDGE_SNOOZE_MS));
+            elements.loginNudge.hidden = true;
         });
     }
 
@@ -2184,6 +2216,56 @@ async function saveAccountEmail() {
         showAccountEmailStatus(err.message);
     } finally {
         elements.accountEmailBtnSave.disabled = false;
+    }
+}
+
+// A /u/<slug>/ link is its account's only credential, so the prompt to
+// replace it with a login uses the same one-week, per-device snooze as the
+// email prompt: dismissing it doesn't make a lost link any less final.
+const LOGIN_NUDGE_SNOOZE_KEY = "juzi_login_nudge_snoozed_until";
+
+function updateLoginNudge() {
+    if (!elements.loginNudge) return;
+    const snoozedUntil = parseInt(localStorage.getItem(LOGIN_NUDGE_SNOOZE_KEY), 10) || 0;
+    elements.loginNudge.hidden = !API_BASE || Date.now() < snoozedUntil;
+}
+
+function showClaimStatus(message) {
+    if (!elements.claimStatus) return;
+    elements.claimStatus.hidden = !message;
+    elements.claimStatus.textContent = message;
+}
+
+/**
+ * Turns this link account into a username/password account. On success the
+ * server has already set a session cookie and retired this /u/<slug>/ link,
+ * so the account now lives at the site root and the page moves there.
+ */
+async function claimLinkAccount(e) {
+    e.preventDefault();
+    if (!elements.claimBtnSubmit) return;
+    const password = elements.claimPassword.value;
+    if (password !== elements.claimConfirm.value) {
+        showClaimStatus("The two passwords don't match.");
+        return;
+    }
+
+    elements.claimBtnSubmit.disabled = true;
+    showClaimStatus("Creating your login…");
+    try {
+        const response = await apiPost("/api/account/claim", {
+            username: elements.claimUsername.value.trim(),
+            email: elements.claimEmail.value.trim(),
+            password
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Couldn't create your login (${response.status}).`);
+        showClaimStatus("Done. Taking you to your account…");
+        window.location.href = "/";
+    } catch (err) {
+        console.error(err);
+        showClaimStatus(err.message);
+        elements.claimBtnSubmit.disabled = false;
     }
 }
 

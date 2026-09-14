@@ -12,6 +12,7 @@ import accounts
 import auth
 import invites
 import mailer
+import user_registry
 from juzi_engine import JuziEngine
 from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
@@ -185,7 +186,8 @@ USERS_DIR = "users"
 engines = {}
 engines_lock = threading.Lock()
 
-# Guards users/accounts.json and users/invite_codes.json across concurrent
+# Guards users/accounts.json and users/invite_codes.json (plus
+# users/registry.json when a link account is claimed) across concurrent
 # requests -- signup reads and writes both files together (redeem a code,
 # create an account), and this makes that pair atomic with respect to two
 # simultaneous signups, the same reason engines_lock exists for brand-new
@@ -454,6 +456,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_404()
                 return
             sub_path = user_match.group(2) or "/"
+            if self._link_retired(user_match.group(1), sub_path):
+                return
             if sub_path == "/manifest.json":
                 self._send_manifest(f"/u/{user_match.group(1)}/")
                 return
@@ -1025,6 +1029,81 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True},
                         cookie=f"{auth.SESSION_COOKIE_NAME}=; Max-Age=0; Path=/")
 
+    def _send_redirect(self, location):
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _link_retired(self, slug, sub_path):
+        """
+        Once a link account has been claimed as a real login (see
+        _handle_link_claim), its /u/<slug>/ link stops granting access.
+        Otherwise it would remain a password-free way into an account that now
+        has a password, an email address and, eventually, billing -- and the
+        person agreed to exactly this when they claimed it.
+
+        The page itself redirects, so a bookmark or an installed home-screen
+        icon lands somewhere useful rather than on an error: straight into the
+        app if this browser holds the session, otherwise the login page. API
+        calls get a 410 with a message instead, since a script can't usefully
+        follow a redirect to a login page. Returns True if a response was sent.
+        """
+        with ACCOUNTS_LOCK:
+            accounts_data = accounts.load_accounts()
+        if accounts.find_account_by_user_id(accounts_data, slug)[1] is None:
+            return False
+        if sub_path.startswith("/api/"):
+            self._send_json_error(410, "This link was replaced by a username and password. "
+                                       "Log in at juzigenius.com/login.")
+        else:
+            user_id, _username = self._resolve_session_account()
+            self._send_redirect("/" if user_id else "/login")
+        return True
+
+    def _handle_link_claim(self, slug):
+        """
+        POST /u/<slug>/api/account/claim. Body: {"username", "email",
+        "password"}. Turns this link account into a real login account in
+        place -- the same users/<slug>/ directory, every bit of its history --
+        and logs this browser in. No invite code: holding the link already
+        proves the account is theirs. From the next request on, the link
+        itself is retired (see _link_retired).
+        """
+        try:
+            data = self._json_body()
+            if data is None:
+                return
+            username = (data.get("username") or "").strip()
+            password = data.get("password") or ""
+            email = accounts.normalize_email(data.get("email"))
+
+            ip_key = f"claim:{self._client_ip()}"
+            if auth.rate_limited(ip_key):
+                self._send_json_error(429, "Too many attempts. Try again in a few minutes.")
+                return
+            auth.record_attempt(ip_key)
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+                try:
+                    accounts.validate_new_account(accounts_data, username, password)
+                    accounts.validate_email(email)
+                    accounts.claim_link_account(accounts_data, slug, username, password, email)
+                except ValueError as bad:
+                    self._send_json_error(400, str(bad))
+                    return
+                registry = user_registry.load_registry()
+                user_registry.mark_converted(registry, slug, username)
+                accounts.save_accounts(accounts_data)
+                user_registry.save_registry(registry)
+
+            self._send_confirmation_link(slug, email)
+            self._send_json(200, {"ok": True}, cookie=self._session_cookie(
+                slug, accounts.INITIAL_SESSION_VERSION))
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
     def _send_account(self, user_id):
         """GET /api/account: the login account's own username and email state."""
         with ACCOUNTS_LOCK:
@@ -1259,6 +1338,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_404()
                 return
             sub_path = user_match.group(2) or "/"
+            if self._link_retired(user_match.group(1), sub_path):
+                return
+            if sub_path == "/api/account/claim":
+                self._handle_link_claim(user_match.group(1))
+                return
             if self._handle_api_post(sub_path, engine):
                 return
             self._send_404()

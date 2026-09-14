@@ -52,11 +52,21 @@
         <!-- Shown only to a username/password account with no email on file,
              which currently has no way back in if the password is forgotten.
              See updateEmailNudge in app.js. -->
-        <div id="email-nudge" class="email-nudge" role="status" hidden>
+        <div id="email-nudge" class="top-nudge" role="status" hidden>
             <span>Add an email so you can reset your password if you ever forget it.</span>
-            <div class="email-nudge-actions">
-                <button type="button" id="email-nudge-add" class="email-nudge-btn email-nudge-btn-primary">Add email</button>
-                <button type="button" id="email-nudge-later" class="email-nudge-btn">Later</button>
+            <div class="top-nudge-actions">
+                <button type="button" id="email-nudge-add" class="top-nudge-btn top-nudge-btn-primary">Add email</button>
+                <button type="button" id="email-nudge-later" class="top-nudge-btn">Later</button>
+            </div>
+        </div>
+
+        <!-- Shown only on a /u/<slug>/ link account, where the link itself is
+             the only way in. See updateLoginNudge in app.js. -->
+        <div id="login-nudge" class="top-nudge" role="status" hidden>
+            <span>Create a login, so a lost link never means a lost account and you can sign in from any device.</span>
+            <div class="top-nudge-actions">
+                <button type="button" id="login-nudge-create" class="top-nudge-btn top-nudge-btn-primary">Create login</button>
+                <button type="button" id="login-nudge-later" class="top-nudge-btn">Later</button>
             </div>
         </div>
 
@@ -215,6 +225,53 @@
                  a control that does nothing is worse than no control. -->
             <div class="mode-panel" data-progress-panel="settings" hidden>
                 <div class="progress-body">
+                    <!-- /u/<slug>/ link accounts only (see API_BASE in app.js). Turns
+                         the link into a username/password account in place; the
+                         server retires the link the moment this succeeds. -->
+                    <section class="progress-section" id="claim-section" hidden>
+                        <h3 class="progress-title">Create a login</h3>
+                        <p class="progress-note">
+                            Right now this private link is the only way into your account, so
+                            losing it means losing your progress. Choose a username and password
+                            to sign in from any device instead. Everything you've practised stays
+                            exactly as it is.
+                        </p>
+                        <p class="progress-note">
+                            <strong>Once you do, this link stops working.</strong> From then on you
+                            log in at juzigenius.com with the username below, and a saved link or
+                            home-screen icon takes you to the login page.
+                        </p>
+
+                        <form id="claim-form" class="claim-fields">
+                            <label class="claim-label" for="claim-username">Username</label>
+                            <input type="text" id="claim-username" class="setting-input setting-input-wide"
+                                   autocomplete="username" autocapitalize="off" spellcheck="false" required>
+                            <span class="setting-hint">3&ndash;20 characters: letters, numbers, _ or -.</span>
+
+                            <label class="claim-label" for="claim-email">Email</label>
+                            <input type="email" id="claim-email" class="setting-input setting-input-wide"
+                                   autocomplete="email" autocapitalize="off" spellcheck="false" required>
+                            <span class="setting-hint">For resetting your password. We send one link to confirm it, and nothing else.</span>
+
+                            <label class="claim-label" for="claim-password">Password</label>
+                            <input type="password" id="claim-password" class="setting-input setting-input-wide"
+                                   autocomplete="new-password" required>
+                            <span class="setting-hint">At least 8 characters.</span>
+
+                            <label class="claim-label" for="claim-confirm">Type it again</label>
+                            <input type="password" id="claim-confirm" class="setting-input setting-input-wide"
+                                   autocomplete="new-password" required>
+
+                            <div class="danger-actions">
+                                <button type="submit" id="claim-btn-submit" class="modal-btn btn-primary">
+                                    Create login
+                                </button>
+                            </div>
+                        </form>
+
+                        <p id="claim-status" class="danger-status" role="status" hidden></p>
+                    </section>
+
                     <!-- Username/password accounts only: a /u/<slug>/ link has no
                          password to reset. Revealed by renderAccount in app.js
                          once /api/account answers. -->
