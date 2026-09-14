@@ -20,8 +20,10 @@ via accounts.find_account_by_user_id) at verify time -- bumping it (a
 password reset, or a future "log out everywhere") instantly invalidates
 every cookie issued before the bump, with no revocation list needed.
 """
+import base64
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import threading
@@ -120,6 +122,64 @@ def verify_session_cookie(cookie_value):
     return user_id, session_version
 
 
+# --- Single-purpose signed links (email confirmation, password reset) ---
+# The same stateless idea as the session cookie, for the same reasons: nothing
+# to store, nothing lost on a restart. Each token names its purpose inside the
+# signed payload, so a confirmation link can never be replayed as a reset link
+# even though both are signed with the one secret. Revocation comes from what
+# the claims are checked against when the link is used, not from a list -- see
+# server.py's _handle_password_reset for what a reset link binds to.
+EMAIL_VERIFY_TTL_SECONDS = 48 * 60 * 60
+PASSWORD_RESET_TTL_SECONDS = 60 * 60
+
+
+def _action_signature(encoded):
+    # "action." keeps these signatures in a different space from session
+    # cookies, whose signed payload is "<user_id>.<expiry>.<version>".
+    return hmac.new(_SESSION_SECRET, f"action.{encoded}".encode("ascii"),
+                    hashlib.sha256).hexdigest()
+
+
+def make_action_token(purpose, claims, ttl_seconds):
+    """
+    A URL-safe token carrying `claims` (a small JSON-serializable dict) for one
+    `purpose`, valid for `ttl_seconds`. Signed, not encrypted: whoever holds
+    the link can read the claims, so they must never contain anything the
+    recipient shouldn't see. A user_id and the address the link was mailed to
+    are fine.
+    """
+    body = dict(claims, p=purpose, x=int(time.time()) + ttl_seconds)
+    raw = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    encoded = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+    return f"{encoded}.{_action_signature(encoded)}"
+
+
+def verify_action_token(purpose, token):
+    """
+    The claims dict if `token` is authentic, unexpired, and was issued for
+    `purpose`; otherwise None. Authentic only means this server issued it --
+    whether it still applies (the account has since changed its email or
+    password) is the caller's check.
+    """
+    # isascii first: hmac.compare_digest raises on non-ASCII str, and a token
+    # arrives straight from a request body.
+    if not isinstance(token, str) or not token.isascii() or token.count(".") != 1:
+        return None
+    encoded, signature = token.split(".")
+    if not hmac.compare_digest(signature, _action_signature(encoded)):
+        return None
+    try:
+        body = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    except ValueError:
+        return None
+    if not isinstance(body, dict) or body.get("p") != purpose:
+        return None
+    expiry = body.get("x")
+    if not isinstance(expiry, int) or expiry < int(time.time()):
+        return None
+    return body
+
+
 # --- Rate limiting for /api/login and /api/signup ---
 # In-memory only: it resets on restart, which is fine here -- this is a
 # blunt defense against rapid automated attempts, not a durable audit trail.
@@ -130,10 +190,10 @@ _attempts = {}
 _attempts_lock = threading.Lock()
 
 
-def rate_limited(key):
+def rate_limited(key, max_attempts=RATE_LIMIT_MAX_ATTEMPTS):
     """
     True if `key` (e.g. "login:<ip>" or "signup:<ip>") has recorded
-    RATE_LIMIT_MAX_ATTEMPTS or more attempts within the last
+    `max_attempts` or more attempts within the last
     RATE_LIMIT_WINDOW_SECONDS. Checking is separate from record_attempt so a
     caller can decide whether to count an attempt only once it has actually
     happened.
@@ -141,8 +201,15 @@ def rate_limited(key):
     now = time.time()
     with _attempts_lock:
         timestamps = [t for t in _attempts.get(key, []) if now - t < RATE_LIMIT_WINDOW_SECONDS]
-        _attempts[key] = timestamps
-        return len(timestamps) >= RATE_LIMIT_MAX_ATTEMPTS
+        # Drop a key once its window empties rather than keeping it forever.
+        # Keys used to be IPs only; "forgot-email:<address>" lets a client mint
+        # a new key per request, and a dict that never shrinks is a slow
+        # memory leak on a 458 MB box.
+        if timestamps:
+            _attempts[key] = timestamps
+        else:
+            _attempts.pop(key, None)
+        return len(timestamps) >= max_attempts
 
 
 def record_attempt(key):

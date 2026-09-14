@@ -98,7 +98,34 @@
             color: var(--text-secondary);
             margin-top: 4px;
         }
-        button.submit {
+        .auth-tabs[hidden] { display: none; }
+        .auth-intro {
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+        .auth-intro.error { color: var(--accent-red); }
+        .link-btn {
+            display: block;
+            margin: 14px auto 0;
+            padding: 4px 0;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.8rem;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            cursor: pointer;
+        }
+        .link-btn:hover, .link-btn:focus-visible { color: var(--accent-gold); }
+        a.submit {
+            display: block;
+            text-align: center;
+            text-decoration: none;
+        }
+        .submit {
             width: 100%;
             margin-top: 20px;
             padding: 11px;
@@ -141,6 +168,7 @@
             <label for="login-password">Password</label>
             <input type="password" id="login-password" autocomplete="current-password" required>
             <button type="submit" class="submit">Log In</button>
+            <button type="button" class="link-btn" data-show="forgot">Forgot password?</button>
         </form>
 
         <form class="auth-panel" data-panel="signup" id="signup-form" hidden>
@@ -150,11 +178,39 @@
             <label for="signup-username">Choose a username</label>
             <input type="text" id="signup-username" autocomplete="username" required>
             <div class="auth-hint">3-20 characters: letters, numbers, _ or -.</div>
+            <label for="signup-email">Email</label>
+            <input type="email" id="signup-email" autocomplete="email" spellcheck="false" autocapitalize="off" required>
+            <div class="auth-hint">For password resets. We send one link to confirm it, and nothing else.</div>
             <label for="signup-password">Choose a password</label>
             <input type="password" id="signup-password" autocomplete="new-password" required>
             <div class="auth-hint">At least 8 characters.</div>
             <button type="submit" class="submit">Sign Up</button>
         </form>
+
+        <form class="auth-panel" data-panel="forgot" id="forgot-form" hidden>
+            <p class="auth-intro">Enter the email confirmed on your account and we'll send a link to choose a new password.</p>
+            <label for="forgot-email">Email</label>
+            <input type="email" id="forgot-email" autocomplete="email" spellcheck="false" autocapitalize="off" required>
+            <button type="submit" class="submit">Send Reset Link</button>
+            <button type="button" class="link-btn" data-show="login">Back to log in</button>
+        </form>
+
+        <!-- Opened from an emailed link (/login#reset=...); see auth.js. -->
+        <form class="auth-panel" data-panel="reset" id="reset-form" hidden>
+            <p class="auth-intro">Choose a new password. Every device logged in to this account will be signed out.</p>
+            <label for="reset-password">New password</label>
+            <input type="password" id="reset-password" autocomplete="new-password" required>
+            <div class="auth-hint">At least 8 characters.</div>
+            <label for="reset-confirm">Type it again</label>
+            <input type="password" id="reset-confirm" autocomplete="new-password" required>
+            <button type="submit" class="submit">Set New Password</button>
+        </form>
+
+        <!-- Opened from an emailed link (/login#verify=...); see auth.js. -->
+        <div class="auth-panel" data-panel="verify" hidden>
+            <p class="auth-intro" id="verify-message" role="status">Confirming your email&hellip;</p>
+            <a class="submit" id="verify-continue" href="/" hidden>Continue to JuziGenius</a>
+        </div>
 
         <p id="auth-status" class="auth-status" hidden></p>
     </div>

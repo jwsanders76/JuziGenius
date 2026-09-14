@@ -9,6 +9,7 @@ import urllib.parse
 import accounts
 import auth
 import invites
+import mailer
 from juzi_engine import JuziEngine
 from seed_brain import SIZE_CHOICES, TIER_INFO, empty_brain
 from seed_brain import build_brain as seed_build_brain
@@ -142,6 +143,13 @@ REQUIRE_SLUG = os.environ.get("JUZI_ALLOW_DEFAULT_ACCOUNT", "") != "1"
 # combination impossible to test at all. Set JUZI_COOKIE_SECURE=0 for that
 # case; never set it on a public host.
 COOKIE_SECURE = os.environ.get("JUZI_COOKIE_SECURE", "1") != "0"
+
+# The origin every emailed link points at. Configured, and deliberately never
+# built from the request's Host header: a forgot-password request sent with a
+# forged Host would otherwise mail the real owner a genuine reset token inside
+# a link to the attacker's domain -- the classic password-reset poisoning bug.
+# Set JUZI_PUBLIC_URL=http://127.0.0.1:8000 for local development.
+PUBLIC_URL = os.environ.get("JUZI_PUBLIC_URL", "https://juzigenius.com").rstrip("/")
 
 # The engine for a request with no /u/<slug>/ prefix. Unreachable over HTTP
 # unless JUZI_ALLOW_DEFAULT_ACCOUNT=1 (see REQUIRE_SLUG above); it exists so
@@ -394,6 +402,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             # of a shared one. Anonymous or invalid-cookie requests fall
             # through unchanged to the landing page / 404 below.
             user_id, _username = self._resolve_session_account()
+            if path == "/api/account":
+                # About the login account itself rather than its practice
+                # data, so it resolves by user_id, not through an engine.
+                if user_id is None:
+                    self._send_404()
+                else:
+                    self._send_account(user_id)
+                return
             engine = get_engine_for_id(user_id) if user_id else None
             if engine is not None and self._handle_api_get(path, engine):
                 return
@@ -785,13 +801,19 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_signup(self):
         """
-        POST /api/signup. Body: {"username", "password", "invite_code"}.
+        POST /api/signup. Body: {"username", "password", "email", "invite_code"}.
         Creates a brand new real-login account (same empty_brain() shape
         every account-creation path uses) and logs it straight in, so the
         redirect to / lands on the existing onboarding tier picker with no
         extra step -- a fresh account's brain.json already has
         "onboarded": false, and app.js's fetchNewSession already knows what
         to do with that.
+
+        The email is required but not yet trusted: it is stored as pending
+        and a confirmation link goes to it. Logging in doesn't wait on that
+        -- a friend should be practising in seconds, not after a trip to
+        their inbox -- and nothing but that one link is mailed to the
+        address until it has been confirmed.
         """
         try:
             body = self._read_json_body_or_reject()
@@ -800,6 +822,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             data = json.loads(body)
             username = (data.get("username") or "").strip()
             password = data.get("password") or ""
+            email = accounts.normalize_email(data.get("email"))
             invite_code = (data.get("invite_code") or "").strip()
 
             ip_key = f"signup:{self._client_ip()}"
@@ -817,15 +840,17 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                 accounts_data = accounts.load_accounts()
                 try:
                     accounts.validate_new_account(accounts_data, username, password)
+                    accounts.validate_email(email)
                 except ValueError as bad:
                     self._send_json_error(400, str(bad))
                     return
 
-                user_id = accounts.create_account(accounts_data, username, password)
+                user_id = accounts.create_account(accounts_data, username, password, email=email)
                 invites.mark_invite_code_used(invite_codes, invite_code, username.lower())
                 accounts.save_accounts(accounts_data)
                 invites.save_invite_codes(invite_codes)
 
+            self._send_confirmation_link(user_id, email)
             # A brand new account always starts at INITIAL_SESSION_VERSION --
             # no need to re-read the record just written above.
             self._send_json(200, {"ok": True}, cookie=self._session_cookie(
@@ -873,6 +898,202 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(200, {"ok": True},
                         cookie=f"{auth.SESSION_COOKIE_NAME}=; Max-Age=0; Path=/")
 
+    def _send_account(self, user_id):
+        """GET /api/account: the login account's own username and email state."""
+        with ACCOUNTS_LOCK:
+            accounts_data = accounts.load_accounts()
+        _username, entry = accounts.find_account_by_user_id(accounts_data, user_id)
+        if entry is None:
+            self._send_404()
+            return
+        self._send_json(200, accounts.public_view(entry))
+
+    def _send_confirmation_link(self, user_id, email):
+        token = auth.make_action_token("verify-email", {"u": user_id, "e": email},
+                                       auth.EMAIL_VERIFY_TTL_SECONDS)
+        mailer.send_verification(email, f"{PUBLIC_URL}/login#verify={token}")
+
+    def _handle_account_email(self, user_id):
+        """
+        POST /api/account/email. Body: {"email"}. Session required. Records
+        the address as pending and mails it a confirmation link; a confirmed
+        address already on the account keeps working until that link is
+        opened. Posting the same pending address again is how "resend" works.
+        """
+        try:
+            data = self._json_body()
+            if data is None:
+                return
+            email = accounts.normalize_email(data.get("email"))
+            try:
+                accounts.validate_email(email)
+            except ValueError as bad:
+                self._send_json_error(400, str(bad))
+                return
+
+            # Per account rather than per IP: what this protects is somebody
+            # else's inbox, which a logged-in account could otherwise fill
+            # with confirmation mail by posting their address in a loop.
+            limit_key = f"email-change:{user_id}"
+            if auth.rate_limited(limit_key):
+                self._send_json_error(429, "Too many emails sent. Try again in a few minutes.")
+                return
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+                _username, entry = accounts.find_account_by_user_id(accounts_data, user_id)
+                if entry is None:
+                    self._send_404()
+                    return
+                needs_link = accounts.request_email_change(entry, email)
+                accounts.save_accounts(accounts_data)
+                view = accounts.public_view(entry)
+
+            if needs_link:
+                auth.record_attempt(limit_key)
+                self._send_confirmation_link(user_id, email)
+            self._send_json(200, view)
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
+    def _handle_email_verify(self):
+        """
+        POST /api/email/verify. Body: {"token"}. No session needed: the link
+        is usually opened wherever the mail is read, often a phone that has
+        never logged in, and the signed token already proves both which
+        account it is and that the opener receives mail at the address.
+
+        A POST from login.html's script, not a GET on the emailed URL itself,
+        so opening a URL never changes anything by itself. The token rides
+        in the URL fragment, which no browser sends to any server, keeping it
+        out of every access log.
+        """
+        try:
+            data = self._json_body()
+            if data is None:
+                return
+            claims = auth.verify_action_token("verify-email", data.get("token"))
+            if claims is None:
+                self._send_json_error(400, "This link is invalid or has expired. "
+                                           "Send a new one from Settings.")
+                return
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+                outcome = accounts.confirm_email(accounts_data, claims.get("u"), claims.get("e"))
+                if outcome == "verified":
+                    accounts.save_accounts(accounts_data)
+
+            if outcome in ("verified", "already_verified"):
+                self._send_json(200, {"ok": True, "email": claims["e"]})
+            elif outcome == "stale":
+                self._send_json_error(400, "This account has asked to confirm a different "
+                                           "address since this link was sent. Use the newest link.")
+            elif outcome == "taken":
+                self._send_json_error(409, "That address is already confirmed on another "
+                                           "JuziGenius account.")
+            else:
+                self._send_json_error(400, "This link is invalid or has expired.")
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
+    def _handle_password_forgot(self):
+        """
+        POST /api/password/forgot. Body: {"email"}. Answers the same 200
+        whether or not the address belongs to an account -- any difference
+        would turn this form into a way to test which addresses are
+        registered. The mail goes out on a background thread (mailer.send),
+        so response timing gives the answer away no more than the body does.
+
+        Only a CONFIRMED address ever receives a reset link. A pending one is
+        just text typed into a settings field, possibly someone else's.
+        """
+        try:
+            data = self._json_body()
+            if data is None:
+                return
+            email = accounts.normalize_email(data.get("email"))
+            try:
+                accounts.validate_email(email)
+            except ValueError as bad:
+                self._send_json_error(400, str(bad))
+                return
+
+            # Two limits. Per IP stops one client hammering the endpoint; per
+            # address stops many clients mail-bombing one inbox. The address
+            # key is counted whether or not an account matched, so the limit
+            # can't be used to tell those apart either.
+            ip_key = f"forgot:{self._client_ip()}"
+            email_key = f"forgot-email:{email}"
+            if auth.rate_limited(ip_key) or auth.rate_limited(email_key, max_attempts=3):
+                self._send_json_error(429, "Too many reset requests. Try again in a few minutes.")
+                return
+            auth.record_attempt(ip_key)
+            auth.record_attempt(email_key)
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+            username, entry = accounts.find_account_by_email(accounts_data, email)
+            if entry is not None:
+                token = auth.make_action_token(
+                    "reset-password",
+                    {"u": entry["user_id"], "e": email, "v": entry["session_version"]},
+                    auth.PASSWORD_RESET_TTL_SECONDS)
+                mailer.send_password_reset(email, f"{PUBLIC_URL}/login#reset={token}",
+                                           entry.get("display_name") or username)
+
+            self._send_json(200, {"ok": True})
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
+    def _handle_password_reset(self):
+        """
+        POST /api/password/reset. Body: {"token", "password"}. Sets the new
+        password and logs this browser straight in.
+
+        A reset link is single-use with no record of used links. Its token
+        carries the account's session_version, and setting a password bumps
+        that version (accounts.set_password), so the same link fails the
+        second time -- as does every session cookie issued before the reset,
+        which is the point when the reset is happening because someone else
+        had the old password. The token also carries the address it was
+        mailed to, so changing the account's email voids any link still
+        outstanding at the old one.
+        """
+        try:
+            data = self._json_body()
+            if data is None:
+                return
+            password = data.get("password") or ""
+            invalid = "This reset link is invalid, already used, or expired. Request a new one."
+
+            claims = auth.verify_action_token("reset-password", data.get("token"))
+            if claims is None:
+                self._send_json_error(400, invalid)
+                return
+            try:
+                accounts.validate_password(password)
+            except ValueError as bad:
+                self._send_json_error(400, str(bad))
+                return
+
+            with ACCOUNTS_LOCK:
+                accounts_data = accounts.load_accounts()
+                username, entry = accounts.find_account_by_user_id(accounts_data, claims.get("u"))
+                if (entry is None
+                        or entry.get("session_version") != claims.get("v")
+                        or entry.get("email") != claims.get("e")):
+                    self._send_json_error(400, invalid)
+                    return
+                accounts.set_password(accounts_data, username, password)
+                accounts.save_accounts(accounts_data)
+                user_id, session_version = entry["user_id"], entry["session_version"]
+
+            self._send_json(200, {"ok": True},
+                            cookie=self._session_cookie(user_id, session_version))
+        except Exception as e:
+            self._send_json_error(500, str(e))
+
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
 
@@ -882,7 +1103,9 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # Auth endpoints are reachable at the root regardless of
         # REQUIRE_SLUG -- they're how an anonymous visitor becomes a
         # session-cookie-authenticated one in the first place, so they can't
-        # themselves require a session or a slug.
+        # themselves require a session or a slug. The emailed-link endpoints
+        # belong here for the same reason: the person opening the link is
+        # very often not logged in.
         if path == "/api/signup":
             self._handle_signup()
             return
@@ -891,6 +1114,15 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return
         if path == "/api/logout":
             self._handle_logout()
+            return
+        if path == "/api/password/forgot":
+            self._handle_password_forgot()
+            return
+        if path == "/api/password/reset":
+            self._handle_password_reset()
+            return
+        if path == "/api/email/verify":
+            self._handle_email_verify()
             return
 
         user_match = USER_PREFIX_RE.match(path)
@@ -910,6 +1142,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             # real-login session cookie still resolves to that account's
             # own engine.
             user_id, _username = self._resolve_session_account()
+            if path == "/api/account/email":
+                if user_id is None:
+                    self._send_404()
+                else:
+                    self._handle_account_email(user_id)
+                return
             engine = get_engine_for_id(user_id) if user_id else None
             if engine is not None and self._handle_api_post(path, engine):
                 return
@@ -1262,4 +1500,7 @@ if __name__ == "__main__":
     httpd = http.server.ThreadingHTTPServer(server_address, JuziAPIHandler)
     display_host = bind_host or "localhost"
     print(f"JuziGenius Server running at http://{display_host}:{PORT}")
+    if not mailer.is_configured():
+        print("mail: JUZI_RESEND_API_KEY is not set -- emails will be printed here, "
+              "not sent. See mailer.py.", flush=True)
     httpd.serve_forever()

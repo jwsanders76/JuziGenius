@@ -49,6 +49,17 @@
             <button id="btn-progress" class="top-btn" title="Your progress">Progress</button>
         </header>
 
+        <!-- Shown only to a username/password account with no email on file,
+             which currently has no way back in if the password is forgotten.
+             See updateEmailNudge in app.js. -->
+        <div id="email-nudge" class="email-nudge" role="status" hidden>
+            <span>Add an email so you can reset your password if you ever forget it.</span>
+            <div class="email-nudge-actions">
+                <button type="button" id="email-nudge-add" class="email-nudge-btn email-nudge-btn-primary">Add email</button>
+                <button type="button" id="email-nudge-later" class="email-nudge-btn">Later</button>
+            </div>
+        </div>
+
         <!-- Prompt Zone -->
         <div id="english-prompt">Initializing session...</div>
 
@@ -204,6 +215,28 @@
                  a control that does nothing is worse than no control. -->
             <div class="mode-panel" data-progress-panel="settings" hidden>
                 <div class="progress-body">
+                    <!-- Username/password accounts only: a /u/<slug>/ link has no
+                         password to reset. Revealed by renderAccount in app.js
+                         once /api/account answers. -->
+                    <section class="progress-section" id="account-section" hidden>
+                        <h3 class="progress-title">Email</h3>
+                        <p id="account-email-note" class="progress-note"></p>
+
+                        <div class="setting-row">
+                            <input type="email" id="setting-email" class="setting-input setting-input-wide"
+                                   autocomplete="email" spellcheck="false" autocapitalize="off"
+                                   aria-label="Email address">
+                        </div>
+
+                        <div class="danger-actions">
+                            <button type="button" id="account-email-btn-save" class="modal-btn btn-primary">
+                                Send confirmation link
+                            </button>
+                        </div>
+
+                        <p id="account-email-status" class="danger-status" role="status" hidden></p>
+                    </section>
+
                     <section class="progress-section">
                         <h3 class="progress-title">Writing grid</h3>
                         <p class="progress-note">

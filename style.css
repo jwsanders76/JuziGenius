@@ -1475,6 +1475,12 @@ body {
     min-width: 160px;
 }
 
+.setting-input.setting-input-wide {
+    width: 100%;
+    font-size: 0.95rem;
+    font-variant-numeric: normal;
+}
+
 .setting-input:disabled {
     color: var(--text-secondary);
     cursor: not-allowed;
@@ -1503,6 +1509,54 @@ body {
 .setting-checkbox-row span {
     font-size: 0.95rem;
     color: var(--text-primary);
+}
+
+/* --- Email prompt under the top bar ---
+   For a login account with no address on file. In normal flow rather than
+   floating over the canvas, and gone for good once an address is added. */
+.email-nudge {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: 10px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+/* Same reason as .danger-confirm[hidden] below: an author `display` beats the
+   user-agent's [hidden] rule. */
+.email-nudge[hidden] { display: none; }
+
+.email-nudge-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.email-nudge-btn {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.email-nudge-btn-primary {
+    background: var(--accent-purple);
+    border-color: var(--accent-purple);
+    color: white;
 }
 
 /* --- Progress view: Start Over tab ---

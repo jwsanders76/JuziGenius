@@ -193,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initEventListeners();
     registerServiceWorker();
     fetchNewSession();
+    loadAccount();
     // Chrome loads its voice list asynchronously; kick it off early so it's
     // ready by the time a sentence completes and the victory card needs it.
     if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
@@ -353,6 +354,15 @@ function cacheDomElements() {
     elements.progressBtnLogout = document.getElementById("progress-btn-logout");
     elements.btnSettings = document.getElementById("btn-settings");
 
+    elements.accountSection = document.getElementById("account-section");
+    elements.accountEmailNote = document.getElementById("account-email-note");
+    elements.settingEmail = document.getElementById("setting-email");
+    elements.accountEmailBtnSave = document.getElementById("account-email-btn-save");
+    elements.accountEmailStatus = document.getElementById("account-email-status");
+    elements.emailNudge = document.getElementById("email-nudge");
+    elements.emailNudgeAdd = document.getElementById("email-nudge-add");
+    elements.emailNudgeLater = document.getElementById("email-nudge-later");
+
     elements.resetSummary = document.getElementById("reset-summary");
     elements.resetBtnBegin = document.getElementById("reset-btn-begin");
     elements.resetConfirmStep = document.getElementById("reset-confirm-step");
@@ -501,6 +511,33 @@ function initEventListeners() {
             // an unreachable server can't keep a stale cookie usefully
             // logged in either way, and /login re-checks from scratch.
             window.location.href = "/login";
+        });
+    }
+
+    if (elements.accountEmailBtnSave) {
+        elements.accountEmailBtnSave.addEventListener("click", saveAccountEmail);
+    }
+    if (elements.settingEmail) {
+        elements.settingEmail.addEventListener("input", syncAccountEmailButton);
+        elements.settingEmail.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            saveAccountEmail();
+        });
+    }
+    if (elements.emailNudgeAdd) {
+        elements.emailNudgeAdd.addEventListener("click", () => {
+            elements.emailNudge.hidden = true;
+            openProgressView();
+            setProgressModalGroup("settings");
+            switchProgressTab("settings");
+            if (elements.settingEmail) elements.settingEmail.focus();
+        });
+    }
+    if (elements.emailNudgeLater) {
+        elements.emailNudgeLater.addEventListener("click", () => {
+            localStorage.setItem(EMAIL_NUDGE_SNOOZE_KEY, String(Date.now() + EMAIL_NUDGE_SNOOZE_MS));
+            elements.emailNudge.hidden = true;
         });
     }
 
@@ -2032,7 +2069,122 @@ function switchProgressTab(tab) {
     // this modal never open Settings, and the panel wants the account's live
     // intake counts at the moment it is shown, not at the moment the modal
     // was opened.
-    if (tab === "settings") loadSettings();
+    if (tab === "settings") {
+        loadSettings();
+        loadAccount();
+    }
+}
+
+// "Later" on the email prompt hides it for a week on this device. Not for
+// good: an account with no address has no way back in if its password is
+// forgotten, and that stays true however many times the prompt is dismissed.
+const EMAIL_NUDGE_SNOOZE_KEY = "juzi_email_nudge_snoozed_until";
+const EMAIL_NUDGE_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Fetches the login account's email state and renders both places that show
+ * it: the Email section at the top of Settings and the prompt under the top
+ * bar. A /u/<slug>/ link has no password to reset, so for those -- and
+ * whenever the request fails -- both simply stay hidden.
+ */
+async function loadAccount() {
+    if (!state.canLogout) return;
+    try {
+        const response = await fetch("/api/account");
+        if (!response.ok) return;
+        renderAccount(await response.json());
+    } catch (err) {
+        console.error("Couldn't load account details.", err);
+    }
+}
+
+function renderAccount(account) {
+    state.account = account;
+    if (elements.accountSection) elements.accountSection.hidden = false;
+
+    // Built from text nodes, not innerHTML: the addresses are user input.
+    const note = elements.accountEmailNote;
+    if (note) {
+        const strong = (text) => {
+            const el = document.createElement("strong");
+            el.textContent = text;
+            return el;
+        };
+        note.replaceChildren();
+        if (account.pending_email) {
+            note.append("A confirmation link went to ", strong(account.pending_email),
+                ". Open it within 48 hours to finish. Nothing there? Check spam, or send it again.");
+            if (account.email) {
+                note.append(" Until then, reset links still go to ", strong(account.email), ".");
+            }
+        } else if (account.email) {
+            note.append("Password reset links go to ", strong(account.email),
+                ". To use a different address, enter it below and confirm it.");
+        } else {
+            note.append("Add an email so you can reset your password yourself if you ever " +
+                "forget it. It's used for your account and nothing else.");
+        }
+    }
+
+    // Leave the field alone while someone is typing in it.
+    if (elements.settingEmail && document.activeElement !== elements.settingEmail) {
+        elements.settingEmail.value = account.pending_email || account.email || "";
+    }
+    syncAccountEmailButton();
+    updateEmailNudge();
+}
+
+/** "Send link again" when the field still holds the address awaiting confirmation. */
+function syncAccountEmailButton() {
+    if (!elements.accountEmailBtnSave || !elements.settingEmail) return;
+    const typed = elements.settingEmail.value.trim().toLowerCase();
+    const resending = !!(state.account && state.account.pending_email
+        && typed === state.account.pending_email);
+    elements.accountEmailBtnSave.textContent = resending ? "Send link again" : "Send confirmation link";
+}
+
+function updateEmailNudge() {
+    if (!elements.emailNudge) return;
+    const account = state.account;
+    const snoozedUntil = parseInt(localStorage.getItem(EMAIL_NUDGE_SNOOZE_KEY), 10) || 0;
+    elements.emailNudge.hidden = !account || !!account.email || !!account.pending_email
+        || Date.now() < snoozedUntil;
+}
+
+function showAccountEmailStatus(message) {
+    if (!elements.accountEmailStatus) return;
+    elements.accountEmailStatus.hidden = !message;
+    elements.accountEmailStatus.textContent = message;
+}
+
+async function saveAccountEmail() {
+    if (!elements.settingEmail || !elements.accountEmailBtnSave) return;
+    const email = elements.settingEmail.value.trim().toLowerCase();
+    if (!email) {
+        showAccountEmailStatus("Enter an email address.");
+        return;
+    }
+    if (state.account && email === state.account.email && !state.account.pending_email) {
+        showAccountEmailStatus("That's already your confirmed address.");
+        return;
+    }
+
+    elements.accountEmailBtnSave.disabled = true;
+    showAccountEmailStatus("Sending…");
+    try {
+        const response = await apiPost("/api/account/email", { email });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Couldn't send the link (${response.status}).`);
+        renderAccount(data);
+        showAccountEmailStatus(data.pending_email
+            ? `Sent. Check ${data.pending_email} for the link.`
+            : `Reset links will keep going to ${data.email}.`);
+    } catch (err) {
+        console.error(err);
+        showAccountEmailStatus(err.message);
+    } finally {
+        elements.accountEmailBtnSave.disabled = false;
+    }
 }
 
 /**

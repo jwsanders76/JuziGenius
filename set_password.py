@@ -1,8 +1,8 @@
 """
 Manually sets a new password for an existing real-login account, by
-username -- the password-recovery path decided on for this project, since
-the droplet has no email-sending capability to support a self-service
-"forgot password" flow. Mirrors reset_user.py's --name ergonomics, but only
+username. Self-service reset by email (POST /api/password/forgot) covers any
+account with a confirmed address; this is the operator's fallback for one
+without. Mirrors reset_user.py's --name ergonomics, but only
 touches users/accounts.json: it never resets or reseeds the account's own
 brain.json, so a friend's SRS progress is completely untouched.
 
@@ -16,7 +16,7 @@ Usage:
 import argparse
 import getpass
 
-from accounts import load_accounts, save_accounts, set_password, validate_new_account
+from accounts import load_accounts, save_accounts, set_password, validate_password
 
 
 def main():
@@ -36,9 +36,8 @@ def main():
         parser.error("Passwords did not match.")
 
     try:
-        # Reuses the same length check signup enforces, against a throwaway
-        # username so only the password half of the check applies.
-        validate_new_account({}, "placeholder", new_password)
+        # The same check signup and the emailed reset link enforce.
+        validate_password(new_password)
     except ValueError as bad:
         parser.error(str(bad))
 

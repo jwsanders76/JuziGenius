@@ -4,8 +4,9 @@ POST /api/signup and create_invite.py). Kept separate from accounts.py: an
 invite code authorizes creating an account, it isn't itself an account.
 
 Signup is invite-gated rather than fully open by explicit decision: the
-droplet this runs on is a 1 vCPU / 458MB box with no CAPTCHA or email
-verification, so an open signup form is a real bot/memory-exhaustion risk --
+droplet this runs on is a 1 vCPU / 458MB box with no CAPTCHA, and signup
+does not wait on email confirmation (see server.py's _handle_signup), so an
+open signup form is a real bot/memory-exhaustion risk --
 every account gets a permanently process-lifetime-cached JuziEngine (see
 get_engine_for_id in server.py). A short code the operator hands out
 privately closes that off at effectively no cost to a real friend signing up.

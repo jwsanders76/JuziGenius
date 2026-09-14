@@ -29,6 +29,11 @@ Type=simple
 User=deploy
 WorkingDirectory=/home/deploy/JuziGenius
 Environment=JUZI_BIND_HOST=127.0.0.1
+# Mail credentials for mailer.py (JUZI_RESEND_API_KEY, JUZI_MAIL_FROM). Kept
+# outside the repository and 0600, the same arrangement as ~/.restic-env. The
+# leading "-" makes the file optional: without it the service still starts,
+# and emails are printed to the journal instead of being sent.
+EnvironmentFile=-/home/deploy/.juzi-env
 ExecStart=/usr/bin/python3 server.py
 Restart=on-failure
 RestartSec=5

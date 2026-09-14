@@ -15,7 +15,12 @@ alongside real login.
 
 users/accounts.json, gitignored (personal data, not app code, same reasoning
 as registry.json): keyed by lowercase username ->
-    {user_id, password_hash, display_name, session_version, created}
+    {user_id, password_hash, display_name, session_version, created,
+     email?, email_verified_at?, pending_email?}
+
+`email` only ever holds an address its owner has proven they receive mail at
+(see confirm_email). Anything typed in but not yet confirmed lives in
+`pending_email`, and nothing treats it as belonging to the account.
 """
 import datetime
 import os
@@ -66,11 +71,107 @@ def validate_new_account(accounts, username, password):
         raise ValueError("Username must be 3-20 characters: letters, numbers, _ or - only.")
     if username.lower() in accounts:
         raise ValueError("That username is already taken.")
+    validate_password(password)
+
+
+def validate_password(password):
+    """Raises ValueError with a user-facing message if `password` is too weak."""
     if len(password) < MIN_PASSWORD_LENGTH:
         raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
 
 
-def create_account(accounts, username, password):
+# Deliberately loose. The only real test of an address is whether mail sent to
+# it arrives, which confirmation already checks; a strict pattern here rejects
+# valid addresses (plus-tags, new TLDs) while catching nothing that
+# confirmation wouldn't.
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+MAX_EMAIL_LENGTH = 254
+
+
+def normalize_email(email):
+    """
+    Trimmed and lowercased. Strictly, the part before the @ may be
+    case-sensitive, but no mainstream provider treats it that way, and
+    comparing case-insensitively is what stops Alice@x.com and alice@x.com
+    from counting as two different people.
+    """
+    return (email or "").strip().lower() if isinstance(email, str) else ""
+
+
+def validate_email(email):
+    """Raises ValueError with a user-facing message if a normalized `email` is unusable."""
+    if not email:
+        raise ValueError("Enter an email address.")
+    if len(email) > MAX_EMAIL_LENGTH or not EMAIL_RE.match(email):
+        raise ValueError("That doesn't look like an email address.")
+
+
+def find_account_by_email(accounts, email):
+    """
+    (username, entry) for the account whose CONFIRMED email is `email`, else
+    (None, None). Pending addresses deliberately don't count: anyone can type
+    anyone's address into their own settings, and an unproven claim must never
+    receive a password reset or lock the real owner out of their own address.
+    """
+    if not email:
+        return None, None
+    for username, entry in accounts.items():
+        if entry.get("email") == email:
+            return username, entry
+    return None, None
+
+
+def request_email_change(entry, email):
+    """
+    Records `email` as awaiting confirmation on one account entry. A confirmed
+    address already on the account stays in force until the new one is
+    confirmed -- a typo in the new address must not cost someone the ability
+    to reset their password. Returns True if a confirmation link needs
+    sending, False if `email` already is the confirmed address (in which case
+    any pending change is simply abandoned).
+    """
+    if entry.get("email") == email:
+        entry.pop("pending_email", None)
+        return False
+    entry["pending_email"] = email
+    return True
+
+
+def confirm_email(accounts, user_id, email):
+    """
+    Applies an opened confirmation link. Returns one of:
+        "verified"          `email` is now this account's address
+        "already_verified"  it already was -- the same link opened twice
+        "stale"             the account has since asked to confirm another address
+        "taken"             a different account confirmed this address first
+        "no_account"
+    Only "verified" modifies `accounts`; the caller saves.
+    """
+    _username, entry = find_account_by_user_id(accounts, user_id)
+    if entry is None or not email:
+        return "no_account"
+    if entry.get("email") == email:
+        return "already_verified"
+    if entry.get("pending_email") != email:
+        return "stale"
+    if find_account_by_email(accounts, email)[1] is not None:
+        return "taken"
+    entry["email"] = email
+    entry["email_verified_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    entry.pop("pending_email", None)
+    return "verified"
+
+
+def public_view(entry):
+    """What an account's own owner is shown about it (GET /api/account). Never the hash."""
+    return {
+        "username": entry.get("display_name"),
+        "email": entry.get("email"),
+        "pending_email": entry.get("pending_email"),
+    }
+
+
+def create_account(accounts, username, password, email=None):
     """
     Provisions a brand new account: a fresh users/<user_id>/brain.json (the
     same empty_brain() every other account-creation path uses) plus an entry
@@ -79,6 +180,9 @@ def create_account(accounts, username, password):
     rather than leaving a used-but-unrecorded code if the second somehow
     failed. Returns the new user_id; the account's session_version is always
     INITIAL_SESSION_VERSION.
+
+    `email`, if given, is recorded as pending, never as confirmed -- see
+    confirm_email. Sending the confirmation link is the caller's job too.
     """
     user_id = secrets.token_urlsafe(16)
     user_dir = os.path.join(USERS_DIR, user_id)
@@ -92,6 +196,8 @@ def create_account(accounts, username, password):
         "session_version": INITIAL_SESSION_VERSION,
         "created": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
+    if email:
+        accounts[username.lower()]["pending_email"] = email
     return user_id
 
 
