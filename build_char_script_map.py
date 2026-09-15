@@ -34,10 +34,25 @@ worse: the vendored stroke set (fetch_stroke_data.py, from hanzi-writer-data)
 doesn't cover these rare variants at all, so writing practice hit a dead "no
 stroke data for this character" error for them (found via a user report).
 OpenCC ships exactly the correction table this needs -- TWVariants.txt and
-HKVariants.txt map a variant glyph to its Taiwan/Hong-Kong standard form -- so
-after building the base mapping, any value with an entry in either table is
-replaced by it (TW checked first, then HK). This is still a one-time build
-step, not a runtime dependency; see the module docstring above.
+HKVariants.txt map a variant glyph to its Taiwan/Hong-Kong standard form. This
+is still a one-time build step, not a runtime dependency; see the module
+docstring above.
+
+WHY EVERY PICK MUST HAVE STROKE DATA
+------------------------------------
+Applying those tables blindly swapped some glyphs the stroke set does cover
+for ones it doesn't. HKVariants maps 說 to 説, so simplified 说 (HSK 1) was
+shown to Traditional learners as 説 and hit the same dead "no stroke data"
+error (a second user report, September 14, 2026); 卫, 阅, 叙, 锐, 哗, 蕴 and 酝
+had the same problem. So each simplified character's candidates are tried in
+the same preference order as before -- the Taiwan standard form of OpenCC's
+first traditional form, its Hong Kong standard form, that first form itself,
+then OpenCC's other traditional forms -- and the first one stroke_data.json
+can draw wins. Keeping the order means only the undrawable picks change. A character with no drawable traditional form
+at all (all rare: 绫 -> 綾, 疡 -> 瘍, ...) gets no entry, so a Traditional
+learner writes its simplified form instead of meeting a character they can't
+write. The build refuses to write a map containing any glyph without stroke
+data, so rerun it after fetch_stroke_data.py changes the stroke set.
 
 WHAT IT WRITES
 --------------
@@ -77,58 +92,66 @@ def fetch_wheel():
     return data, version, license_name, home_page
 
 
-def parse_st_characters(raw: bytes) -> dict:
+STROKE_INDEX = "stroke_data.index.json"
+
+
+def parse_candidates(raw: bytes) -> dict:
     """
     STCharacters.txt is tab-separated: `simplified<TAB>trad1 trad2 ...`, one
-    line per character that has at least one distinct traditional form. The
-    first candidate is OpenCC's most-common choice (see module docstring for
-    why later candidates -- the context-disambiguated ones -- are dropped).
+    line per character that has at least one traditional form, most common
+    first. The variant files (TWVariants.txt, HKVariants.txt) have the same
+    shape: `variant<TAB>standard candidate(s)`. Returns every candidate, in
+    order, so a pick can skip ones the stroke set can't draw.
     """
-    mapping = {}
+    candidates = {}
     for line in raw.decode("utf-8").splitlines():
         if not line.strip():
             continue
-        simp, _, trads = line.partition("\t")
-        if not simp or not trads:
+        key, _, values = line.partition("\t")
+        if not key or not values.strip():
             continue
-        mapping[simp] = trads.split(" ", 1)[0]
-    return mapping
+        candidates[key] = values.split()
+    return candidates
 
 
-def parse_variants(raw: bytes) -> dict:
+def load_drawable() -> set:
+    """Every character stroke_data.json has strokes for, from its index."""
+    with open(STROKE_INDEX, encoding="utf-8") as f:
+        return set(json.load(f)["entries"])
+
+
+def pick_traditional(trads: list, tw_variants: dict, hk_variants: dict, drawable: set):
     """
-    A variant-glyph file is the same tab-separated shape: `variant<TAB>
-    standard candidate(s)`. Only the first (best) candidate is kept, same as
-    parse_st_characters.
+    The traditional form to show, or None when no candidate can be drawn:
+    the Taiwan standard form of OpenCC's first choice, its Hong Kong standard
+    form, that first choice itself, then OpenCC's other candidates.
     """
-    variants = {}
-    for line in raw.decode("utf-8").splitlines():
-        if not line.strip():
-            continue
-        variant, _, standards = line.partition("\t")
-        if not variant or not standards:
-            continue
-        variants[variant] = standards.split(" ", 1)[0]
-    return variants
+    first = trads[0]
+    order = [*tw_variants.get(first, [])[:1], *hk_variants.get(first, [])[:1], first, *trads[1:]]
+    return next((c for c in order if c in drawable), None)
 
 
 def main():
     wheel_bytes, version, license_name, home_page = fetch_wheel()
     with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as zf:
-        raw = zf.read(SOURCE_FILE)
-        tw_variants = parse_variants(zf.read(TW_VARIANTS_FILE))
-        hk_variants = parse_variants(zf.read(HK_VARIANTS_FILE))
+        st_characters = parse_candidates(zf.read(SOURCE_FILE))
+        tw_variants = parse_candidates(zf.read(TW_VARIANTS_FILE))
+        hk_variants = parse_candidates(zf.read(HK_VARIANTS_FILE))
+    drawable = load_drawable()
+    print(f"  {len(st_characters)} characters have a traditional form; "
+          f"{len(drawable)} characters have stroke data")
 
-    mapping = parse_st_characters(raw)
-    print(f"  {len(mapping)} characters differ between scripts")
+    mapping = {}
+    for simp, trads in st_characters.items():
+        trad = pick_traditional(trads, tw_variants, hk_variants, drawable)
+        if trad is not None:
+            mapping[simp] = trad
+    print(f"  {len(mapping)} mapped; {len(st_characters) - len(mapping)} left simplified "
+          "because no traditional form has stroke data")
 
-    corrected = 0
-    for simp, trad in mapping.items():
-        standard = tw_variants.get(trad) or hk_variants.get(trad)
-        if standard:
-            mapping[simp] = standard
-            corrected += 1
-    print(f"  {corrected} corrected from a rare variant to the TW/HK standard glyph")
+    undrawable = sorted(t for t in mapping.values() if t not in drawable)
+    if undrawable:
+        raise SystemExit(f"Refusing to write {OUTPUT}: no stroke data for {''.join(undrawable)}")
 
     with open(OUTPUT, "w", encoding="utf-8") as f:
         json.dump(mapping, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)

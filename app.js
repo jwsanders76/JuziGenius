@@ -155,8 +155,8 @@ function showStrokeDataError(char, token) {
     container.innerHTML = `
         <div class="stroke-error-card">
             <div class="stroke-error-char">${char}</div>
-            <div class="stroke-error-title">No stroke data for this character</div>
-            <div class="stroke-error-note">It isn't in the offline set and the character database couldn't be reached. Run <code>python3 fetch_stroke_data.py</code> to widen the offline set.</div>
+            <div class="stroke-error-title">This character can't be practised yet</div>
+            <div class="stroke-error-note">JuziGenius doesn't have its stroke order. Skip it for now: skipping doesn't count as a review.</div>
             <button id="btn-skip-char" class="btn-next">Skip This Character →</button>
         </div>
     `;
