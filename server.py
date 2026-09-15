@@ -677,10 +677,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         What this request's account may do under its plan (see plans.py). The
         single-user default engine -- local development, never the hosted
-        site -- belongs to no account and has no limits.
+        site -- belongs to no account and has no limits. A paid plan follows
+        its subscription, if it has one (see plans.access_for).
         """
-        plan = plans.plan_for(self.account_id) if self.account_id else plans.PAID
-        return plans.Limits(plan, engine.load_master_dictionary())
+        master = engine.load_master_dictionary()
+        if not self.account_id:
+            return plans.Limits(plans.PAID, master)
+        return plans.Limits.for_entry(plans.entry_for(self.account_id), master)
 
     def _send_upgrade_required(self, reason, message):
         """
@@ -691,13 +694,20 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(402, {"error": message, "upgrade_required": True, "reason": reason})
 
     def _get_plan(self, engine):
-        """The account's plan and, on the free plan, how much of HSK 1 it has unlocked."""
+        """
+        The account's plan and, without full access, how much of HSK 1 it has
+        unlocked and how many characters beyond it wait (see held_items).
+        """
+        limits = self._limits(engine)
         with engine.brain_lock:
-            unlocked = engine._read_brain().get("unlocked_chars", {}) or {}
-        return self._limits(engine).view(unlocked)
+            brain_data = engine._read_brain()
+        held_chars, _held_words = engine.held_items(brain_data, limits.allowed_chars)
+        return limits.view(brain_data.get("unlocked_chars", {}) or {},
+                           waiting_chars=len(held_chars))
 
     def _get_session(self, engine):
         """The saved practice bank plus the counters the top bar shows."""
+        limits = self._limits(engine)
         brain_data = {"unlocked_chars": {}, "sentences": []}
         with engine.brain_lock:
             if os.path.exists(engine.brain_path):
@@ -717,11 +727,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # them forever while the other two sit in the "Due" badge,
         # unreachable. beginner_bank_is_stale asks for exactly the size a
         # fresh batch would be, so this settles after one rebuild rather than
-        # rewriting brain.json on every page load.
+        # rewriting brain.json on every page load. A bank generated before a
+        # subscription ended can also still serve characters the plan now
+        # holds back (see held_items), and is rebuilt the same way.
         if unlocked_chars and (not saved_sentences
-                               or engine.beginner_bank_is_stale(brain_data)):
+                               or engine.beginner_bank_is_stale(brain_data, limits.allowed_chars)
+                               or engine.bank_has_held_items(brain_data, limits.allowed_chars)):
             try:
-                engine.generate_fresh_session(count=3)
+                engine.generate_fresh_session(count=3, allowed_chars=limits.allowed_chars)
                 # Re-read rather than trust that call's own return value:
                 # generate_fresh_session persists the (always-simplified)
                 # bank to disk but returns an already script-converted copy
@@ -754,11 +767,12 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         return {
             "sentences": display_sentences,
             "total_unlocked_count": len(unlocked_chars),
-            "total_due_count": engine.total_due_count(brain_data),
+            "total_due_count": engine.total_due_count(brain_data, limits.allowed_chars),
             # Characters unlocked but held behind the daily intake cap, so
             # the badge can say "12 due, 60 waiting" rather than presenting
             # the whole backlog as today's work.
-            "new_backlog": engine.new_character_backlog(unlocked_chars),
+            "new_backlog": engine.new_character_backlog(
+                engine.practice_view(brain_data, limits.allowed_chars).get("unlocked_chars", {})),
             # False only for a brand-new create_user.py account that hasn't
             # picked a starting tier yet -- app.js shows the tier picker
             # instead of the normal session in that case. A missing key
@@ -792,7 +806,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
 
     def _get_progress(self, engine):
         """Everything the progress view needs, in one request."""
-        return engine.progress_summary()
+        return engine.progress_summary(allowed_chars=self._limits(engine).allowed_chars)
 
     def _get_importable_sentences(self, engine):
         """
@@ -800,7 +814,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         quick-import button: every corpus sentence the current pool can
         already fully write that isn't in the Sentence Bank yet.
         """
-        return engine.list_importable_sentences()
+        return engine.list_importable_sentences(allowed_chars=self._limits(engine).allowed_chars)
 
     def _get_settings(self, engine):
         """
@@ -1675,7 +1689,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if not isinstance(sentences, list):
             self._send_json_error(400, "'sentences' must be a list.")
             return None
-        return engine.bulk_add_to_sentence_bank(sentences)
+        return engine.bulk_add_to_sentence_bank(
+            sentences, allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_import(self, engine):
         """
@@ -1716,7 +1731,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return None
         return engine.generate_fresh_session(
             count=3, styles={"sentences"}, allow_character_fallback=True,
-            restrict_sentences_to_bank=False)
+            restrict_sentences_to_bank=False,
+            allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_session_refresh(self, engine):
         """
@@ -1732,7 +1748,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         """
         if self._json_body() is None:
             return None
-        return engine.generate_fresh_session(count=5)
+        return engine.generate_fresh_session(
+            count=5, allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_suggestions_add(self, engine):
         """
@@ -1778,7 +1795,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         char, quality = data.get("char", ""), data.get("quality")
         if not char or quality is None:
             raise ValueError("Both 'char' and 'quality' are required.")
-        return engine.review_character(char, quality)
+        return engine.review_character(char, quality,
+                                       allowed_chars=self._limits(engine).allowed_chars)
 
     def _post_word_review(self, engine):
         """
@@ -1792,7 +1810,8 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         word, quality = data.get("word", ""), data.get("quality")
         if not word or quality is None:
             raise ValueError("Both 'word' and 'quality' are required.")
-        return engine.review_word(word, quality)
+        return engine.review_word(word, quality,
+                                  allowed_chars=self._limits(engine).allowed_chars)
 
 
 if __name__ == "__main__":

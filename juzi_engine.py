@@ -483,7 +483,7 @@ class JuziEngine:
             }
         return out
 
-    def total_due_count(self, brain_data: dict = None) -> int:
+    def total_due_count(self, brain_data: dict = None, allowed_chars: frozenset = None) -> int:
         """
         The number the top "Due: N" badge shows, restricted to whichever
         study styles are enabled (see study_styles). "Unlocked: N" is
@@ -502,9 +502,12 @@ class JuziEngine:
         therefore contributes the one cheap due-character count once; only
         Words, which does carry its own independent SM-2 schedule (see
         get_due_words), adds a second, separate term.
+
+        `allowed_chars` leaves out whatever that plan holds (see held_items).
         """
         if brain_data is None:
             brain_data = self._read_brain()
+        brain_data = self.practice_view(brain_data, allowed_chars)
         unlocked_chars = brain_data.get("unlocked_chars", {}) or {}
         unlocked_words = brain_data.get("unlocked_words", {}) or {}
         styles = self.study_styles(brain_data)
@@ -975,6 +978,83 @@ class JuziEngine:
         return self._due_items(unlocked_words, new_limit,
                                lambda w: unlocked_words[w].get("rank", 99999))
 
+
+    # --- Plan holds --------------------------------------------------------
+    # An account without full access (see plans.py) keeps every character it
+    # has practised, but not the ones beyond its plan that it never got to.
+
+    @staticmethod
+    def _never_graded(meta: dict) -> bool:
+        """No review recorded at all: the same test _new_item_budget uses."""
+        return not meta.get("last") and not meta.get("introduced")
+
+    @classmethod
+    def held_items(cls, brain_data: dict, allowed_chars: frozenset = None) -> tuple:
+        """
+        (held characters, held words): unlocked items an account limited to
+        `allowed_chars` can't practise until it has full access again. Both
+        are empty when `allowed_chars` is None, which is full access.
+
+        A character is held when it is outside `allowed_chars` and has never
+        been graded. That is what a lapsed subscriber meets: characters beyond
+        HSK 1 they practised stay theirs to review, and ones they unlocked but
+        never got to wait rather than being deleted, as the pricing page
+        promises. Holding every character outside the free plan would take
+        away work the learner already did; holding none would make a lapsed
+        subscription a way to keep studying new material.
+
+        A word is held when it contains a held character, or when it has
+        never been graded itself and contains any character outside
+        `allowed_chars`: practising a new word is new material too.
+        """
+        if allowed_chars is None:
+            return set(), set()
+        chars = brain_data.get("unlocked_chars") or {}
+        words = brain_data.get("unlocked_words") or {}
+        held_chars = {char for char, meta in chars.items()
+                      if char not in allowed_chars and cls._never_graded(meta)}
+        held_words = {word for word, meta in words.items()
+                      if any(c in held_chars for c in word)
+                      or (cls._never_graded(meta) and any(c not in allowed_chars for c in word))}
+        return held_chars, held_words
+
+    @classmethod
+    def practice_view(cls, brain_data: dict, allowed_chars: frozenset = None) -> dict:
+        """
+        `brain_data` with held items (see held_items) left out of its unlocked
+        pools, for choosing and counting practice. A shallow copy, so it must
+        never be saved: the held items are still the learner's. `brain_data`
+        itself when nothing is held.
+        """
+        held_chars, held_words = cls.held_items(brain_data, allowed_chars)
+        if not held_chars and not held_words:
+            return brain_data
+        view = dict(brain_data)
+        view["unlocked_chars"] = {char: meta for char, meta in (brain_data.get("unlocked_chars") or {}).items()
+                                  if char not in held_chars}
+        view["unlocked_words"] = {word: meta for word, meta in (brain_data.get("unlocked_words") or {}).items()
+                                  if word not in held_words}
+        return view
+
+    @staticmethod
+    def _is_held_item(item: dict, held_chars: set, held_words: set) -> bool:
+        """Whether a practice-bank item needs anything held."""
+        chinese = item.get("chinese") or ""
+        return chinese in held_words or any(c in held_chars for c in chinese)
+
+    def bank_has_held_items(self, brain_data: dict, allowed_chars: frozenset = None) -> bool:
+        """
+        Whether the saved practice bank still serves something held: a bank
+        generated while the account had full access. /api/session rebuilds it
+        (see server.py), so a subscription ending takes effect on the next
+        page load rather than whenever the old batch runs out.
+        """
+        held_chars, held_words = self.held_items(brain_data, allowed_chars)
+        if not held_chars and not held_words:
+            return False
+        return any(self._is_held_item(item, held_chars, held_words)
+                   for item in brain_data.get("sentences") or [])
+
     @staticmethod
     def _advance_sm2(entry: dict, quality: int, today_iso: str) -> bool:
         """
@@ -1026,7 +1106,7 @@ class JuziEngine:
         return True
 
     def _review_item(self, pool_key: str, label: str, noun: str, key: str,
-                     quality: int) -> dict:
+                     quality: int, allowed_chars: frozenset = None) -> dict:
         """
         Grades one completed practice item and advances its SM-2 scheduling
         fields (interval, factor, reps, last) in brain.json, under
@@ -1038,6 +1118,11 @@ class JuziEngine:
 
         `label` names the item kind in the response payload ("char"/"word");
         `noun` is how it is spelled in the not-unlocked error a client shows.
+
+        An item the account's plan holds (see held_items) isn't graded, and the
+        response says `held`. The server never serves one, so this only meets
+        a batch from before a subscription ended; refusing it stops a client
+        grading a held character into a practised one.
         """
         quality = max(0, min(5, int(quality)))
 
@@ -1046,6 +1131,19 @@ class JuziEngine:
             entry = brain_data.setdefault(pool_key, {}).get(key)
             if entry is None:
                 raise ValueError(f"{noun} '{key}' is not in the unlocked pool.")
+
+            held_chars, held_words = self.held_items(brain_data, allowed_chars)
+            if key in (held_chars if pool_key == "unlocked_chars" else held_words):
+                return {
+                    label: key,
+                    "reps": entry.get("reps", 0),
+                    "interval": entry.get("interval", 0),
+                    "factor": entry.get("factor", 2.5),
+                    "last": entry.get("last"),
+                    "counted": False,
+                    "held": True,
+                    "due_count": self.total_due_count(brain_data, allowed_chars),
+                }
 
             today = date.today().isoformat()
 
@@ -1073,10 +1171,10 @@ class JuziEngine:
                 "factor": entry.get("factor", 2.5),
                 "last": entry.get("last"),
                 "counted": advanced,
-                "due_count": self.total_due_count(brain_data)
+                "due_count": self.total_due_count(brain_data, allowed_chars)
             }
 
-    def review_character(self, char: str, quality: int) -> dict:
+    def review_character(self, char: str, quality: int, allowed_chars: frozenset = None) -> dict:
         """
         Grades a single completed character quiz.
 
@@ -1103,9 +1201,9 @@ class JuziEngine:
         the data that had already inflated.
         """
         return self._review_item("unlocked_chars", "char", "Character",
-                                 char, quality)
+                                 char, quality, allowed_chars)
 
-    def review_word(self, word: str, quality: int) -> dict:
+    def review_word(self, word: str, quality: int, allowed_chars: frozenset = None) -> dict:
         """
         Grades a completed word-practice item against the word's own SM-2
         schedule -- independent of, not instead of, the grading its
@@ -1114,7 +1212,7 @@ class JuziEngine:
         characters even when "words" is the only study style enabled.
         """
         return self._review_item("unlocked_words", "word", "Word",
-                                 word, quality)
+                                 word, quality, allowed_chars)
 
     @staticmethod
     def prune_single_char_words(unlocked_words: dict) -> int:
@@ -1686,7 +1784,7 @@ class JuziEngine:
                 "skipped": skipped,
                 "locked": locked,
                 "total_unlocked_count": len(unlocked),
-                "total_due_count": self.total_due_count(brain_data),
+                "total_due_count": self.total_due_count(brain_data, allowed_chars),
                 "new_backlog": self.new_character_backlog(unlocked),
             }
 
@@ -1784,7 +1882,7 @@ class JuziEngine:
     # those characters are the useful ones.
     FREQUENCY_BANDS = [100, 500, 1000, 2000, 3000, 5000]
 
-    def progress_summary(self) -> dict:
+    def progress_summary(self, allowed_chars: frozenset = None) -> dict:
         """
         Everything the progress view needs, in one request.
 
@@ -1793,9 +1891,15 @@ class JuziEngine:
         frequency list was covered. All of it existed and none of it was
         visible, so there was no way to answer "am I getting anywhere?" -- the
         main thing that keeps someone going on a months-long project.
+
+        `allowed_chars` is the account's plan (see held_items): anything it
+        holds is still listed, marked `waiting`, but left out of what's due
+        and what's writable.
         """
         brain_data = self._read_brain()
         unlocked = brain_data.get("unlocked_chars", {})
+        held_chars, held_words = self.held_items(brain_data, allowed_chars)
+        practice = self.practice_view(brain_data, allowed_chars)
         words = brain_data.get("unlocked_words", {})
         completed = brain_data.get("completed_sentences", {}) or {}
         master = self.load_master_dictionary()
@@ -1806,7 +1910,7 @@ class JuziEngine:
         # filter is needed here, but one guards against any legacy entry.
         word_list = sorted(
             ({"word": w, "pinyin": m.get("pinyin", ""), "meaning": m.get("meaning", ""),
-              "rank": m.get("rank", 99999)}
+              "rank": m.get("rank", 99999), "waiting": w in held_words}
              for w, m in words.items() if len(w) >= 2),
             key=lambda w: (w["rank"], w["word"])
         )
@@ -1859,7 +1963,7 @@ class JuziEngine:
 
         today = date.today()
         new_limit = self.daily_new_limit(brain_data)
-        due = self.get_due_characters(unlocked, new_limit)
+        due = self.get_due_characters(practice["unlocked_chars"], new_limit)
 
         # Study stages. Thresholds follow the usual spaced-repetition reading:
         # under a week is still being learned, under three weeks is holding but
@@ -1892,6 +1996,7 @@ class JuziEngine:
                 # Lets the Character Bank offer a stroke-count sort alongside
                 # frequency and pinyin, per explicit user request.
                 "strokes": master.get(char, {}).get("strokes"),
+                "waiting": char in held_chars,
             })
 
             if not last:
@@ -1944,9 +2049,11 @@ class JuziEngine:
             "unlocked_chars": len(unlocked),
             "unlocked_words": len(words),
             "due_count": len(due),
-            "new_backlog": self.new_character_backlog(unlocked, new_limit),
+            "new_backlog": self.new_character_backlog(practice["unlocked_chars"], new_limit),
             "daily_new_limit": new_limit,
             "stages": stages,
+            "waiting_chars": len(held_chars),
+            "waiting_words": len(held_words),
             "avg_factor": round(sum(factors) / len(factors), 2) if factors else None,
             "avg_interval": round(sum(intervals) / len(intervals), 1) if intervals else None,
             # The figure the Progress view shows. A mean is dragged around by
@@ -1965,7 +2072,7 @@ class JuziEngine:
             # characters come back -- but these are sentences the user typed
             # in from their own reading, and nothing can reconstruct them.
             "pasted_sentences": len(brain_data.get("pasted_sentences", []) or []),
-            "playable_sentences": self.count_playable_sentences(set(unlocked)),
+            "playable_sentences": self.count_playable_sentences(set(practice["unlocked_chars"])),
             "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
                          for d in range(1, 15)],
             "characters": character_list,
@@ -2004,7 +2111,8 @@ class JuziEngine:
         return sum(1 for chinese, _english in load_sentence_corpus()
                    if all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese))
 
-    def list_importable_sentences(self, limit: int = MAX_IMPORTABLE_SENTENCES_SHOWN) -> dict:
+    def list_importable_sentences(self, limit: int = MAX_IMPORTABLE_SENTENCES_SHOWN,
+                                  allowed_chars: frozenset = None) -> dict:
         """
         Corpus sentences that are fully writable right now but not yet in the
         Sentence Bank -- the checklist behind the Overview tab's "N sentences
@@ -2017,9 +2125,10 @@ class JuziEngine:
         this" pass favors easy wins -- there's no practice-freshness ranking
         to apply here since nothing about this list is about to be served in
         a session. Capped at `limit`; total_available reports the true count
-        so the UI can say how many more exist.
+        so the UI can say how many more exist. `allowed_chars` leaves out
+        sentences needing anything that plan holds (see held_items).
         """
-        brain_data = self._read_brain()
+        brain_data = self.practice_view(self._read_brain(), allowed_chars)
         unlocked_set = set(brain_data.get("unlocked_chars", {}).keys())
         already_known = {
             (item.get("chinese") or "").strip()
@@ -2040,7 +2149,7 @@ class JuziEngine:
             "total_available": len(matches),
         }
 
-    def bulk_add_to_sentence_bank(self, chinese_list) -> dict:
+    def bulk_add_to_sentence_bank(self, chinese_list, allowed_chars: frozenset = None) -> dict:
         """
         Directly records a batch of corpus sentences as completed, without
         the learner writing any of them out first -- the quick-import action
@@ -2055,7 +2164,9 @@ class JuziEngine:
         _corpus_english_lookup, so this can't be used to mark arbitrary text,
         or a sentence the pool can no longer fully write, as completed.
         Already-known sentences (already in pasted_sentences or
-        completed_sentences) are silently skipped rather than double-counted.
+        completed_sentences) are silently skipped rather than double-counted,
+        and so is a sentence needing anything the account's plan holds (see
+        held_items).
         """
         requested = {c.strip() for c in (chinese_list or []) if isinstance(c, str) and c.strip()}
         if not requested:
@@ -2064,7 +2175,7 @@ class JuziEngine:
         today = date.today().isoformat()
         with self.brain_lock:
             brain_data = self._read_brain()
-            unlocked_set = set(brain_data.get("unlocked_chars", {}).keys())
+            unlocked_set = set(self.practice_view(brain_data, allowed_chars).get("unlocked_chars", {}))
             already_known = {
                 (item.get("chinese") or "").strip()
                 for item in (brain_data.get("pasted_sentences", []) or [])
@@ -2350,7 +2461,7 @@ class JuziEngine:
         affordable = len(unlocked) - len(never_graded) + min(budget, len(never_graded))
         return max(1, min(CHARACTER_ONLY_BATCH_CAP, affordable))
 
-    def beginner_bank_is_stale(self, brain_data: dict) -> bool:
+    def beginner_bank_is_stale(self, brain_data: dict, allowed_chars: frozenset = None) -> bool:
         """
         True when a saved character-only bank holds fewer characters than a
         fresh one would, so /api/session should rebuild it rather than serve
@@ -2374,7 +2485,11 @@ class JuziEngine:
         next request leaves the bank alone. A bank held short by the daily
         intake budget is *not* stale -- that is the cap doing its job, and
         treating it as stale would rewrite brain.json on every page load.
+
+        `allowed_chars` sizes that batch from what the plan can practise (see
+        held_items).
         """
+        brain_data = self.practice_view(brain_data, allowed_chars)
         bank = brain_data.get("sentences") or []
         if not bank or any(len(s.get("chinese") or "") != 1 for s in bank):
             return False
@@ -2457,7 +2572,7 @@ class JuziEngine:
         candidates.sort(key=lambda c: (c["_fresh"], c["_due_ratio"]), reverse=True)
         return self._strip_ranking_keys(self._fill_batch(candidates, count, budget))
 
-    def pick_character_practice(self, count: int = 5) -> list:
+    def pick_character_practice(self, count: int = 5, allowed_chars: frozenset = None) -> list:
         """
         Standalone single-character practice, served when "characters" is one
         of the enabled study styles (see study_styles) -- so character review
@@ -2465,13 +2580,13 @@ class JuziEngine:
         stranded-character safety net and the Tier 1 bootstrap phase, both of
         which exist independently of this setting and are untouched by it.
         """
-        brain_data = self._read_brain()
+        brain_data = self.practice_view(self._read_brain(), allowed_chars)
         unlocked = brain_data.get("unlocked_chars", {}) or {}
         return self._pick_item_practice(
             unlocked, self.get_due_characters(unlocked) if unlocked else set(),
             brain_data, self._character_candidate, count)
 
-    def pick_word_practice(self, count: int = 5) -> list:
+    def pick_word_practice(self, count: int = 5, allowed_chars: frozenset = None) -> list:
         """
         Standalone word practice, served when "words" is one of the enabled
         study styles. Words carry their own independent SM-2 schedule (see
@@ -2480,7 +2595,7 @@ class JuziEngine:
         single-character entry is excluded -- that is what unlocked_chars is
         for, and only a legacy brain would carry one.
         """
-        brain_data = self._read_brain()
+        brain_data = self.practice_view(self._read_brain(), allowed_chars)
         unlocked = {w: m for w, m in (brain_data.get("unlocked_words", {}) or {}).items()
                     if len(w) >= 2}
         return self._pick_item_practice(
@@ -2583,7 +2698,8 @@ class JuziEngine:
 
     def pick_hsk_sentences(self, count: int = 5,
                             allow_character_fallback: bool = True,
-                            restrict_to_bank: bool = False) -> list:
+                            restrict_to_bank: bool = False,
+                            allowed_chars: frozenset = None) -> list:
         """
         Picks real example sentences -- from the hand-curated HSK corpora, the
         larger Tatoeba-derived corpus, and the user's own saved pasted
@@ -2673,8 +2789,11 @@ class JuziEngine:
         A completed-but-now-unplayable sentence can't occur (characters are
         never re-locked), but playability is still checked here rather than
         assumed, the same as every other sentence source is.
+
+        `allowed_chars` leaves out everything that plan holds (see held_items),
+        and so every sentence that needs any of it.
         """
-        brain_data = self._read_brain()
+        brain_data = self.practice_view(self._read_brain(), allowed_chars)
         unlocked_chars = brain_data.get("unlocked_chars", {})
         if not unlocked_chars:
             return []
@@ -2752,7 +2871,8 @@ class JuziEngine:
 
     def generate_fresh_session(self, count: int = 5, styles: set = None,
                                 allow_character_fallback: bool = None,
-                                restrict_sentences_to_bank: bool = True) -> dict:
+                                restrict_sentences_to_bank: bool = True,
+                                allowed_chars: frozenset = None) -> dict:
         """
         Picks a brand new practice batch -- real example sentences from the
         local HSK/Tatoeba corpora and the user's own saved pasted sentences,
@@ -2803,6 +2923,10 @@ class JuziEngine:
         that button exists specifically to pull in new corpus sentences,
         the one deliberate exception to "practice only ever draws from what
         I've already saved or completed."
+
+        `allowed_chars` is the account's plan: nothing it holds is picked (see
+        held_items), and a saved bank still serving something held loses
+        those items even when nothing new can be picked.
         """
         with self.brain_lock:
             brain_data = {"unlocked_chars": {}, "sentences": []}
@@ -2828,11 +2952,12 @@ class JuziEngine:
                 raw_items += self.pick_hsk_sentences(
                     count=per_style_count,
                     allow_character_fallback=allow_character_fallback,
-                    restrict_to_bank=restrict_sentences_to_bank)
+                    restrict_to_bank=restrict_sentences_to_bank,
+                    allowed_chars=allowed_chars)
             if "characters" in styles:
-                raw_items += self.pick_character_practice(count=per_style_count)
+                raw_items += self.pick_character_practice(count=per_style_count, allowed_chars=allowed_chars)
             if "words" in styles:
-                raw_items += self.pick_word_practice(count=per_style_count)
+                raw_items += self.pick_word_practice(count=per_style_count, allowed_chars=allowed_chars)
             random.shuffle(raw_items)
 
             master_dict = self.load_master_dictionary()
@@ -2845,6 +2970,12 @@ class JuziEngine:
 
             if new_sentences:
                 brain_data["sentences"] = new_sentences
+                save_brain(self.brain_path, brain_data)
+            elif self.bank_has_held_items(brain_data, allowed_chars):
+                held_chars, held_words = self.held_items(brain_data, allowed_chars)
+                brain_data["sentences"] = [
+                    item for item in brain_data.get("sentences") or []
+                    if not self._is_held_item(item, held_chars, held_words)]
                 save_brain(self.brain_path, brain_data)
 
             # Converted here, on the way out, never before the write above --
@@ -2860,5 +2991,5 @@ class JuziEngine:
                 # batch. Without it the frontend had no due figure to apply
                 # and left the badge showing whatever it read at page load,
                 # which drifts further from the truth with every review.
-                "total_due_count": self.total_due_count(brain_data),
+                "total_due_count": self.total_due_count(brain_data, allowed_chars),
             }

@@ -8,6 +8,18 @@ Usage:
     python3 set_plan.py --all-existing --plan founding --note "beta tester"
     python3 set_plan.py --list
 
+    # A bought subscription, recorded by hand until checkout records its own:
+    python3 set_plan.py --username alice --billing annual --status active --period-end 2027-09-15
+    python3 set_plan.py --username alice --billing annual --status canceled --period-end 2026-09-01
+    python3 set_plan.py --username alice --billing lifetime
+
+--billing records a subscription (plans.record_subscription), which puts the
+account on the paid plan; whether that still gives full access then follows
+--status (default active) and --period-end. That makes every state, a lapsed
+account included, possible to try before real payments exist. --plan without
+--billing records a plan with no subscription, so paid set that way is a grant
+that never runs out.
+
 --all-existing gives the plan to every account that exists right now and has
 no plan recorded yet -- how the beta testers became founding members before
 the free-plan limits went live. An account that already has a plan is left
@@ -22,7 +34,9 @@ import argparse
 import os
 
 from accounts import load_accounts
-from plans import PLAN_NAMES, load_plans, plan_for, save_plans, set_plan
+from plans import (ACTIVE, BILLING_PERIODS, PAID, PLAN_NAMES, SUBSCRIPTION_STATUSES,
+                   access_for, entry_for, load_plans, record_subscription, save_plans,
+                   set_plan)
 from user_registry import USERS_DIR, find_by_name, load_registry
 
 
@@ -36,6 +50,20 @@ def account_labels():
         labels.setdefault(slug, f"link account {entry.get('name', '(unnamed)')!r}")
     return {account_id: label for account_id, label in labels.items()
             if os.path.isdir(os.path.join(USERS_DIR, account_id))}
+
+
+def describe(entry):
+    """An entry's plan in effect, with its subscription if it has one."""
+    plan, lapsed = access_for(entry)
+    subscription = entry.get("subscription")
+    if not isinstance(subscription, dict):
+        return plan
+    details = [subscription.get("billing", "?"), subscription.get("status", "?")]
+    if subscription.get("current_period_end"):
+        details.append(f"period ends {subscription['current_period_end'][:10]}")
+    if lapsed:
+        details.append("lapsed")
+    return f"{plan} ({', '.join(details)})"
 
 
 def resolve_account(parser, args):
@@ -70,6 +98,12 @@ def main():
                      help="Every existing account that has no plan recorded yet.")
     who.add_argument("--list", action="store_true", help="Show every account's plan.")
     parser.add_argument("--plan", choices=PLAN_NAMES)
+    parser.add_argument("--billing", choices=BILLING_PERIODS,
+                        help="Record a bought subscription with this billing period.")
+    parser.add_argument("--status", choices=SUBSCRIPTION_STATUSES,
+                        help="The subscription's status (default active). Needs --billing.")
+    parser.add_argument("--period-end",
+                        help="When the paid period ends, as an ISO date or time. Needs --billing.")
     parser.add_argument("--note", help="Why, for the record (for example 'beta tester').")
     args = parser.parse_args()
 
@@ -78,11 +112,20 @@ def main():
 
     if args.list:
         for account_id, label in sorted(labels.items(), key=lambda item: item[1].lower()):
-            print(f"  {plan_for(account_id, plans):<9} {label}")
+            plan, _lapsed = access_for(entry_for(account_id, plans))
+            detail = describe(entry_for(account_id, plans))
+            print(f"  {plan:<9} {label}{detail[len(plan):]}")
         return
 
-    if not args.plan:
-        parser.error("--plan is required.")
+    if args.billing:
+        if args.all_existing:
+            parser.error("--billing records one account's subscription; it can't be used with --all-existing.")
+        if args.plan and args.plan != PAID:
+            parser.error("A subscription is always on the paid plan; leave out --plan or use --plan paid.")
+    elif args.status or args.period_end:
+        parser.error("--status and --period-end describe a subscription, so they need --billing.")
+    elif not args.plan:
+        parser.error("--plan or --billing is required.")
 
     if args.all_existing:
         targets = [account_id for account_id in labels if account_id not in plans]
@@ -94,10 +137,17 @@ def main():
         return
 
     account_id = resolve_account(parser, args)
-    before = plan_for(account_id, plans)
-    set_plan(plans, account_id, args.plan, "operator", args.note)
+    before = describe(entry_for(account_id, plans))
+    if args.billing:
+        try:
+            record_subscription(plans, account_id, args.billing, args.status or ACTIVE,
+                                args.period_end, source="operator", note=args.note)
+        except ValueError as bad:
+            parser.error(str(bad))
+    else:
+        set_plan(plans, account_id, args.plan, "operator", args.note)
     save_plans(plans)
-    print(f"{labels.get(account_id, 'That account')}: {before} -> {args.plan}")
+    print(f"{labels.get(account_id, 'That account')}: {before} -> {describe(entry_for(account_id, plans))}")
 
 
 if __name__ == "__main__":

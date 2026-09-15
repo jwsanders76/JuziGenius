@@ -413,6 +413,9 @@ function cacheDomElements() {
     elements.upgradeBtnClose = document.getElementById("upgrade-btn-close");
     elements.planSection = document.getElementById("plan-section");
     elements.planNote = document.getElementById("plan-note");
+    elements.planBilling = document.getElementById("plan-billing");
+    elements.planManageBtn = document.getElementById("plan-manage-btn");
+    elements.planManageNote = document.getElementById("plan-manage-note");
 
     elements.sentenceImportModal = document.getElementById("sentence-import-modal");
     elements.sentenceImportList = document.getElementById("sentence-import-list");
@@ -648,6 +651,9 @@ function initEventListeners() {
         elements.modalBtnSubmit.addEventListener("click", handleModalSubmit);
     }
 
+    if (elements.planManageBtn) {
+        elements.planManageBtn.addEventListener("click", openManageSubscription);
+    }
     if (elements.upgradeBtnClose) {
         elements.upgradeBtnClose.addEventListener("click", () => {
             elements.upgradeModal.style.display = "none";
@@ -2450,12 +2456,69 @@ function renderPlan() {
     } else if (plan.full_access) {
         elements.planNote.textContent = "Paid: every HSK level and beyond, pasting your own "
             + "text, and every starting pool.";
+    } else if (plan.lapsed) {
+        const waiting = plan.waiting_chars || 0;
+        elements.planNote.textContent = "Your paid plan has ended. Everything you practised stays "
+            + "yours to review, and all of HSK 1 is still free."
+            + (waiting > 0
+                ? ` ${waiting.toLocaleString()} character${waiting === 1 ? "" : "s"} beyond HSK 1 that you `
+                  + `hadn't practised yet ${waiting === 1 ? "is" : "are"} waiting for a paid plan.`
+                : "");
     } else {
         const limit = plan.free_limit;
         elements.planNote.textContent = `Free: all ${limit.total} HSK 1 characters. `
             + `You've unlocked ${limit.unlocked} of them.`
             + (limit.reached ? " That's all of HSK 1; the paid plan unlocks the rest." : "");
     }
+
+    const subscription = plan.subscription;
+    if (elements.planBilling) {
+        elements.planBilling.textContent = subscription
+            ? describeSubscription(subscription, plan.full_access) : "";
+        elements.planBilling.hidden = !subscription;
+    }
+    if (elements.planManageBtn) elements.planManageBtn.hidden = !subscription;
+    if (elements.planManageNote) elements.planManageNote.hidden = true;
+}
+
+const BILLING_LABELS = { monthly: "Monthly", annual: "Annual" };
+
+function formatPlanDate(iso) {
+    const date = iso ? new Date(iso) : null;
+    return date && !isNaN(date)
+        ? date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+        : "";
+}
+
+/** One line about a bought subscription: when it renews, or when it ends. */
+function describeSubscription(subscription, fullAccess) {
+    if (subscription.billing === "lifetime") {
+        return fullAccess ? "Lifetime access, paid once." : "Your lifetime purchase was refunded.";
+    }
+    const period = BILLING_LABELS[subscription.billing] || "Paid";
+    const date = formatPlanDate(subscription.period_end);
+    if (subscription.status === "active") return `${period} plan, renewing on ${date}.`;
+    if (subscription.status === "past_due") {
+        return `${period} plan. Your last payment didn't go through; it will be tried again, `
+            + "and you keep full access meanwhile.";
+    }
+    const stopped = subscription.status === "paused" ? "paused" : "cancelled";
+    if (fullAccess) return `${period} plan, ${stopped}. Full access continues until ${date}.`;
+    return `Your ${period.toLowerCase()} plan ended on ${date}.`;
+}
+
+/**
+ * Settings' "Manage subscription": the payment provider's customer portal
+ * once checkout exists, which is where the Terms send subscribers to cancel.
+ * Until then it says how to reach us instead.
+ */
+function openManageSubscription() {
+    const url = state.plan && state.plan.subscription && state.plan.subscription.manage_url;
+    if (url) {
+        window.open(url, "_blank", "noopener");
+        return;
+    }
+    if (elements.planManageNote) elements.planManageNote.hidden = false;
 }
 
 const UPGRADE_COPY = {
@@ -3180,15 +3243,19 @@ function renderProgressCharacters(characters) {
 
     const tiles = sorted.map(c => {
         const title = `${c.char}${c.pinyin ? ` — ${c.pinyin}` : ""}${c.meaning ? ` — ${c.meaning}` : ""}`;
-        return `<div class="char-tile" style="--stage-color:${stageColor[c.stage] || "transparent"}" title="${escapeAttr(title)}">
+        return `<div class="char-tile${c.waiting ? " is-waiting" : ""}" style="--stage-color:${stageColor[c.stage] || "transparent"}" title="${escapeAttr(c.waiting ? `${title} — waiting for a paid plan` : title)}">
             <div class="char-tile-hanzi">${escapeHtml(c.char)}</div>
             <div class="char-tile-pinyin">${escapeHtml(c.pinyin || "")}</div>
             <div class="char-tile-meaning">${escapeHtml(c.meaning || "")}</div>
         </div>`;
     }).join("");
 
+    const waitingCount = characters.filter(c => c.waiting).length;
     const noteText = `${characters.length.toLocaleString()} character${characters.length === 1 ? "" : "s"} unlocked, `
-        + `${CHARACTER_BANK_SORT_LABELS[state.characterBankSort].note}.`;
+        + `${CHARACTER_BANK_SORT_LABELS[state.characterBankSort].note}.`
+        + (waitingCount > 0
+            ? ` The ${waitingCount.toLocaleString()} faded one${waitingCount === 1 ? " is" : "s are"} beyond HSK 1 and waiting for a paid plan.`
+            : "");
 
     elements.progressCharacters.innerHTML = `
         <div class="char-bank-sort-row">${sortButtons}</div>
@@ -3221,7 +3288,7 @@ function renderProgressWords(words) {
 
     const tiles = words.map(w => {
         const title = `${w.word}${w.pinyin ? ` — ${w.pinyin}` : ""}${w.meaning ? ` — ${w.meaning}` : ""}`;
-        return `<div class="word-tile" title="${escapeAttr(title)}">
+        return `<div class="word-tile${w.waiting ? " is-waiting" : ""}" title="${escapeAttr(w.waiting ? `${title} — waiting for a paid plan` : title)}">
             <div class="word-tile-hanzi">${escapeHtml(w.word)}</div>
             <div class="word-tile-pinyin">${escapeHtml(w.pinyin || "")}</div>
             <div class="word-tile-meaning">${escapeHtml(w.meaning || "")}</div>

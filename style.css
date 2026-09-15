@@ -2013,6 +2013,14 @@ body {
 
 .plan-locked .modal-btn { margin-top: 6px; }
 
+/* Settings' Manage subscription, a placeholder until checkout exists. */
+.plan-manage-btn { margin-top: 8px; }
+
+/* Character and Word Bank items the plan holds back (held_items in
+   juzi_engine.py): still the learner's, so still shown, but faded. */
+.char-tile.is-waiting,
+.word-tile.is-waiting { opacity: 0.45; }
+
 .onboarding-tier.is-locked .onboarding-tier-name { color: var(--text-secondary); }
 
 .onboarding-tier.is-locked .onboarding-tier-arrow {

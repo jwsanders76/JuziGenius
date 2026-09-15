@@ -334,11 +334,19 @@
                         <p id="account-email-status" class="danger-status" role="status" hidden></p>
                     </section>
 
-                    <!-- Every account: which plan it's on and what that includes.
-                         Filled in by renderPlan in app.js from /api/plan. -->
+                    <!-- Every account: which plan it's on and what that includes, and
+                         for a bought subscription when it renews or ends. Filled in by
+                         renderPlan in app.js from /api/plan. Manage subscription is a
+                         placeholder until checkout exists (see openManageSubscription). -->
                     <section class="progress-section" id="plan-section" hidden>
                         <h3 class="progress-title">Your plan</h3>
                         <p id="plan-note" class="progress-note"></p>
+                        <p id="plan-billing" class="progress-note" hidden></p>
+                        <button type="button" id="plan-manage-btn" class="modal-btn btn-secondary plan-manage-btn" hidden>Manage subscription</button>
+                        <p id="plan-manage-note" class="progress-note" role="status" hidden>
+                            Online billing isn't set up yet. To change or cancel your plan, email
+                            <a href="mailto:support@juzigenius.com">support@juzigenius.com</a>.
+                        </p>
                     </section>
 
                     <section class="progress-section">
