@@ -1577,6 +1577,93 @@ body {
     color: var(--text-primary);
 }
 
+/* --- Voice choice (Settings) ---
+   One bordered list, a row per voice: the radio and its label take the width,
+   and the sample button sits at the end so hearing a voice never chooses it. */
+.voice-list {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.voice-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 8px 12px;
+    background-color: var(--card-bg);
+}
+
+.voice-option + .voice-option { border-top: 1px solid var(--border-color); }
+
+.voice-option label {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.voice-option input[type="radio"] {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent-purple);
+    cursor: pointer;
+}
+
+.voice-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.voice-name {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.voice-accent {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.voice-sample {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.voice-sample:hover { border-color: var(--accent-purple); }
+.voice-sample:focus-visible { outline: 2px solid var(--accent-purple); outline-offset: 2px; }
+
+.voice-more {
+    display: block;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    margin: 0 0 8px;
+    color: #d2b4de;
+    font: inherit;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.voice-more:hover { color: var(--text-primary); }
+.voice-more:focus-visible { outline: 2px solid var(--accent-purple); outline-offset: 2px; }
+
 /* --- Prompts under the top bar ---
    Two of them, never shown together: "add an email" for a login account with
    no address on file, and "create a login" for a /u/<slug>/ link account. In

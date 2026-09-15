@@ -33,12 +33,13 @@ const state = {
     totalUnlockedCount: 0,
     totalDueCount: 0,
     newBacklog: 0,
-    // Index into getOrderedChineseVoices() -- which installed browser voice to
-    // speak with. The browser's voice list has no reliable gender field, so
-    // switching voices just steps through whatever the device actually has
-    // rather than pretending it can pick "the male one" (see
-    // getPreferredChineseVoice).
-    browserVoiceIndex: parseInt(localStorage.getItem("juzi_browser_voice_index"), 10) || 0,
+    // The voiceURI of the Mandarin voice chosen in Settings. Per device: the
+    // voices come from this device's speech engine, so the choice can't follow
+    // the account. null until one is chosen (see getPreferredChineseVoice).
+    voiceURI: localStorage.getItem("juzi_voice_uri"),
+    // Whether Settings' voice list shows every voice or only the plain-named
+    // ones (see renderVoiceSettings). Not remembered: it starts folded.
+    voiceListExpanded: false,
     // Light 田字格 registration grid overlaid on the writing canvas, purely a
     // client-side display preference -- unlike settings.daily_new_limit
     // it has no bearing on what gets served, so it lives only in localStorage.
@@ -202,8 +203,13 @@ document.addEventListener("DOMContentLoaded", () => {
     loadPlan();
     updateLoginNudge();
     // Chrome loads its voice list asynchronously; kick it off early so it's
-    // ready by the time a sentence completes and the victory card needs it.
-    if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
+    // ready by the time a sentence completes and the victory card needs it,
+    // and redraw Settings' voice list whenever the device reports its voices.
+    if ("speechSynthesis" in window) {
+        window.speechSynthesis.getVoices();
+        window.speechSynthesis.addEventListener("voiceschanged", renderVoiceSettings);
+    }
+    renderVoiceSettings();
     // See unlockAudioPlayback's own comment for why this has to be the very
     // first interaction with the page, not something wired to a specific
     // button. Bound to several event types, not just pointerdown, in case a
@@ -318,7 +324,6 @@ function cacheDomElements() {
     // Sentence pronunciation controls (beside the assembly line)
     elements.sentenceAudioControls = document.getElementById("sentence-audio-controls");
     elements.btnReplayAudio = document.getElementById("btn-replay-audio");
-    elements.btnSwitchVoice = document.getElementById("btn-switch-voice");
     
     // Import Modal Elements
     elements.importModal = document.getElementById("import-modal");
@@ -348,6 +353,9 @@ function cacheDomElements() {
     elements.settingsBtnReset = document.getElementById("settings-btn-reset");
     elements.settingsStatus = document.getElementById("settings-status");
     elements.settingShowGrid = document.getElementById("setting-show-grid");
+    elements.voiceSection = document.getElementById("voice-section");
+    elements.voiceList = document.getElementById("voice-list");
+    elements.voiceMoreBtn = document.getElementById("voice-more-btn");
 
     elements.settingStudyCharacters = document.getElementById("setting-study-characters");
     elements.settingStudyWords = document.getElementById("setting-study-words");
@@ -427,11 +435,10 @@ function initEventListeners() {
         elements.btnReplayAudio.addEventListener("click", () => playBrowserTTS(currentSentenceText()));
     }
 
-    if (elements.btnSwitchVoice) {
-        elements.btnSwitchVoice.addEventListener("click", () => {
-            switchToNextVoice();
-            updateSwitchVoiceButton(elements.btnSwitchVoice);
-            playBrowserTTS(currentSentenceText());
+    if (elements.voiceMoreBtn) {
+        elements.voiceMoreBtn.addEventListener("click", () => {
+            state.voiceListExpanded = !state.voiceListExpanded;
+            renderVoiceSettings();
         });
     }
 
@@ -1371,9 +1378,6 @@ function handleSkipSentence() {
 function toggleSentenceAudioControls(visible) {
     if (!elements.sentenceAudioControls) return;
     elements.sentenceAudioControls.hidden = !visible;
-    if (visible && elements.btnSwitchVoice) {
-        updateSwitchVoiceButton(elements.btnSwitchVoice);
-    }
 }
 
 /**
@@ -1846,7 +1850,7 @@ function stopSentenceAudio() {
  * arbitrary compound word), and the only one on a device where
  * speechSynthesis itself is unavailable is simply silent (checked below).
  */
-function playBrowserTTS(text) {
+function playBrowserTTS(text, voice = null) {
     if (!text) return;
 
     const token = stopSentenceAudio();
@@ -1869,9 +1873,11 @@ function playBrowserTTS(text) {
         currentUtterance.lang = 'zh-CN';
         currentUtterance.rate = 1.0;
 
-        const voice = getPreferredChineseVoice();
-        if (voice) {
-            currentUtterance.voice = voice;
+        // `voice` is passed only by Settings' samples; everything else speaks
+        // with the voice chosen there.
+        const chosen = voice || getPreferredChineseVoice();
+        if (chosen) {
+            currentUtterance.voice = chosen;
         }
 
         // A related quirk: the engine can end up internally paused
@@ -1883,25 +1889,6 @@ function playBrowserTTS(text) {
         window.speechSynthesis.resume();
         window.speechSynthesis.speak(currentUtterance);
     }, 150);
-}
-
-// Name substrings from known TTS voice packs (Microsoft/Apple/Amazon Mandarin
-// voices) that guess a voice's gender, since the Web Speech API exposes no
-// real gender field. Voices matching neither list are "unknown" and still
-// selectable -- they just can't be labeled Male/Female in the UI.
-const FEMALE_VOICE_NAME_HINTS = [
-    "female", "ting-ting", "tingting", "mei-jia", "meijia", "sin-ji", "sinji",
-    "yaoyao", "huihui", "xiaoxiao", "xiaoyi", "xiaomo", "xiaoxuan", "xiaohan", "xiaorui"
-];
-const MALE_VOICE_NAME_HINTS = [
-    "male", "kangkang", "zhiwei", "yunyang", "yunjian", "yunxi", "yunfeng", "li-mu", "limu"
-];
-
-function classifyVoiceGender(voice) {
-    const name = voice.name.toLowerCase();
-    if (FEMALE_VOICE_NAME_HINTS.some(hint => name.includes(hint))) return "female";
-    if (MALE_VOICE_NAME_HINTS.some(hint => name.includes(hint))) return "male";
-    return "unknown";
 }
 
 /**
@@ -1918,62 +1905,152 @@ function isMandarinVoice(voice) {
 }
 
 /**
- * All installed voices usable for Mandarin playback. Grouped with any
- * detected female voices first, then male, then ungendered/unknown ones,
- * purely so the cycling order in getPreferredChineseVoice() is stable and
- * puts any voices we *can* tell apart before the ones we can't -- gender is
- * not used to pick a voice for playback (see below), since the Web Speech
- * API exposes no real gender field and most devices report every Mandarin
- * voice as unknown.
+ * Every installed voice usable for Mandarin playback, in the order the device
+ * lists them. The Web Speech API has no gender field and nothing here guesses
+ * one: Settings tells voices apart by name and accent instead.
  */
-function getOrderedChineseVoices() {
+function getMandarinVoices() {
     if (!('speechSynthesis' in window)) return [];
-    const voices = window.speechSynthesis.getVoices().filter(isMandarinVoice);
-    const female = voices.filter(v => classifyVoiceGender(v) === "female");
-    const male = voices.filter(v => classifyVoiceGender(v) === "male");
-    const unknown = voices.filter(v => classifyVoiceGender(v) === "unknown");
-    return [...female, ...male, ...unknown];
+    return window.speechSynthesis.getVoices().filter(isMandarinVoice);
+}
+
+// The regions a Mandarin voice's language tag can carry, as a learner would
+// name them. zh-HK is Cantonese and never gets this far (see isMandarinVoice).
+const VOICE_ACCENTS = { CN: "Mainland accent", TW: "Taiwan accent", SG: "Singapore accent" };
+
+/** "Taiwan accent" for zh-TW or cmn-Hant-TW; "Mandarin" when the tag names no region. */
+function voiceAccentLabel(voice) {
+    const region = (voice.lang || "").split(/[-_]/).slice(1).find(part => /^[a-z]{2}$/i.test(part));
+    return VOICE_ACCENTS[(region || "").toUpperCase()] || "Mandarin";
 }
 
 /**
- * Returns the browser voice to speak with. Cycles by state.browserVoiceIndex
- * rather than trying to match a gender -- most devices report every Mandarin
- * voice as "unknown" gender, which made the old gender-matching lookup
- * silently resolve to the same voice every time, so Switch Voice had no
- * audible effect at all. Returns null if the device has no Mandarin voice.
+ * A voice's name without a parenthetical that only restates its language, which
+ * the accent line already says: "Eddy (Chinese (Taiwan))" becomes "Eddy".
+ */
+function displayVoiceName(voice) {
+    const cut = voice.name.indexOf(" (");
+    if (cut > 0 && /chinese|mandarin|china|taiwan/i.test(voice.name.slice(cut))) {
+        return voice.name.slice(0, cut);
+    }
+    return voice.name;
+}
+
+/**
+ * True for a voice whose name doesn't restate its language in parentheses. On
+ * Apple devices that is Tingting and Meijia, as opposed to the newer character
+ * voices (Eddy, Flo, Grandma, ...) that come in a Mainland and a Taiwan copy each.
+ */
+function isPlainNamedVoice(voice) {
+    return !voice.name.includes("(");
+}
+
+/**
+ * The voice to speak with, in order of preference:
+ *   1. the one chosen in Settings, if this device still has it;
+ *   2. the one picked with the old Switch Voice button, which stored a position
+ *      in a list of plain-named voices followed by the rest (on Apple devices,
+ *      Meijia then Tingting) -- so someone who deliberately switched keeps it;
+ *   3. otherwise a plain-named Mainland voice (Tingting on Apple devices, the
+ *      owner's chosen default, since HSK teaches the Mainland standard), then
+ *      any plain-named voice, then whatever the device lists first.
+ * Returns null if the device has no Mandarin voice.
  */
 function getPreferredChineseVoice() {
-    const ordered = getOrderedChineseVoices();
-    if (ordered.length === 0) return null;
-    return ordered[state.browserVoiceIndex % ordered.length];
-}
-
-/**
- * Steps to the next Mandarin voice the device has installed, and remembers it.
- * A device with one Mandarin voice (or none) has nothing to step through, so
- * the button is a no-op there rather than an error -- see
- * updateSwitchVoiceButton for why it stays enabled anyway.
- */
-function switchToNextVoice() {
-    const voiceCount = getOrderedChineseVoices().length;
-    if (voiceCount > 0) {
-        state.browserVoiceIndex = (state.browserVoiceIndex + 1) % voiceCount;
-        localStorage.setItem("juzi_browser_voice_index", String(state.browserVoiceIndex));
+    const voices = getMandarinVoices();
+    if (voices.length === 0) return null;
+    const chosen = state.voiceURI && voices.find(v => v.voiceURI === state.voiceURI);
+    if (chosen) return chosen;
+    const legacyIndex = localStorage.getItem("juzi_browser_voice_index");
+    if (legacyIndex !== null) {
+        const ordered = [...voices.filter(isPlainNamedVoice), ...voices.filter(v => !isPlainNamedVoice(v))];
+        return ordered[(parseInt(legacyIndex, 10) || 0) % ordered.length];
     }
+    return voices.find(v => isPlainNamedVoice(v) && voiceAccentLabel(v) === "Mainland accent")
+        || voices.find(isPlainNamedVoice)
+        || voices[0];
 }
 
+// How Settings groups voices: by accent, Mainland first, since HSK teaches the
+// Mainland standard.
+const VOICE_ACCENT_ORDER = ["Mainland accent", "Taiwan accent", "Singapore accent", "Mandarin"];
+
+// What a voice sample says: "Hello! Let's practise writing characters together."
+const VOICE_SAMPLE_TEXT = "你好！我们一起来练习写汉字吧。";
+
 /**
- * Icon-only button. The tooltip deliberately just says "Switch Voice" --
- * earlier it named the gender it would switch to, but the browser voice used
- * for single characters and pasted sentences often can't be told apart by
- * gender at all (see getPreferredChineseVoice), so a label promising "male"
- * or "female" would frequently be wrong. Always enabled: whichever path a
- * given item plays through has at least one voice to offer.
+ * Draws Settings' voice list: one row per Mandarin voice, naming its accent,
+ * with a button to hear it without choosing it. Plain-named voices are listed
+ * (Tingting and Meijia on Apple devices); the rest, such as Apple's character
+ * voices, fold away behind "More voices" -- except the chosen voice, which
+ * always shows. Each part is grouped by accent. The section stays hidden with
+ * fewer than two voices, since there is nothing to choose between. Built from
+ * DOM nodes rather than innerHTML because voice names come from the device.
  */
-function updateSwitchVoiceButton(btn) {
-    btn.disabled = false;
-    btn.title = "Switch Voice";
-    btn.setAttribute("aria-label", "Switch Voice");
+function renderVoiceSettings() {
+    if (!elements.voiceSection || !elements.voiceList) return;
+    const voices = getMandarinVoices();
+    elements.voiceSection.hidden = voices.length < 2;
+    if (voices.length < 2) return;
+
+    const current = getPreferredChineseVoice();
+    const byAccent = (a, b) =>
+        VOICE_ACCENT_ORDER.indexOf(voiceAccentLabel(a)) - VOICE_ACCENT_ORDER.indexOf(voiceAccentLabel(b));
+    const featured = voices.filter(isPlainNamedVoice).sort(byAccent);
+    const more = voices.filter(v => !isPlainNamedVoice(v)).sort(byAccent);
+    // Folding only makes sense with voices on both sides of the line.
+    const foldable = featured.length > 0 && more.length > 0;
+    const folded = more.filter(v => v.voiceURI !== current.voiceURI);
+    const listed = !foldable || state.voiceListExpanded
+        ? [...featured, ...more]
+        : [...featured, ...more.filter(v => v.voiceURI === current.voiceURI)];
+
+    if (elements.voiceMoreBtn) {
+        elements.voiceMoreBtn.hidden = !foldable || folded.length === 0;
+        elements.voiceMoreBtn.textContent = state.voiceListExpanded ? "Fewer voices" : `More voices (${folded.length})`;
+        elements.voiceMoreBtn.setAttribute("aria-expanded", String(state.voiceListExpanded));
+    }
+
+    elements.voiceList.replaceChildren(...listed.map(voice => {
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "voice";
+        radio.checked = voice.voiceURI === current.voiceURI;
+        radio.addEventListener("change", () => chooseVoice(voice));
+
+        const name = document.createElement("span");
+        name.className = "voice-name";
+        name.textContent = displayVoiceName(voice);
+        const accent = document.createElement("span");
+        accent.className = "voice-accent";
+        accent.textContent = voiceAccentLabel(voice);
+        const text = document.createElement("span");
+        text.className = "voice-text";
+        text.append(name, accent);
+
+        const label = document.createElement("label");
+        label.append(radio, text);
+
+        const sample = document.createElement("button");
+        sample.type = "button";
+        sample.className = "voice-sample";
+        sample.textContent = "Play";
+        sample.setAttribute("aria-label", `Play a sample of ${displayVoiceName(voice)}, ${voiceAccentLabel(voice)}`);
+        sample.addEventListener("click", () => playBrowserTTS(VOICE_SAMPLE_TEXT, voice));
+
+        const option = document.createElement("div");
+        option.className = "voice-option";
+        option.append(label, sample);
+        return option;
+    }));
+}
+
+/** Speaks with `voice` from now on, on this device, and plays a sample so the change is heard. */
+function chooseVoice(voice) {
+    state.voiceURI = voice.voiceURI;
+    localStorage.setItem("juzi_voice_uri", voice.voiceURI);
+    localStorage.removeItem("juzi_browser_voice_index");
+    playBrowserTTS(VOICE_SAMPLE_TEXT, voice);
 }
 
 /**
@@ -2257,6 +2334,7 @@ function switchProgressTab(tab) {
     if (tab === "settings") {
         loadSettings();
         loadAccount();
+        renderVoiceSettings();
     }
 }
 

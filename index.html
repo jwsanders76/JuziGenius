@@ -108,7 +108,6 @@
                      specifically. Icon-only; the label is a hover tooltip. -->
                 <div id="sentence-audio-controls" hidden>
                     <button id="btn-replay-audio" class="btn-audio-icon" title="Listen Again" aria-label="Listen Again">🔊</button>
-                    <button id="btn-switch-voice" class="btn-audio-icon" title="Switch Voice" aria-label="Switch Voice">🔄</button>
                 </div>
                 <button id="btn-clear" class="action-btn">Clear</button>
                 <button id="btn-hint" class="action-btn">Hints (3)</button>
@@ -355,6 +354,27 @@
                             <input type="checkbox" id="setting-show-grid">
                             <span>Show writing grid</span>
                         </label>
+                    </section>
+
+                    <!-- Which voice reads Chinese aloud. Per device, like the
+                         grid: the voices come from this device's speech engine.
+                         Filled in by renderVoiceSettings in app.js, and hidden
+                         unless the device has more than one Mandarin voice. -->
+                    <section class="progress-section" id="voice-section" hidden>
+                        <h3 class="progress-title">Voice</h3>
+                        <p class="progress-note">
+                            The voice that reads Chinese aloud. Choosing one plays a
+                            short sample. Voices come from this device, so the choice
+                            applies only here.
+                        </p>
+
+                        <div id="voice-list" class="voice-list" role="radiogroup" aria-label="Voice"></div>
+                        <button type="button" id="voice-more-btn" class="voice-more"
+                                aria-controls="voice-list" aria-expanded="false" hidden>More voices</button>
+
+                        <p class="progress-note">
+                            You can download additional voices in your device's speech settings.
+                        </p>
                     </section>
 
                     <section class="progress-section">
