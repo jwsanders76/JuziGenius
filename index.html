@@ -26,6 +26,13 @@
          Stroke data is served from stroke_data.json via /api/strokes -- see
          charDataLoader in app.js and fetch_stroke_data.py. -->
     <script src="/vendor/hanzi-writer.min.js"></script>
+    <!-- Paddle.js, for the checkout overlay. The one script here that isn't
+         vendored locally: Paddle is the merchant of record and its checkout
+         has to run from its own origin to handle cards, so there is nothing
+         to self-host. Everything else about the app still works offline;
+         only buying does not. Initialised from app.js once /api/plan says
+         which client token and environment to use. -->
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 </head>
 <body>
     <div id="app-container">
@@ -199,10 +206,17 @@
             <h2 id="upgrade-title" class="modal-title"></h2>
             <p id="upgrade-lead" class="modal-subtitle"></p>
             <div id="upgrade-stats" class="stat-row" hidden></div>
-            <p class="progress-note">The paid plan unlocks every HSK level and thousands of characters beyond it, pasting your own text, and the larger starting pools. <strong>Paid plans are coming soon.</strong></p>
+            <p class="progress-note">The paid plan unlocks every HSK level and thousands of characters beyond it, pasting your own text, and the larger starting pools.</p>
+            <!-- Filled in by renderUpgradePrices in app.js from /api/plan's
+                 checkout details. Stays hidden, and the note below it shows
+                 instead, wherever Paddle isn't configured -- a development
+                 copy, or a server that hasn't been given its keys. -->
+            <div id="upgrade-prices" class="upgrade-prices" hidden></div>
+            <p id="upgrade-soon" class="progress-note"><strong>Paid plans are coming soon.</strong></p>
             <p class="progress-note">Everything you've unlocked stays yours to review, for free.</p>
+            <p id="upgrade-error" class="danger-status" role="status" hidden></p>
             <div class="modal-actions">
-                <button type="button" id="upgrade-btn-close" class="modal-btn btn-primary">Keep practising</button>
+                <button type="button" id="upgrade-btn-close" class="modal-btn btn-secondary">Keep practising</button>
             </div>
         </div>
     </div>

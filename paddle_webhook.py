@@ -34,13 +34,26 @@ subscription somebody merely claimed to have bought.
 """
 import hashlib
 import hmac
+import json
 import os
 import time
+import urllib.error
+import urllib.request
 
 import plans
 
 ENVIRONMENT = os.environ.get("JUZI_PADDLE_ENV", "sandbox").strip() or "sandbox"
 WEBHOOK_SECRET = os.environ.get("JUZI_PADDLE_WEBHOOK_SECRET", "").strip()
+API_KEY = os.environ.get("JUZI_PADDLE_API_KEY", "").strip()
+# Safe in the page by design: it identifies the seller to Paddle.js and can
+# do nothing on its own. The API key above never leaves this process.
+CLIENT_TOKEN = os.environ.get("JUZI_PADDLE_CLIENT_TOKEN", "").strip()
+
+# Sandbox and live are separate hosts; a key for one is refused by the other,
+# which is the failure we want if JUZI_PADDLE_ENV and the keys ever disagree.
+API_BASE = ("https://sandbox-api.paddle.com" if ENVIRONMENT == "sandbox"
+            else "https://api.paddle.com")
+PORTAL_TIMEOUT_SECONDS = 10
 
 # How far out of step a webhook's timestamp may be before it's refused as a
 # replay. Paddle's own SDKs default to five seconds, which is tighter than
@@ -69,6 +82,12 @@ SUBSCRIPTION_EVENTS = ("subscription.created", "subscription.updated",
                        "subscription.paused", "subscription.past_due",
                        "subscription.canceled")
 TRANSACTION_EVENTS = ("transaction.completed",)
+# A refund is an adjustment, not a subscription event. It matters only for
+# lifetime purchases: refunding a subscription makes Paddle cancel it, and
+# subscription.canceled already lapses the account, while a lifetime buyer
+# has no subscription for Paddle to cancel.
+ADJUSTMENT_EVENTS = ("adjustment.created", "adjustment.updated")
+REFUND_ACTIONS = ("refund", "chargeback", "chargeback_warning")
 
 
 def price_billing_map():
@@ -189,6 +208,23 @@ def _lifetime_record(data, prices):
     return None
 
 
+def _refund_record(data):
+    """
+    A refund or chargeback, reduced to the customer it concerns.
+
+    Deliberately not matched against the refunded transaction's line items:
+    an adjustment references transaction items rather than prices directly,
+    and guessing at that nesting would be the kind of assumption that breaks
+    silently. The customer is enough, because apply_event only acts on a
+    refund when that customer's recorded plan is a lifetime one -- the single
+    case nothing else revokes.
+    """
+    if (data.get("action") or "").lower() not in REFUND_ACTIONS:
+        return None
+    return {"refund": True, "customer_id": data.get("customer_id"),
+            "subscription_id": data.get("subscription_id"), "custom_data": {}}
+
+
 def event_record(event, prices=None):
     """
     What one webhook says about a subscription, or None if it says nothing
@@ -202,6 +238,8 @@ def event_record(event, prices=None):
         return _subscription_record(data, prices)
     if event_type in TRANSACTION_EVENTS:
         return _lifetime_record(data, prices)
+    if event_type in ADJUSTMENT_EVENTS:
+        return _refund_record(data)
     return None
 
 
@@ -258,6 +296,19 @@ def apply_event(event, plans_data, prices=None):
     if account_id is None:
         return "ignored (no matching account)"
 
+    if record.get("refund"):
+        current = ((plans_data.get(account_id) or {}).get("subscription") or {})
+        if current.get("billing") != plans.LIFETIME:
+            return "ignored (refund of something with its own cancellation)"
+        if current.get("status") == plans.CANCELED:
+            return "ignored (already refunded)"
+        plans.record_subscription(
+            plans_data, account_id, plans.LIFETIME, plans.CANCELED, None,
+            source="paddle", provider="paddle",
+            subscription_id=current.get("subscription_id"),
+            customer_id=current.get("customer_id"))
+        return "recorded lifetime/canceled (refunded)"
+
     event_id = event.get("event_id")
     occurred_at = event.get("occurred_at") or ""
     previous = ((plans_data.get(account_id) or {}).get("subscription") or {})
@@ -283,3 +334,62 @@ def apply_event(event, plans_data, prices=None):
     entry["subscription"]["last_event_id"] = event_id
     entry["subscription"]["event_occurred_at"] = occurred_at
     return f"recorded {record['billing']}/{record['status']}"
+
+
+def checkout_config():
+    """
+    What app.js needs to open a checkout, or None when Paddle isn't
+    configured -- in which case the upgrade screen goes on explaining the
+    paid plan without offering to sell it, which is the right behaviour for
+    a local development copy as much as for a half-configured server.
+
+    Only the client-side token goes out, never the API key: the token
+    identifies the seller to Paddle.js and is meant to sit in the page.
+    """
+    prices = price_billing_map()
+    if not CLIENT_TOKEN or not prices:
+        return None
+    return {
+        "client_token": CLIENT_TOKEN,
+        "environment": ENVIRONMENT,
+        "prices": {billing: price_id for price_id, billing in prices.items()},
+    }
+
+
+def portal_session_url(customer_id, subscription_id=None):
+    """
+    A signed link into Paddle's customer portal, where a subscriber updates a
+    card or cancels -- which is where the Terms send them.
+
+    Minted per click and never stored: Paddle's links carry a short-lived
+    token, so a cached one would be a link that works for a while and then
+    quietly doesn't. Returns None rather than raising when Paddle can't be
+    reached, so Settings can fall back to telling people to email support
+    instead of showing an error it can't act on.
+    """
+    if not API_KEY or not customer_id:
+        return None
+    payload = json.dumps(
+        {"subscription_ids": [subscription_id]} if subscription_id else {}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{API_BASE}/customers/{customer_id}/portal-sessions",
+        data=payload, method="POST",
+        headers={"Authorization": f"Bearer {API_KEY}",
+                 "Content-Type": "application/json",
+                 "User-Agent": "JuziGenius/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=PORTAL_TIMEOUT_SECONDS) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, ValueError, TimeoutError) as e:
+        # The reason, never the response body: it describes a real customer.
+        print(f"paddle portal session failed: {type(e).__name__}", flush=True)
+        return None
+
+    urls = ((body.get("data") or {}).get("urls") or {})
+    general = (urls.get("general") or {}).get("overview")
+    for subscription in urls.get("subscriptions") or []:
+        # The deep link straight to cancelling is the more useful one when a
+        # subscription is named, and the overview is the honest fallback.
+        if subscription.get("cancel_subscription"):
+            return subscription["cancel_subscription"]
+    return general

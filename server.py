@@ -703,8 +703,16 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         with engine.brain_lock:
             brain_data = engine._read_brain()
         held_chars, _held_words = engine.held_items(brain_data, limits.allowed_chars)
-        return limits.view(brain_data.get("unlocked_chars", {}) or {},
+        view = limits.view(brain_data.get("unlocked_chars", {}) or {},
                            waiting_chars=len(held_chars))
+        # What the page needs to open a checkout. The account id travels
+        # with the purchase as custom data and comes back on the webhook,
+        # which is how a payment finds the account that made it; the browser
+        # is already authenticated as this account, so it learns nothing new.
+        checkout = paddle_webhook.checkout_config()
+        if checkout and self.account_id:
+            view["checkout"] = dict(checkout, account_id=self.account_id)
+        return view
 
     def _get_session(self, engine):
         """The saved practice bank plus the counters the top bar shows."""
@@ -1566,6 +1574,7 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # A missing field or an unknown character/word is a client error.
         "/api/character/review": ("_post_character_review", 500, True),
         "/api/word/review": ("_post_word_review", 500, True),
+        "/api/paddle/portal": ("_post_paddle_portal", 502, False),
     }
 
     def _handle_api_post(self, path, engine):
@@ -1857,6 +1866,28 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if data is None:
             return None
         return engine.delete_pasted_sentence(data.get("chinese", ""))
+
+    def _post_paddle_portal(self, _engine):
+        """
+        A fresh link into Paddle's customer portal for this account, for
+        Settings' Manage subscription. No body fields.
+
+        Minted per click because Paddle's links expire, and only for an
+        account that actually has a subscription recorded -- there is nothing
+        to manage otherwise. Answers 502 through the route table if Paddle
+        can't be reached, which app.js turns back into the support-email
+        message rather than an error the reader can do nothing with.
+        """
+        if self._json_body() is None:
+            return None
+        entry = plans.entry_for(self.account_id) if self.account_id else {}
+        subscription = entry.get("subscription") or {}
+        url = paddle_webhook.portal_session_url(
+            subscription.get("customer_id"), subscription.get("subscription_id"))
+        if not url:
+            self._send_json_error(502, "Paddle's customer portal is unavailable.")
+            return None
+        return {"url": url}
 
     def _post_character_review(self, engine):
         """

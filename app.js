@@ -411,6 +411,9 @@ function cacheDomElements() {
     elements.upgradeLead = document.getElementById("upgrade-lead");
     elements.upgradeStats = document.getElementById("upgrade-stats");
     elements.upgradeBtnClose = document.getElementById("upgrade-btn-close");
+    elements.upgradePrices = document.getElementById("upgrade-prices");
+    elements.upgradeSoon = document.getElementById("upgrade-soon");
+    elements.upgradeError = document.getElementById("upgrade-error");
     elements.planSection = document.getElementById("plan-section");
     elements.planNote = document.getElementById("plan-note");
     elements.planBilling = document.getElementById("plan-billing");
@@ -2512,13 +2515,114 @@ function describeSubscription(subscription, fullAccess) {
  * once checkout exists, which is where the Terms send subscribers to cancel.
  * Until then it says how to reach us instead.
  */
-function openManageSubscription() {
-    const url = state.plan && state.plan.subscription && state.plan.subscription.manage_url;
-    if (url) {
-        window.open(url, "_blank", "noopener");
+async function openManageSubscription() {
+    // Opened before the request, not after: Safari blocks window.open once a
+    // click has been through an await, so the tab is claimed first and its
+    // location set when the link arrives.
+    const tab = window.open("", "_blank", "noopener");
+    try {
+        const response = await fetch(`${API_BASE}/api/paddle/portal`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+        });
+        if (!response.ok) throw new Error(`portal ${response.status}`);
+        const data = await response.json();
+        if (!data.url) throw new Error("no portal url");
+        if (tab) tab.location = data.url; else window.location = data.url;
+        return;
+    } catch (err) {
+        console.error("Couldn't open the customer portal.", err);
+        if (tab) tab.close();
+        // Paddle unreachable, or no subscription to manage: say how to reach a
+        // human rather than showing an error nobody can act on.
+        if (elements.planManageNote) elements.planManageNote.hidden = false;
+    }
+}
+
+/** What a plan costs, for the buttons. The server is what actually prices a
+ *  checkout: these are labels, and Paddle charges what its own catalogue says. */
+const PLAN_PRICES = [
+    { billing: "annual", label: "Annual", price: "$59", note: "$4.92 a month" },
+    { billing: "monthly", label: "Monthly", price: "$7.99", note: "" },
+    { billing: "lifetime", label: "Lifetime", price: "$149", note: "one payment" },
+];
+
+let paddleReady = false;
+
+/**
+ * Hands Paddle.js the seller token /api/plan supplied. Done once, lazily, and
+ * only when there is a checkout to open: the script is loaded from Paddle's
+ * CDN, so on a machine that can't reach it (or an offline install) nothing
+ * here runs and the rest of the app is unaffected.
+ */
+function initPaddle(checkout) {
+    if (paddleReady || typeof Paddle === "undefined" || !checkout) return paddleReady;
+    try {
+        if (checkout.environment === "sandbox") Paddle.Environment.set("sandbox");
+        Paddle.Initialize({ token: checkout.client_token });
+        paddleReady = true;
+    } catch (err) {
+        console.error("Couldn't initialise the checkout.", err);
+    }
+    return paddleReady;
+}
+
+/**
+ * The three buy buttons on the upgrade screen, or nothing at all when Paddle
+ * isn't configured -- in which case the "coming soon" line stays, which is
+ * exactly what a development copy should show.
+ */
+function renderUpgradePrices() {
+    const checkout = state.plan && state.plan.checkout;
+    const container = elements.upgradePrices;
+    if (!container) return;
+    if (!checkout || !initPaddle(checkout)) {
+        container.hidden = true;
+        if (elements.upgradeSoon) elements.upgradeSoon.hidden = false;
         return;
     }
-    if (elements.planManageNote) elements.planManageNote.hidden = false;
+    if (elements.upgradeSoon) elements.upgradeSoon.hidden = true;
+    container.innerHTML = "";
+    PLAN_PRICES.forEach(plan => {
+        const priceId = checkout.prices[plan.billing];
+        if (!priceId) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "modal-btn btn-primary upgrade-price";
+        button.innerHTML = `<span class="upgrade-price-term">${escapeHtml(plan.label)}</span>`
+            + `<span class="upgrade-price-amount">${escapeHtml(plan.price)}</span>`
+            + (plan.note ? `<span class="upgrade-price-note">${escapeHtml(plan.note)}</span>` : "");
+        button.addEventListener("click", () => openCheckout(priceId, checkout));
+        container.appendChild(button);
+    });
+    container.hidden = container.children.length === 0;
+}
+
+/**
+ * Opens Paddle's overlay for one price.
+ *
+ * customData carries the account id, which Paddle stores against the
+ * transaction and the subscription and sends back on every webhook: that is
+ * the whole mechanism by which a payment finds the account that made it (see
+ * paddle_webhook.py). Nothing is trusted from this side -- the server records
+ * a subscription only when Paddle's own signed webhook says so.
+ */
+function openCheckout(priceId, checkout) {
+    if (!initPaddle(checkout)) return;
+    try {
+        Paddle.Checkout.open({
+            items: [{ priceId: priceId, quantity: 1 }],
+            customData: { account_id: checkout.account_id },
+        });
+    } catch (err) {
+        console.error("Couldn't open the checkout.", err);
+        if (elements.upgradeError) {
+            elements.upgradeError.textContent =
+                "The checkout couldn't open. Please try again, or email support@juzigenius.com.";
+            elements.upgradeError.hidden = false;
+        }
+    }
 }
 
 const UPGRADE_COPY = {
@@ -2552,6 +2656,8 @@ async function showUpgrade(reason) {
     elements.upgradeLead.textContent = copy.lead;
     elements.upgradeStats.hidden = true;
     elements.upgradeStats.innerHTML = "";
+    if (elements.upgradeError) elements.upgradeError.hidden = true;
+    renderUpgradePrices();
     elements.upgradeModal.style.display = "flex";
 
     if (reason !== "limit" && reason !== "words") return;

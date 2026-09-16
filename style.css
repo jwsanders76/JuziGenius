@@ -2013,8 +2013,32 @@ body {
 
 .plan-locked .modal-btn { margin-top: 6px; }
 
-/* Settings' Manage subscription, a placeholder until checkout exists. */
+/* Settings' Manage subscription: opens Paddle's customer portal. */
 .plan-manage-btn { margin-top: 8px; }
+
+/* The upgrade screen's buy buttons. Annual first, because it is the one
+   worth choosing; each button carries its own price so the choice is
+   made on the button rather than on a separate pricing page. */
+.upgrade-prices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 14px 0 6px;
+}
+
+.upgrade-price {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 104px;
+    padding: 10px 14px;
+}
+
+.upgrade-price-term { font-size: 0.78rem; opacity: 0.85; }
+.upgrade-price-amount { font-size: 1.05rem; font-weight: 700; }
+.upgrade-price-note { font-size: 0.68rem; opacity: 0.8; }
 
 /* Character and Word Bank items the plan holds back (held_items in
    juzi_engine.py): still the learner's, so still shown, but faded. */
