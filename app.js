@@ -2500,6 +2500,14 @@ function describeSubscription(subscription, fullAccess) {
     }
     const period = BILLING_LABELS[subscription.billing] || "Paid";
     const date = formatPlanDate(subscription.period_end);
+    // Checked before the status, because a subscriber who has cancelled
+    // mid-period is still "active" as far as the payment provider is
+    // concerned. Reading the status alone told them their plan renews on the
+    // very day it ends -- the opposite of what they had just asked for.
+    if (subscription.cancel_scheduled_for) {
+        const ends = formatPlanDate(subscription.cancel_scheduled_for) || date;
+        return `${period} plan, cancelled. Full access continues until ${ends}.`;
+    }
     if (subscription.status === "active") return `${period} plan, renewing on ${date}.`;
     if (subscription.status === "past_due") {
         return `${period} plan. Your last payment didn't go through; it will be tried again, `

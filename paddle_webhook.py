@@ -201,10 +201,20 @@ def _subscription_record(data, prices):
         return None
 
     period_end = _period_end_for(data, status)
+    # A subscriber who cancels mid-period leaves Paddle reporting an active
+    # subscription with the cancellation held in scheduled_change. Status
+    # alone therefore cannot tell "renewing" from "already cancelled", and
+    # reading it as active told the subscriber their plan renewed on the very
+    # day it ends. Only a cancellation counts here: Paddle also uses
+    # scheduled_change for pauses and resumes, which say something different.
+    scheduled = data.get("scheduled_change") or {}
+    cancel_scheduled_for = (scheduled.get("effective_at")
+                            if scheduled.get("action") == "cancel" else None)
     return {
         "billing": billing,
         "status": status,
         "current_period_end": period_end,
+        "cancel_scheduled_for": cancel_scheduled_for,
         "subscription_id": data.get("id"),
         "customer_id": data.get("customer_id"),
         "custom_data": data.get("custom_data") or {},
@@ -352,7 +362,8 @@ def apply_event(event, plans_data, prices=None):
             record["billing"], record["status"], record["current_period_end"],
             source="paddle", provider="paddle",
             subscription_id=record.get("subscription_id"),
-            customer_id=record.get("customer_id"))
+            customer_id=record.get("customer_id"),
+            cancel_scheduled_for=record.get("cancel_scheduled_for"))
     except ValueError as bad:
         return f"ignored ({bad})"
 

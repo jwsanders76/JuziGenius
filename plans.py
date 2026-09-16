@@ -199,7 +199,8 @@ def set_plan(plans, account_id, plan, source, note=None):
 
 def record_subscription(plans, account_id, billing, status, current_period_end=None,
                         source="subscription", note=None, provider=None,
-                        subscription_id=None, customer_id=None):
+                        subscription_id=None, customer_id=None,
+                        cancel_scheduled_for=None):
     """
     Records a bought subscription for `account_id` in `plans`, on the paid
     plan. The caller saves. Every change a payment provider reports -- a
@@ -227,8 +228,15 @@ def record_subscription(plans, account_id, billing, status, current_period_end=N
         "current_period_end": _iso(end) if end else None,
         "updated": _iso(_now()),
     }
+    # cancel_scheduled_for is why a subscriber who has already cancelled is
+    # not told their plan is renewing. Paddle keeps a scheduled cancellation
+    # as an active subscription with the intent recorded separately, so the
+    # status alone can't tell the two apart, and without this the account
+    # settings page said "renewing on" the very date the plan ends.
     for key, value in (("provider", provider), ("subscription_id", subscription_id),
-                       ("customer_id", customer_id)):
+                       ("customer_id", customer_id),
+                       ("cancel_scheduled_for", _iso(parse_time(cancel_scheduled_for))
+                        if parse_time(cancel_scheduled_for) else None)):
         if value:
             subscription[key] = value
 
@@ -311,6 +319,11 @@ class Limits:
                 "billing": self.subscription.get("billing"),
                 "status": self.subscription.get("status"),
                 "period_end": self.subscription.get("current_period_end"),
+                # Set when the subscriber has already cancelled but the plan
+                # is still running out its paid period, which Paddle reports
+                # as an active subscription. Without it the page would say
+                # the plan renews on the day it actually ends.
+                "cancel_scheduled_for": self.subscription.get("cancel_scheduled_for"),
                 # The payment provider's customer portal, where a subscriber
                 # updates a card or cancels. None until checkout exists.
                 "manage_url": None,
