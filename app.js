@@ -2560,7 +2560,10 @@ function initPaddle(checkout) {
     if (paddleReady || typeof Paddle === "undefined" || !checkout) return paddleReady;
     try {
         if (checkout.environment === "sandbox") Paddle.Environment.set("sandbox");
-        Paddle.Initialize({ token: checkout.client_token });
+        Paddle.Initialize({
+            token: checkout.client_token,
+            eventCallback: handlePaddleEvent,
+        });
         paddleReady = true;
     } catch (err) {
         console.error("Couldn't initialise the checkout.", err);
@@ -2608,6 +2611,65 @@ function renderUpgradePrices() {
  * paddle_webhook.py). Nothing is trusted from this side -- the server records
  * a subscription only when Paddle's own signed webhook says so.
  */
+/**
+ * How long to keep asking the server for the new plan after a payment, and
+ * how often. Paddle takes the payment and tells this page immediately, but
+ * the plan only changes once Paddle's server posts its signed webhook to
+ * ours (see paddle_webhook.py) -- a separate request over the public
+ * internet, typically a second behind. Asking once would usually read the
+ * plan the account had *before* paying and unlock nothing.
+ */
+const PLAN_POLL_INTERVAL_MS = 1000;
+const PLAN_POLL_ATTEMPTS = 15;
+
+/**
+ * Paddle's overlay runs in an iframe on its own origin, so this callback is
+ * the only way this page learns that a payment went through. Without it the
+ * page keeps the plan it loaded with, and someone who has just paid still
+ * sees everything locked until they happen to reload -- which they have no
+ * reason to try.
+ */
+function handlePaddleEvent(event) {
+    if (!event || event.name !== "checkout.completed") return;
+    awaitNewPlan();
+}
+
+/**
+ * Waits for the webhook to land, then repaints everything the plan governs.
+ *
+ * Stops as soon as the server reports full access. If it never arrives, the
+ * payment still succeeded -- the money is taken and the webhook may simply
+ * be late -- so this says so plainly rather than leaving the upgrade screen
+ * sitting there looking like the purchase failed.
+ */
+async function awaitNewPlan() {
+    if (elements.upgradeError) {
+        elements.upgradeError.textContent = "Payment received. Unlocking your account…";
+        elements.upgradeError.hidden = false;
+    }
+
+    for (let attempt = 0; attempt < PLAN_POLL_ATTEMPTS; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, PLAN_POLL_INTERVAL_MS));
+        await loadPlan();
+        if (state.plan && state.plan.full_access) {
+            if (elements.upgradeError) elements.upgradeError.hidden = true;
+            if (elements.upgradeModal) elements.upgradeModal.style.display = "none";
+            // The import modal paints its paste lock from state.plan when a
+            // mode is chosen, so re-run it to drop the lock now rather than
+            // the next time Import is opened.
+            if (state.importMode) switchImportMode(state.importMode);
+            return;
+        }
+    }
+
+    if (elements.upgradeError) {
+        elements.upgradeError.textContent = "Your payment went through, but unlocking is taking "
+            + "longer than usual. Reload the page in a minute, and email "
+            + "support@juzigenius.com if it still hasn't unlocked.";
+        elements.upgradeError.hidden = false;
+    }
+}
+
 function openCheckout(priceId, checkout) {
     if (!initPaddle(checkout)) return;
     try {
