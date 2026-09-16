@@ -1,0 +1,285 @@
+"""
+Paddle's webhooks: verified, then turned into the subscription records
+plans.py already understands.
+
+Paddle is the merchant of record (see the Terms, section 5). It owns the
+checkout, the money and the subscription lifecycle; this app only needs to
+know whether an account currently has full access, which plans.py decides
+from a subscription's billing period, status and period end. So everything
+here is a translation layer: check the message really came from Paddle, work
+out which account it concerns, and hand plans.record_subscription the three
+fields it wants.
+
+Deliberately stdlib-only, like mailer.py and the rest: hmac and hashlib are
+all a signature check needs.
+
+Configuration, read from /home/deploy/.juzi-env via the systemd unit's
+EnvironmentFile (the same arrangement as the Resend key):
+
+    JUZI_PADDLE_ENV             "sandbox" or "live"; only labels logs today
+    JUZI_PADDLE_WEBHOOK_SECRET  the notification destination's secret
+    JUZI_PADDLE_PRICE_MONTHLY   the pri_... id of the monthly price
+    JUZI_PADDLE_PRICE_ANNUAL    the pri_... id of the annual price
+    JUZI_PADDLE_PRICE_LIFETIME  the pri_... id of the one-time lifetime price
+
+The price ids are configuration rather than constants because sandbox and
+live are separate Paddle accounts with entirely separate catalogues: the
+same three prices have different ids in each, so hardcoding either set would
+mean a code change to go live, and a wrong-looking id is then a config typo
+rather than a deploy.
+
+WITH NO SECRET SET, NOTHING IS ACCEPTED. server.py answers 503 rather than
+trusting an unsigned body, so a half-configured server can never record a
+subscription somebody merely claimed to have bought.
+"""
+import hashlib
+import hmac
+import os
+import time
+
+import plans
+
+ENVIRONMENT = os.environ.get("JUZI_PADDLE_ENV", "sandbox").strip() or "sandbox"
+WEBHOOK_SECRET = os.environ.get("JUZI_PADDLE_WEBHOOK_SECRET", "").strip()
+
+# How far out of step a webhook's timestamp may be before it's refused as a
+# replay. Paddle's own SDKs default to five seconds, which is tighter than
+# this box can promise: the app runs on one shared vCPU behind Caddy, and a
+# request that queues behind a corpus scan can easily be seconds late through
+# no fault of Paddle's, at which point a real payment silently stops being
+# recorded. Five minutes still makes a captured body useless long before an
+# attacker could do anything with it, and matches what other payment
+# providers ask for.
+SIGNATURE_TOLERANCE_SECONDS = 300
+
+# Paddle's subscription statuses -> the ones plans.py stores. "trialing" is
+# mapped rather than rejected: JuziGenius sells no trials (the free plan is
+# not a trial, and the pricing page says so), but a trial switched on by
+# accident in the Paddle dashboard should still leave the subscriber with
+# access rather than being dropped as an unknown status.
+STATUS_MAP = {
+    "active": plans.ACTIVE,
+    "trialing": plans.ACTIVE,
+    "past_due": plans.PAST_DUE,
+    "paused": plans.PAUSED,
+    "canceled": plans.CANCELED,
+}
+
+SUBSCRIPTION_EVENTS = ("subscription.created", "subscription.updated",
+                       "subscription.paused", "subscription.past_due",
+                       "subscription.canceled")
+TRANSACTION_EVENTS = ("transaction.completed",)
+
+
+def price_billing_map():
+    """
+    {price id: billing period} from the environment, skipping any that isn't
+    set. Read per call rather than cached at import so a corrected id takes
+    effect on restart without reasoning about import order.
+    """
+    configured = (
+        (os.environ.get("JUZI_PADDLE_PRICE_MONTHLY", "").strip(), plans.MONTHLY),
+        (os.environ.get("JUZI_PADDLE_PRICE_ANNUAL", "").strip(), plans.ANNUAL),
+        (os.environ.get("JUZI_PADDLE_PRICE_LIFETIME", "").strip(), plans.LIFETIME),
+    )
+    return {price_id: billing for price_id, billing in configured if price_id}
+
+
+def parse_signature(header):
+    """
+    (timestamp, signature) from a Paddle-Signature header, or (None, None).
+
+    The header looks like `ts=1671552777;h1=eb4d0dc8...`. Parsed by key
+    rather than by position, since the order of the parts is Paddle's to
+    change.
+    """
+    timestamp = signature = None
+    for part in (header or "").split(";"):
+        key, _, value = part.partition("=")
+        key = key.strip()
+        if key == "ts":
+            try:
+                timestamp = int(value.strip())
+            except ValueError:
+                return None, None
+        elif key == "h1":
+            signature = value.strip()
+    if timestamp is None or not signature:
+        return None, None
+    return timestamp, signature
+
+
+def verify_signature(header, raw_body, secret=None, now=None):
+    """
+    Whether `raw_body` (bytes, exactly as received) really came from Paddle.
+
+    Paddle signs the string "<ts>:<raw body>" with HMAC-SHA256 under the
+    notification destination's secret. The body must be the untouched bytes
+    off the wire: re-serialising the JSON, or even decoding and re-encoding
+    it, can reorder keys or change escaping and the signature then fails for
+    a message that was perfectly genuine. That is why server.py reads this
+    one route's body as bytes.
+
+    Compared with hmac.compare_digest, so a wrong signature can't be found
+    character by character from how long the comparison takes.
+    """
+    secret = WEBHOOK_SECRET if secret is None else secret
+    if not secret:
+        return False
+    timestamp, signature = parse_signature(header)
+    if timestamp is None:
+        return False
+    if abs((time.time() if now is None else now) - timestamp) > SIGNATURE_TOLERANCE_SECONDS:
+        return False
+    expected = hmac.new(secret.encode("utf-8"),
+                        b"%d:%s" % (timestamp, raw_body),
+                        hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+def _subscription_record(data, prices):
+    """The fields plans.record_subscription wants, from a subscription entity."""
+    billing = None
+    for item in data.get("items") or []:
+        price_id = ((item.get("price") or {}).get("id") or "").strip()
+        if price_id in prices:
+            billing = prices[price_id]
+            break
+    if billing is None:
+        return None
+
+    status = STATUS_MAP.get(data.get("status"))
+    if status is None:
+        return None
+
+    period_end = ((data.get("current_billing_period") or {}).get("ends_at"))
+    return {
+        "billing": billing,
+        "status": status,
+        "current_period_end": period_end,
+        "subscription_id": data.get("id"),
+        "customer_id": data.get("customer_id"),
+        "custom_data": data.get("custom_data") or {},
+    }
+
+
+def _lifetime_record(data, prices):
+    """
+    The same, from a completed transaction, but only for the lifetime price.
+
+    A lifetime purchase is a one-time charge, so it produces no subscription
+    and no subscription.* events at all -- only transaction.completed. Every
+    other completed transaction (the first charge of a subscription, each
+    renewal) is ignored here, because the subscription events already
+    describe those and describe them better.
+    """
+    lifetime_ids = {price_id for price_id, billing in prices.items()
+                    if billing == plans.LIFETIME}
+    for item in data.get("items") or []:
+        price_id = ((item.get("price") or {}).get("id") or "").strip()
+        if price_id in lifetime_ids:
+            return {
+                "billing": plans.LIFETIME,
+                "status": plans.ACTIVE,
+                "current_period_end": None,
+                "subscription_id": data.get("subscription_id"),
+                "customer_id": data.get("customer_id"),
+                "custom_data": data.get("custom_data") or {},
+            }
+    return None
+
+
+def event_record(event, prices=None):
+    """
+    What one webhook says about a subscription, or None if it says nothing
+    this app acts on -- an event type we don't handle, a price that isn't
+    ours, or a status Paddle has invented since this was written.
+    """
+    prices = price_billing_map() if prices is None else prices
+    data = event.get("data") or {}
+    event_type = event.get("event_type")
+    if event_type in SUBSCRIPTION_EVENTS:
+        return _subscription_record(data, prices)
+    if event_type in TRANSACTION_EVENTS:
+        return _lifetime_record(data, prices)
+    return None
+
+
+def account_for(record, plans_data):
+    """
+    Which JuziGenius account a webhook concerns.
+
+    Three ways, in order of trustworthiness. The checkout attaches the
+    account id as custom data, and Paddle carries that onto the transaction
+    and the subscription, so it is normally right there in the payload. If it
+    isn't -- a subscription created in Paddle's dashboard by hand, say -- fall
+    back to whichever account already has this subscription id recorded, and
+    failing that this customer id. Returning None means the event is about
+    somebody this app has never heard of, which is not an error: the sandbox
+    account will accumulate test purchases that belong to nobody.
+    """
+    account_id = (record.get("custom_data") or {}).get("account_id")
+    if account_id:
+        return account_id
+
+    for known_id, entry in plans_data.items():
+        subscription = (entry or {}).get("subscription") or {}
+        if record.get("subscription_id") and subscription.get("subscription_id") == record["subscription_id"]:
+            return known_id
+    for known_id, entry in plans_data.items():
+        subscription = (entry or {}).get("subscription") or {}
+        if record.get("customer_id") and subscription.get("customer_id") == record["customer_id"]:
+            return known_id
+    return None
+
+
+def apply_event(event, plans_data, prices=None):
+    """
+    Records one verified webhook in `plans_data`, which the caller saves
+    under plans.PLANS_LOCK. Returns a short outcome string for the log --
+    never containing an account id, since a link account's id is its
+    password and the log is not the place for it (see server.py's
+    log_message).
+
+    Two rules that matter, both straight from Paddle's own guidance:
+
+    * **Deduplicate on event id.** Delivery is at-least-once, so the same
+      event arrives again after any hiccup, and applying a cancellation twice
+      would be harmless while applying an out-of-date one would not.
+    * **Ignore events older than the one already recorded.** Events can
+      arrive out of order, and without this a delayed "past_due" could land
+      after the "active" that resolved it and lock a paying subscriber out.
+    """
+    record = event_record(event, prices)
+    if record is None:
+        return "ignored (not a subscription event for a known price)"
+
+    account_id = account_for(record, plans_data)
+    if account_id is None:
+        return "ignored (no matching account)"
+
+    event_id = event.get("event_id")
+    occurred_at = event.get("occurred_at") or ""
+    previous = ((plans_data.get(account_id) or {}).get("subscription") or {})
+    if event_id and previous.get("last_event_id") == event_id:
+        return "ignored (already applied)"
+    if occurred_at and previous.get("event_occurred_at", "") > occurred_at:
+        return "ignored (older than the record it would replace)"
+
+    try:
+        entry = plans.record_subscription(
+            plans_data, account_id,
+            record["billing"], record["status"], record["current_period_end"],
+            source="paddle", provider="paddle",
+            subscription_id=record.get("subscription_id"),
+            customer_id=record.get("customer_id"))
+    except ValueError as bad:
+        return f"ignored ({bad})"
+
+    # Stamped after the fact: record_subscription builds the subscription
+    # dict from scratch each time, which is what keeps a stale field from
+    # surviving a change, so these two belong here rather than in its
+    # signature.
+    entry["subscription"]["last_event_id"] = event_id
+    entry["subscription"]["event_occurred_at"] = occurred_at
+    return f"recorded {record['billing']}/{record['status']}"

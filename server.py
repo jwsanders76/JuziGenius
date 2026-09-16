@@ -12,6 +12,7 @@ import accounts
 import auth
 import invites
 import mailer
+import paddle_webhook
 import plans
 import user_registry
 from juzi_engine import JuziEngine
@@ -958,6 +959,30 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             return empty_default
         return self.rfile.read(content_length).decode('utf-8')
 
+    def _read_raw_body_or_reject(self):
+        """
+        The POST body as the exact bytes that arrived, under the same
+        Content-Length guards as _read_json_body_or_reject.
+
+        Only Paddle's webhook needs this. Its signature covers the raw body,
+        so decoding to text and encoding back -- which is what the JSON
+        reader above does -- risks changing a byte somewhere and failing a
+        signature that was perfectly good.
+        """
+        raw_length = self.headers.get('Content-Length')
+        try:
+            content_length = int(raw_length) if raw_length is not None else 0
+        except ValueError:
+            content_length = -1
+
+        if content_length <= 0:
+            self._send_json_error(400, "Missing or invalid Content-Length.")
+            return None
+        if content_length > MAX_BODY_SIZE:
+            self._send_json_error(413, f"Request body too large (max {MAX_BODY_SIZE} bytes).")
+            return None
+        return self.rfile.read(content_length)
+
     def _client_ip(self):
         """
         The requester's real IP for rate limiting, preferring the
@@ -1426,6 +1451,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/api/email/verify":
             self._handle_email_verify()
             return
+        # Paddle posts server-to-server, so it has no session cookie and no
+        # slug. Its own signature is what authenticates it. The CSRF check
+        # above lets it through untouched: Paddle sends application/json,
+        # and the Origin rule only applies to requests that carry one.
+        if path == "/api/paddle/webhook":
+            self._handle_paddle_webhook()
+            return
 
         user_match = USER_PREFIX_RE.match(path)
         if user_match:
@@ -1474,6 +1506,48 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # method takes the resolved `engine` and returns a payload to send as 200
     # JSON, or None having already written its own response (a rejected body,
     # a validation failure). See _handle_api_post.
+    def _handle_paddle_webhook(self):
+        """
+        Paddle telling us a subscription changed: bought, renewed, failed a
+        payment, cancelled, refunded. See paddle_webhook.py for the rules.
+
+        Answers 200 to anything it has verified, including events it decides
+        not to act on. A non-2xx tells Paddle the delivery failed and earns a
+        retry, which is right for "we couldn't process this" and wrong for
+        "this was a test purchase by nobody" -- retrying that forever gains
+        nothing. A bad signature is the one case worth refusing outright.
+        """
+        raw_body = self._read_raw_body_or_reject()
+        if raw_body is None:
+            return
+        if not paddle_webhook.WEBHOOK_SECRET:
+            # Never fall back to trusting an unsigned body: without the secret
+            # anyone who found this URL could grant themselves a paid plan.
+            self._send_json_error(503, "Paddle webhooks are not configured.")
+            return
+        if not paddle_webhook.verify_signature(
+                self.headers.get("Paddle-Signature", ""), raw_body):
+            self._send_json_error(400, "Invalid signature.")
+            return
+        try:
+            event = json.loads(raw_body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            self._send_json_error(400, "Body is not JSON.")
+            return
+
+        with plans.PLANS_LOCK:
+            plans_data = plans.load_plans()
+            outcome = paddle_webhook.apply_event(event, plans_data)
+            if outcome.startswith("recorded"):
+                plans.save_plans(plans_data)
+
+        # The event type and id only: the payload carries the buyer's email
+        # and address, which have no business in a log (see the Privacy
+        # Policy), and apply_event never puts an account id in its outcome.
+        print(f"paddle {paddle_webhook.ENVIRONMENT} webhook: "
+              f"{event.get('event_type')} {event.get('event_id')} -- {outcome}", flush=True)
+        self._send_json(200, {"ok": True})
+
     API_POST_ROUTES = {
         "/api/onboarding/seed": ("_post_onboarding_seed", 500, False),
         "/api/account/reset": ("_post_account_reset", 500, False),
