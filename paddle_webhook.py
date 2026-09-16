@@ -156,6 +156,35 @@ def verify_signature(header, raw_body, secret=None, now=None):
     return hmac.compare_digest(expected, signature)
 
 
+def _period_end_for(data, status):
+    """
+    When a subscription's access should run out.
+
+    While a subscription is billing, Paddle reports the period it has been
+    paid for in current_billing_period, and that is the answer. A canceled or
+    paused one is different: Paddle stops sending a current billing period
+    once it is no longer billing, so reading only that field yielded None and
+    plans.record_subscription rejected the event as malformed -- meaning a
+    cancellation never got recorded and the account stayed active for good.
+    That is the ordinary path for every customer who cancels, so it has to
+    work whatever Paddle chooses to send.
+
+    In order: the period already paid for; the date a scheduled cancellation
+    or pause takes effect; and failing both, now -- because a subscription
+    that Paddle says is over, with no date attached, is over. Erring towards
+    now rather than discarding the event is the safe direction: the access
+    rules in plans.py still let a canceled subscription run to its period
+    end, so the worst case is access ending on time rather than never.
+    """
+    period_end = (data.get("current_billing_period") or {}).get("ends_at")
+    if period_end:
+        return period_end
+    if status in (plans.CANCELED, plans.PAUSED):
+        scheduled = (data.get("scheduled_change") or {}).get("effective_at")
+        return scheduled or plans._iso(plans._now())
+    return None
+
+
 def _subscription_record(data, prices):
     """The fields plans.record_subscription wants, from a subscription entity."""
     billing = None
@@ -171,7 +200,7 @@ def _subscription_record(data, prices):
     if status is None:
         return None
 
-    period_end = ((data.get("current_billing_period") or {}).get("ends_at"))
+    period_end = _period_end_for(data, status)
     return {
         "billing": billing,
         "status": status,
