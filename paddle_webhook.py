@@ -419,6 +419,13 @@ def apply_event(event, plans_data, prices=None):
 
     if event_id and previous.get("last_event_id") == event_id:
         return "ignored (already applied)"
+    if (previous.get("billing") == plans.LIFETIME and previous.get("status") == plans.ACTIVE
+            and record["billing"] != plans.LIFETIME):
+        # Lifetime always wins. A subscriber who switches to lifetime has the
+        # old subscription cancelled (see subscription_to_cancel), and Paddle
+        # then reports that cancellation -- as it would any late renewal or
+        # resumed pause on it. None of those may take lifetime away.
+        return "ignored (the account has lifetime, which a subscription can't replace)"
     if record.get("recurs") and previous.get("subscription_id") == record["subscription_id"]:
         # A repeat charge of a recurring "lifetime" price, or the first charge
         # delivered again. Either way the account already has what this
@@ -444,9 +451,120 @@ def apply_event(event, plans_data, prices=None):
     # signature.
     entry["subscription"]["last_event_id"] = event_id
     entry["subscription"]["event_occurred_at"] = occurred_at
+    replaced = _replaced_subscription(previous, record)
+    if replaced:
+        entry["subscription"]["replaced_subscription_id"] = replaced
+        return "recorded lifetime/active (replaces a subscription, to be cancelled)"
     if record.get("recurs"):
         return f"recorded {record['billing']}/{record['status']} ({LIFETIME_RECURS})"
     return f"recorded {record['billing']}/{record['status']}"
+
+
+# Statuses a subscription can still bill or come back from, so switching to
+# lifetime has to cancel it. A canceled one has already stopped.
+CANCELLABLE_STATUSES = (plans.ACTIVE, plans.PAST_DUE, plans.PAUSED)
+
+
+def _replaced_subscription(previous, record):
+    """
+    The subscription id a new lifetime purchase replaces, or None.
+
+    Only a monthly or annual subscription that can still bill counts; its
+    own id is never "replaced" by itself (a lifetime price set to recur, see
+    LIFETIME_RECURS, carries a subscription id of its own).
+    """
+    if record.get("billing") != plans.LIFETIME or record.get("status") != plans.ACTIVE:
+        return None
+    if previous.get("billing") not in (plans.MONTHLY, plans.ANNUAL):
+        return None
+    if previous.get("status") not in CANCELLABLE_STATUSES:
+        return None
+    old = previous.get("subscription_id")
+    if not old or old == record.get("subscription_id"):
+        return None
+    return old
+
+
+def subscription_to_cancel(event, plans_data, prices=None):
+    """
+    After apply_event has recorded `event`: the id of the subscription that
+    lifetime purchase replaced, if it just did, else None. The caller cancels
+    it through Paddle (cancel_subscription). Asked only when apply_event's
+    outcome starts "recorded", so a redelivered purchase doesn't cancel twice.
+    """
+    record = event_record(event, prices)
+    if not record or record.get("refund") or record.get("ignore"):
+        return None
+    account_id = account_for(record, plans_data)
+    subscription = ((plans_data.get(account_id) or {}).get("subscription") or {}) if account_id else {}
+    if (subscription.get("billing") != plans.LIFETIME
+            or subscription.get("last_event_id") != event.get("event_id")):
+        return None
+    return subscription.get("replaced_subscription_id")
+
+
+def cancel_subscription(subscription_id):
+    """
+    Cancels a subscription through Paddle's API, immediately rather than at
+    the end of its period: the customer has just bought lifetime, and the
+    switch screen told them the rest of the period isn't refunded.
+
+    Returns (True, "cancelled") or (False, a short reason). Never raises. The
+    API key needs the "Subscriptions: Write" permission; without it Paddle
+    answers 403 and the caller emails the operator to cancel by hand.
+    """
+    if not API_KEY:
+        return False, "no Paddle API key configured"
+    if not subscription_id:
+        return False, "no subscription id"
+    request = urllib.request.Request(
+        f"{API_BASE}/subscriptions/{subscription_id}/cancel",
+        data=json.dumps({"effective_from": "immediately"}).encode("utf-8"), method="POST",
+        headers={"Authorization": f"Bearer {API_KEY}",
+                 "Content-Type": "application/json",
+                 "User-Agent": "JuziGenius/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=PORTAL_TIMEOUT_SECONDS) as response:
+            response.read()
+        return True, "cancelled"
+    except urllib.error.HTTPError as e:
+        code = ""
+        try:
+            code = (json.loads(e.read().decode("utf-8")).get("error") or {}).get("code") or ""
+        except (ValueError, AttributeError):
+            pass
+        return False, f"HTTP {e.code}" + (f" {code}" if code else "")
+    except (urllib.error.URLError, TimeoutError) as e:
+        return False, type(e).__name__
+
+
+def cancel_failed_alert(subscription_id, reason):
+    """
+    (subject, text) for the operator when a replaced subscription couldn't be
+    cancelled automatically. The subscription id is the one thing needed to
+    find it in Paddle; nothing else about the customer is included.
+    """
+    environment = ENVIRONMENT.upper()
+    dashboard = ("sandbox-vendors.paddle.com" if ENVIRONMENT == "sandbox"
+                 else "vendors.paddle.com")
+    permission = ("\nPaddle refused the request (403): the server's API key is missing the\n"
+                  "\"Subscriptions: Write\" permission. Add it under Developer tools > Authentication.\n"
+                  if reason.startswith("HTTP 403") else "")
+    subject = f"[JuziGenius {environment}] Cancel a subscription by hand: its owner switched to lifetime"
+    text = (
+        f"A subscriber bought lifetime ({environment}), and their old subscription could not be\n"
+        "cancelled automatically, so Paddle will go on charging them for it.\n"
+        "\n"
+        f"  Subscription: {subscription_id}\n"
+        f"  Reason: {reason}\n"
+        f"{permission}"
+        "\n"
+        f"What to do, at {dashboard}:\n"
+        "  1. Subscriptions > find the id above > Cancel > IMMEDIATELY (not at the end\n"
+        "     of the billing period).\n"
+        "  2. Their lifetime access is already in place; the cancellation doesn't touch it.\n"
+    )
+    return subject, text
 
 
 def setup_alert(event, outcome, now=None):

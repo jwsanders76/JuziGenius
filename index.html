@@ -362,6 +362,12 @@
                             Online billing isn't set up yet. To change or cancel your plan, email
                             <a href="mailto:support@juzigenius.com">support@juzigenius.com</a>.
                         </p>
+                        <!-- Monthly and annual subscribers only; filled in by renderPlan. -->
+                        <div id="plan-lifetime" hidden>
+                            <p id="plan-lifetime-note" class="progress-note"></p>
+                            <button type="button" id="plan-lifetime-btn" class="modal-btn btn-primary plan-manage-btn">Switch to lifetime</button>
+                        </div>
+                        <p id="plan-lifetime-status" class="progress-note" role="status" hidden></p>
                     </section>
 
                     <section class="progress-section">

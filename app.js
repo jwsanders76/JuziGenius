@@ -420,6 +420,10 @@ function cacheDomElements() {
     elements.planBilling = document.getElementById("plan-billing");
     elements.planManageBtn = document.getElementById("plan-manage-btn");
     elements.planManageNote = document.getElementById("plan-manage-note");
+    elements.planLifetime = document.getElementById("plan-lifetime");
+    elements.planLifetimeNote = document.getElementById("plan-lifetime-note");
+    elements.planLifetimeBtn = document.getElementById("plan-lifetime-btn");
+    elements.planLifetimeStatus = document.getElementById("plan-lifetime-status");
 
     elements.sentenceImportModal = document.getElementById("sentence-import-modal");
     elements.sentenceImportList = document.getElementById("sentence-import-list");
@@ -657,6 +661,9 @@ function initEventListeners() {
 
     if (elements.planManageBtn) {
         elements.planManageBtn.addEventListener("click", openManageSubscription);
+    }
+    if (elements.planLifetimeBtn) {
+        elements.planLifetimeBtn.addEventListener("click", switchToLifetime);
     }
     if (elements.upgradeBtnClose) {
         elements.upgradeBtnClose.addEventListener("click", () => {
@@ -2483,6 +2490,46 @@ function renderPlan() {
     }
     if (elements.planManageBtn) elements.planManageBtn.hidden = !subscription;
     if (elements.planManageNote) elements.planManageNote.hidden = true;
+    renderLifetimeSwitch(plan);
+}
+
+const BILLING_PERIOD_NOUNS = { monthly: "month", annual: "year" };
+
+/**
+ * Settings' "Switch to lifetime", for a monthly or annual subscriber: the one
+ * way a paying account can buy lifetime, since the upgrade screen only opens
+ * for accounts without full access. Says before anyone pays that the old
+ * subscription is cancelled at once and its remaining time isn't refunded
+ * (the owner's decision). The server does the cancelling when Paddle's
+ * webhook reports the purchase (see paddle_webhook.subscription_to_cancel).
+ */
+function renderLifetimeSwitch(plan) {
+    if (!elements.planLifetime) return;
+    const subscription = plan && plan.subscription;
+    const checkout = plan && plan.checkout;
+    const noun = subscription && BILLING_PERIOD_NOUNS[subscription.billing];
+    const canSwitch = Boolean(plan && plan.full_access && noun
+        && checkout && checkout.prices && checkout.prices.lifetime);
+    elements.planLifetime.hidden = !canSwitch;
+    if (!canSwitch) return;
+    const price = PLAN_PRICES.find(p => p.billing === "lifetime");
+    elements.planLifetimeNote.textContent = `Lifetime is ${price ? price.price : "one payment"} `
+        + `plus applicable tax, paid once. Your ${BILLING_LABELS[subscription.billing].toLowerCase()} `
+        + `plan is cancelled as soon as it's paid, and the rest of the current ${noun} isn't refunded.`;
+}
+
+function switchToLifetime() {
+    const plan = state.plan;
+    const subscription = plan && plan.subscription;
+    const checkout = plan && plan.checkout;
+    if (!checkout || !checkout.prices || !checkout.prices.lifetime) return;
+    const was = subscription ? BILLING_LABELS[subscription.billing] : null;
+    openCheckout(checkout.prices.lifetime, checkout, {
+        status: elements.planLifetimeStatus,
+        done: p => Boolean(p && p.full_access && p.subscription && p.subscription.billing === "lifetime"),
+        success: "You have lifetime access now."
+            + (was ? ` Your ${was.toLowerCase()} plan is being cancelled, so you won't be charged for it again.` : ""),
+    });
 }
 
 const BILLING_LABELS = { monthly: "Monthly", annual: "Annual" };
@@ -2645,8 +2692,20 @@ const PLAN_POLL_ATTEMPTS = 15;
  */
 function handlePaddleEvent(event) {
     if (!event || event.name !== "checkout.completed") return;
-    awaitNewPlan();
+    awaitNewPlan(checkoutFlow || UPGRADE_FLOW);
 }
+
+/**
+ * What a checkout is waiting for and where it reports progress. The upgrade
+ * screen waits for full access; switching to lifetime already has full
+ * access, so it waits for the plan itself to become lifetime.
+ */
+const UPGRADE_FLOW = {
+    status: null,
+    done: p => Boolean(p && p.full_access),
+    success: null,
+};
+let checkoutFlow = null;
 
 /**
  * Waits for the webhook to land, then repaints everything the plan governs.
@@ -2656,17 +2715,21 @@ function handlePaddleEvent(event) {
  * be late -- so this says so plainly rather than leaving the upgrade screen
  * sitting there looking like the purchase failed.
  */
-async function awaitNewPlan() {
-    if (elements.upgradeError) {
-        elements.upgradeError.textContent = "Payment received. Unlocking your account…";
-        elements.upgradeError.hidden = false;
+async function awaitNewPlan(flow) {
+    const status = flow.status || elements.upgradeError;
+    if (status) {
+        status.textContent = "Payment received. Unlocking your account…";
+        status.hidden = false;
     }
 
     for (let attempt = 0; attempt < PLAN_POLL_ATTEMPTS; attempt++) {
         await new Promise(resolve => setTimeout(resolve, PLAN_POLL_INTERVAL_MS));
         await loadPlan();
-        if (state.plan && state.plan.full_access) {
-            if (elements.upgradeError) elements.upgradeError.hidden = true;
+        if (flow.done(state.plan)) {
+            if (status) {
+                status.textContent = flow.success || "";
+                status.hidden = !flow.success;
+            }
             if (elements.upgradeModal) elements.upgradeModal.style.display = "none";
             // The import modal paints its paste lock from state.plan when a
             // mode is chosen, so re-run it to drop the lock now rather than
@@ -2676,16 +2739,18 @@ async function awaitNewPlan() {
         }
     }
 
-    if (elements.upgradeError) {
-        elements.upgradeError.textContent = "Your payment went through, but unlocking is taking "
+    if (status) {
+        status.textContent = "Your payment went through, but unlocking is taking "
             + "longer than usual. Reload the page in a minute, and email "
             + "support@juzigenius.com if it still hasn't unlocked.";
-        elements.upgradeError.hidden = false;
+        status.hidden = false;
     }
 }
 
-function openCheckout(priceId, checkout) {
+function openCheckout(priceId, checkout, flow) {
     if (!initPaddle(checkout)) return;
+    checkoutFlow = flow || UPGRADE_FLOW;
+    const errorStatus = checkoutFlow.status || elements.upgradeError;
     try {
         Paddle.Checkout.open({
             items: [{ priceId: priceId, quantity: 1 }],
@@ -2693,10 +2758,10 @@ function openCheckout(priceId, checkout) {
         });
     } catch (err) {
         console.error("Couldn't open the checkout.", err);
-        if (elements.upgradeError) {
-            elements.upgradeError.textContent =
+        if (errorStatus) {
+            errorStatus.textContent =
                 "The checkout couldn't open. Please try again, or email support@juzigenius.com.";
-            elements.upgradeError.hidden = false;
+            errorStatus.hidden = false;
         }
     }
 }

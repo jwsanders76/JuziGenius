@@ -2016,6 +2016,9 @@ body {
 /* Settings' Manage subscription: opens Paddle's customer portal. */
 .plan-manage-btn { margin-top: 8px; }
 
+/* Settings' Switch to lifetime, for monthly and annual subscribers. */
+#plan-lifetime { margin-top: 14px; }
+
 /* The upgrade screen's buy buttons. Annual first, because it is the one
    worth choosing; each button carries its own price so the choice is
    made on the button rather than on a separate pricing page. */

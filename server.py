@@ -417,6 +417,21 @@ def stroke_entry_bytes(char):
     return json.dumps(entry, ensure_ascii=False).encode("utf-8")
 
 
+def _cancel_replaced_subscription(subscription_id):
+    """
+    Cancels the subscription a lifetime purchase replaced, and emails the
+    operator to do it by hand if Paddle won't -- otherwise the customer goes
+    on being charged for a plan they've given up. Logs the outcome only,
+    never the subscription id.
+    """
+    ok, reason = paddle_webhook.cancel_subscription(subscription_id)
+    print(f"paddle {paddle_webhook.ENVIRONMENT}: replaced subscription "
+          f"{'cancelled' if ok else 'NOT cancelled (' + reason + '); operator emailed'}", flush=True)
+    if not ok:
+        mailer.send(paddle_webhook.ALERT_ADDRESS,
+                    *paddle_webhook.cancel_failed_alert(subscription_id, reason))
+
+
 class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
     # Without this, a connection that stops sending data mid-request (or
     # never finishes a declared body) blocks its handler thread forever --
@@ -1543,11 +1558,13 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json_error(400, "Body is not JSON.")
             return
 
+        replaced = None
         with plans.PLANS_LOCK:
             plans_data = plans.load_plans()
             outcome = paddle_webhook.apply_event(event, plans_data)
             if outcome.startswith("recorded"):
                 plans.save_plans(plans_data)
+                replaced = paddle_webhook.subscription_to_cancel(event, plans_data)
 
         # The event type and id only: the payload carries the buyer's email
         # and address, which have no business in a log (see the Privacy
@@ -1557,6 +1574,11 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         alert = paddle_webhook.setup_alert(event, outcome)
         if alert:
             mailer.send(paddle_webhook.ALERT_ADDRESS, *alert)
+        if replaced:
+            # Off the request thread: Paddle is owed its 200 now, and the
+            # cancellation is a call back out to Paddle that can take seconds.
+            threading.Thread(target=_cancel_replaced_subscription, args=(replaced,),
+                             daemon=True).start()
         self._send_json(200, {"ok": True})
 
     API_POST_ROUTES = {
