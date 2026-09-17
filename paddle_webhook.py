@@ -102,6 +102,14 @@ ADJUSTMENT_EVENTS = ("adjustment.created", "adjustment.updated")
 REFUND_ACTIONS = ("refund", "chargeback")
 REFUND_STATUS = "approved"
 
+# A lifetime price must be one-time in Paddle's catalogue. If it's set to
+# recur, a lifetime purchase also creates a subscription that charges the
+# customer again every period -- which happened in the sandbox in September
+# 2026, when the lifetime price was saved as $149 a month. Events showing
+# that are refused with this in the log, so the mistake is named there
+# rather than recorded as ordinary purchases.
+LIFETIME_RECURS = "setup error: the lifetime price recurs in Paddle; make it one-time"
+
 
 def price_billing_map():
     """
@@ -208,6 +216,13 @@ def _subscription_record(data, prices):
             break
     if billing is None:
         return None
+    if billing == plans.LIFETIME:
+        # Only possible when the lifetime price is set to recur. The purchase
+        # itself is honoured from its transaction (see _lifetime_record);
+        # the subscription behind it describes nothing the customer bought,
+        # and letting it through would, for one, lapse a lifetime plan when
+        # the stray subscription is cancelled.
+        return {"ignore": LIFETIME_RECURS}
 
     status = STATUS_MAP.get(data.get("status"))
     if status is None:
@@ -243,6 +258,11 @@ def _lifetime_record(data, prices):
     other completed transaction (the first charge of a subscription, each
     renewal) is ignored here, because the subscription events already
     describe those and describe them better.
+
+    A lifetime transaction that belongs to a subscription means the price is
+    set to recur (see LIFETIME_RECURS). The first charge is still a real
+    lifetime purchase and is honoured, flagged so the log names the setup
+    error; apply_event refuses the repeat charges that follow.
     """
     lifetime_ids = {price_id for price_id, billing in prices.items()
                     if billing == plans.LIFETIME}
@@ -256,6 +276,7 @@ def _lifetime_record(data, prices):
                 "subscription_id": data.get("subscription_id"),
                 "customer_id": data.get("customer_id"),
                 "custom_data": data.get("custom_data") or {},
+                "recurs": bool(data.get("subscription_id")),
             }
     return None
 
@@ -354,6 +375,8 @@ def apply_event(event, plans_data, prices=None):
     record = event_record(event, prices)
     if record is None:
         return "ignored (not a subscription event for a known price)"
+    if record.get("ignore"):
+        return f"ignored ({record['ignore']})"
 
     account_id = account_for(record, plans_data)
     if account_id is None:
@@ -384,6 +407,11 @@ def apply_event(event, plans_data, prices=None):
 
     if event_id and previous.get("last_event_id") == event_id:
         return "ignored (already applied)"
+    if record.get("recurs") and previous.get("subscription_id") == record["subscription_id"]:
+        # A repeat charge of a recurring "lifetime" price, or the first charge
+        # delivered again. Either way the account already has what this
+        # subscription can give it, and after a refund it must not get it back.
+        return f"ignored ({LIFETIME_RECURS}; a repeat charge)"
     if occurred_at and previous.get("event_occurred_at", "") > occurred_at:
         return "ignored (older than the record it would replace)"
 
@@ -404,6 +432,8 @@ def apply_event(event, plans_data, prices=None):
     # signature.
     entry["subscription"]["last_event_id"] = event_id
     entry["subscription"]["event_occurred_at"] = occurred_at
+    if record.get("recurs"):
+        return f"recorded {record['billing']}/{record['status']} ({LIFETIME_RECURS})"
     return f"recorded {record['billing']}/{record['status']}"
 
 
