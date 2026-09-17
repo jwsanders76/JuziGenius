@@ -432,6 +432,13 @@ def portal_session_url(customer_id, subscription_id=None):
     A signed link into Paddle's customer portal, where a subscriber updates a
     card or cancels -- which is where the Terms send them.
 
+    Always the portal's overview page, never its direct cancel link, even
+    though Paddle offers both. The button says "Manage subscription", and
+    people press it to check a renewal date or change a card; landing them on
+    a cancel dialog read as though we wanted them gone. Cancelling stays one
+    click away on the overview, which keeps it as easy online as the Terms
+    and California's click-to-cancel rule require.
+
     Minted per click and never stored: Paddle's links carry a short-lived
     token, so a cached one would be a link that works for a while and then
     quietly doesn't. Returns None rather than raising when Paddle can't be
@@ -457,10 +464,4 @@ def portal_session_url(customer_id, subscription_id=None):
         return None
 
     urls = ((body.get("data") or {}).get("urls") or {})
-    general = (urls.get("general") or {}).get("overview")
-    for subscription in urls.get("subscriptions") or []:
-        # The deep link straight to cancelling is the more useful one when a
-        # subscription is named, and the overview is the honest fallback.
-        if subscription.get("cancel_subscription"):
-            return subscription["cancel_subscription"]
-    return general
+    return (urls.get("general") or {}).get("overview")
