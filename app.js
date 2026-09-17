@@ -2526,8 +2526,11 @@ function describeSubscription(subscription, fullAccess) {
 async function openManageSubscription() {
     // Opened before the request, not after: Safari blocks window.open once a
     // click has been through an await, so the tab is claimed first and its
-    // location set when the link arrives.
-    const tab = window.open("", "_blank", "noopener");
+    // location set when the link arrives. No "noopener" feature: with it,
+    // window.open returns null, so there'd be no tab to point or close.
+    // Clearing opener instead keeps the portal from reaching back into us.
+    const tab = window.open("", "_blank");
+    if (tab) tab.opener = null;
     try {
         const response = await fetch(`${API_BASE}/api/paddle/portal`, {
             method: "POST",
