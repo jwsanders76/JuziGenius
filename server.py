@@ -1554,6 +1554,9 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
         # Policy), and apply_event never puts an account id in its outcome.
         print(f"paddle {paddle_webhook.ENVIRONMENT} webhook: "
               f"{event.get('event_type')} {event.get('event_id')} -- {outcome}", flush=True)
+        alert = paddle_webhook.setup_alert(event, outcome)
+        if alert:
+            mailer.send(paddle_webhook.ALERT_ADDRESS, *alert)
         self._send_json(200, {"ok": True})
 
     API_POST_ROUTES = {

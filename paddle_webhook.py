@@ -21,6 +21,7 @@ EnvironmentFile (the same arrangement as the Resend key):
     JUZI_PADDLE_PRICE_MONTHLY   the pri_... id of the monthly price
     JUZI_PADDLE_PRICE_ANNUAL    the pri_... id of the annual price
     JUZI_PADDLE_PRICE_LIFETIME  the pri_... id of the one-time lifetime price
+    JUZI_ALERT_EMAIL            where setup-error alerts go; default support@
 
 The price ids are configuration rather than constants because sandbox and
 live are separate Paddle accounts with entirely separate catalogues: the
@@ -36,6 +37,7 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -109,6 +111,16 @@ REFUND_STATUS = "approved"
 # that are refused with this in the log, so the mistake is named there
 # rather than recorded as ordinary purchases.
 LIFETIME_RECURS = "setup error: the lifetime price recurs in Paddle; make it one-time"
+
+# The log line alone would go unread, and the cost of this mistake is
+# customers being charged $149 again every period, so it is also emailed.
+# At most one email per ALERT_INTERVAL_SECONDS per server process: a single
+# purchase sends two or three affected events within a second, and every
+# one of them is still in the log.
+ALERT_ADDRESS = os.environ.get("JUZI_ALERT_EMAIL", "").strip() or "support@juzigenius.com"
+ALERT_INTERVAL_SECONDS = 6 * 60 * 60
+_alert_lock = threading.Lock()
+_last_alert_at = None
 
 
 def price_billing_map():
@@ -435,6 +447,53 @@ def apply_event(event, plans_data, prices=None):
     if record.get("recurs"):
         return f"recorded {record['billing']}/{record['status']} ({LIFETIME_RECURS})"
     return f"recorded {record['billing']}/{record['status']}"
+
+
+def setup_alert(event, outcome, now=None):
+    """
+    (subject, text) for an email to ALERT_ADDRESS when `outcome` names the
+    recurring-lifetime setup error, or None -- including when an alert went
+    out within the last ALERT_INTERVAL_SECONDS. The caller sends it.
+
+    Names only the environment, the event type, Paddle's event id and the
+    price id: nothing about the customer. The event id is enough to find
+    the purchase in Paddle's own notification log.
+    """
+    global _last_alert_at
+    if LIFETIME_RECURS not in outcome:
+        return None
+    now = time.time() if now is None else now
+    with _alert_lock:
+        if _last_alert_at is not None and now - _last_alert_at < ALERT_INTERVAL_SECONDS:
+            return None
+        _last_alert_at = now
+    lifetime_ids = [price_id for price_id, billing in price_billing_map().items()
+                    if billing == plans.LIFETIME]
+    environment = ENVIRONMENT.upper()
+    dashboard = ("sandbox-vendors.paddle.com" if ENVIRONMENT == "sandbox"
+                 else "vendors.paddle.com")
+    subject = f"[JuziGenius {environment}] Paddle setup error: the lifetime price recurs"
+    text = (
+        f"Paddle sent an event showing that the lifetime price is set to recur ({environment}).\n"
+        "\n"
+        f"  Event: {event.get('event_type')} {event.get('event_id')}\n"
+        f"  Lifetime price: {', '.join(lifetime_ids) or 'not configured'}\n"
+        f"  Server's decision: {outcome}\n"
+        "\n"
+        "A customer who bought lifetime gets it from their first charge, but Paddle will\n"
+        "charge them again every billing period until this is fixed. The app ignores\n"
+        "the repeat charges; it can't stop or refund them.\n"
+        "\n"
+        f"What to do, at {dashboard}:\n"
+        "  1. Catalog > JuziGenius Full access > edit the lifetime price and set its\n"
+        "     billing to one-time.\n"
+        "  2. Subscriptions: cancel IMMEDIATELY every subscription on the lifetime\n"
+        "     price (not at the end of the period). The customers keep lifetime.\n"
+        "  3. Transactions: refund any repeat charges already taken.\n"
+        "\n"
+        f"Further events like this are only logged for the next {ALERT_INTERVAL_SECONDS // 3600} hours.\n"
+    )
+    return subject, text
 
 
 def checkout_config():
