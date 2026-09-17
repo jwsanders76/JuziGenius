@@ -87,7 +87,13 @@ TRANSACTION_EVENTS = ("transaction.completed",)
 # subscription.canceled already lapses the account, while a lifetime buyer
 # has no subscription for Paddle to cancel.
 ADJUSTMENT_EVENTS = ("adjustment.created", "adjustment.updated")
-REFUND_ACTIONS = ("refund", "chargeback", "chargeback_warning")
+# Only money that has actually gone back ends a lifetime plan. A refund is
+# created as pending_approval on a live account and Paddle may reject it; a
+# chargeback_warning is only a warning; a partial refund is a goodwill
+# gesture, not a return of the purchase. Chargebacks are created approved.
+REFUND_ACTIONS = ("refund", "chargeback")
+REFUND_STATUS = "approved"
+REFUND_TYPE = "full"
 
 
 def price_billing_map():
@@ -257,10 +263,24 @@ def _refund_record(data):
     silently. The customer is enough, because apply_event only acts on a
     refund when that customer's recorded plan is a lifetime one -- the single
     case nothing else revokes.
+
+    A refund that isn't final yet still comes back as a record, marked with
+    why it doesn't count, so the log says "pending" rather than looking like
+    an event nobody handled. Paddle sends the same adjustment again, through
+    adjustment.updated, once it is approved.
     """
-    if (data.get("action") or "").lower() not in REFUND_ACTIONS:
+    action = (data.get("action") or "").lower()
+    if action not in REFUND_ACTIONS:
         return None
-    return {"refund": True, "customer_id": data.get("customer_id"),
+    status = (data.get("status") or "").lower()
+    kind = (data.get("type") or "").lower()
+    not_final = None
+    if status != REFUND_STATUS:
+        not_final = f"{action} {status or 'with no status'}, not approved"
+    elif kind != REFUND_TYPE:
+        not_final = f"{kind or 'unspecified'} {action}, not full"
+    return {"refund": True, "not_final": not_final,
+            "customer_id": data.get("customer_id"),
             "subscription_id": data.get("subscription_id"), "custom_data": {}}
 
 
@@ -335,22 +355,29 @@ def apply_event(event, plans_data, prices=None):
     if account_id is None:
         return "ignored (no matching account)"
 
-    if record.get("refund"):
-        current = ((plans_data.get(account_id) or {}).get("subscription") or {})
-        if current.get("billing") != plans.LIFETIME:
-            return "ignored (refund of something with its own cancellation)"
-        if current.get("status") == plans.CANCELED:
-            return "ignored (already refunded)"
-        plans.record_subscription(
-            plans_data, account_id, plans.LIFETIME, plans.CANCELED, None,
-            source="paddle", provider="paddle",
-            subscription_id=current.get("subscription_id"),
-            customer_id=current.get("customer_id"))
-        return "recorded lifetime/canceled (refunded)"
-
     event_id = event.get("event_id")
     occurred_at = event.get("occurred_at") or ""
     previous = ((plans_data.get(account_id) or {}).get("subscription") or {})
+
+    if record.get("refund"):
+        if previous.get("billing") != plans.LIFETIME:
+            return "ignored (refund of something with its own cancellation)"
+        if record.get("not_final"):
+            return f"ignored ({record['not_final']})"
+        if previous.get("status") == plans.CANCELED:
+            return "ignored (already refunded)"
+        entry = plans.record_subscription(
+            plans_data, account_id, plans.LIFETIME, plans.CANCELED, None,
+            source="paddle", provider="paddle",
+            subscription_id=previous.get("subscription_id"),
+            customer_id=previous.get("customer_id"))
+        # Stamped like any other event, so a late redelivery of the purchase
+        # itself is recognised as older and can't grant lifetime back.
+        entry["subscription"]["last_event_id"] = event_id
+        entry["subscription"]["event_occurred_at"] = max(
+            occurred_at, previous.get("event_occurred_at", ""))
+        return "recorded lifetime/canceled (refunded)"
+
     if event_id and previous.get("last_event_id") == event_id:
         return "ignored (already applied)"
     if occurred_at and previous.get("event_occurred_at", "") > occurred_at:
