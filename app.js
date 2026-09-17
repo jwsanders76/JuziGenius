@@ -413,6 +413,7 @@ function cacheDomElements() {
     elements.upgradeBtnClose = document.getElementById("upgrade-btn-close");
     elements.upgradePrices = document.getElementById("upgrade-prices");
     elements.upgradeSoon = document.getElementById("upgrade-soon");
+    elements.upgradeTax = document.getElementById("upgrade-tax");
     elements.upgradeError = document.getElementById("upgrade-error");
     elements.planSection = document.getElementById("plan-section");
     elements.planNote = document.getElementById("plan-note");
@@ -2593,6 +2594,7 @@ function renderUpgradePrices() {
     if (!container) return;
     if (!checkout || !initPaddle(checkout)) {
         container.hidden = true;
+        if (elements.upgradeTax) elements.upgradeTax.hidden = true;
         if (elements.upgradeSoon) elements.upgradeSoon.hidden = false;
         return;
     }
@@ -2611,6 +2613,7 @@ function renderUpgradePrices() {
         container.appendChild(button);
     });
     container.hidden = container.children.length === 0;
+    if (elements.upgradeTax) elements.upgradeTax.hidden = container.hidden;
 }
 
 /**
