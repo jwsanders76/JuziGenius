@@ -88,12 +88,19 @@ TRANSACTION_EVENTS = ("transaction.completed",)
 # has no subscription for Paddle to cancel.
 ADJUSTMENT_EVENTS = ("adjustment.created", "adjustment.updated")
 # Only money that has actually gone back ends a lifetime plan. A refund is
-# created as pending_approval on a live account and Paddle may reject it; a
-# chargeback_warning is only a warning; a partial refund is a goodwill
-# gesture, not a return of the purchase. Chargebacks are created approved.
+# created as pending_approval on a live account and Paddle may reject it, and
+# a chargeback_warning is only a warning. Chargebacks are created approved.
+#
+# Any approved refund counts, however much of the purchase it returns. The
+# adjustment's own full/partial "type" can't be trusted for this: a refund
+# issued from Paddle's dashboard, where the amount is typed in, arrives as
+# "partial" even when it returns every cent (seen in the sandbox, September
+# 2026, on a $155.70 refund the dashboard itself called "Full refund
+# issued"). Lifetime is only ever refunded in full under the Refund Policy,
+# so the rare goodwill or tax-only refund that shouldn't end the plan is
+# restored by hand with set_plan.py.
 REFUND_ACTIONS = ("refund", "chargeback")
 REFUND_STATUS = "approved"
-REFUND_TYPE = "full"
 
 
 def price_billing_map():
@@ -273,12 +280,9 @@ def _refund_record(data):
     if action not in REFUND_ACTIONS:
         return None
     status = (data.get("status") or "").lower()
-    kind = (data.get("type") or "").lower()
     not_final = None
     if status != REFUND_STATUS:
         not_final = f"{action} {status or 'with no status'}, not approved"
-    elif kind != REFUND_TYPE:
-        not_final = f"{kind or 'unspecified'} {action}, not full"
     return {"refund": True, "not_final": not_final,
             "customer_id": data.get("customer_id"),
             "subscription_id": data.get("subscription_id"), "custom_data": {}}
