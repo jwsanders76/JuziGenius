@@ -10,12 +10,41 @@ scratch if it's ever lost. It never touches brain.json.
 """
 import csv
 import json
+import re
 
 SOURCE_CSV = "hanzi_db.csv"
 OUTPUT_PATH = "master_dictionary.json"
+OVERRIDES_PATH = "meaning_overrides.json"
+
+# Senses a learner never needs: surname tags, radical labels, classical /
+# archaic / dialect notes, and pointers to variant forms (including ones the
+# source truncated mid-sentence, like "simplified form of").
+_UNWANTED_SENSE = re.compile(
+    r"^\(?surname\b|radical|^rad\.|classical|archaic|literary|obsolete|dialect"
+    r"|^\(?(simp\.? for|simplified form|same as|variant of|abbr\.? of)"
+    r"|non-simplified form",
+    re.IGNORECASE,
+)
 
 
-def build_master_dictionary(source_csv=SOURCE_CSV):
+def clean_meaning(meaning):
+    """Drop the senses above. If that would leave nothing, keep the original:
+    a rare character with only an odd sense is better labelled than blank."""
+    senses = [s.strip() for s in meaning.split(";")]
+    kept = [s for s in senses if s and not _UNWANTED_SENSE.search(s)]
+    return "; ".join(kept) if kept else meaning
+
+
+def load_overrides(path=OVERRIDES_PATH):
+    """Hand-written everyday meanings for the most common characters. They live
+    in their own file because this script regenerates master_dictionary.json
+    and would wipe a hand edit made there."""
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def build_master_dictionary(source_csv=SOURCE_CSV, overrides_path=OVERRIDES_PATH):
+    overrides = load_overrides(overrides_path)
     dictionary = {}
     with open(source_csv, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -27,7 +56,7 @@ def build_master_dictionary(source_csv=SOURCE_CSV):
                 continue
             entry = {
                 "pinyin": row["pinyin"].strip(),
-                "meaning": row["definition"].strip(),
+                "meaning": overrides.get(char) or clean_meaning(row["definition"].strip()),
             }
             # Frequency rank, HSK level and stroke count are carried through
             # rather than dropped. This app exists to teach the most frequently
