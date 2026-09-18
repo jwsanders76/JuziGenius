@@ -546,7 +546,8 @@ function initEventListeners() {
     // Log Out button inside the modal stays hidden for them.
     state.canLogout = API_BASE === "";
     if (state.canLogout && elements.btnSettings) {
-        elements.btnSettings.textContent = "Settings / Log Out";
+        elements.btnSettings.title = "Settings / Log Out";
+        elements.btnSettings.setAttribute("aria-label", "Settings and log out");
     }
     if (elements.progressBtnLogout) {
         elements.progressBtnLogout.addEventListener("click", async () => {

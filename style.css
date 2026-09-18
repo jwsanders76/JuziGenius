@@ -106,6 +106,33 @@ body {
     transform: scale(0.96);
 }
 
+/* The shared gear: same square, same top-right spot, every screen size.
+   44px is a comfortable touch target; the icon inherits the text colour. */
+.gear-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gear-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-gold);
+}
+
+.gear-btn:active {
+    transform: scale(0.96);
+}
+
 #btn-import {
     background-color: rgba(142, 68, 173, 0.15);
     border-color: rgba(142, 68, 173, 0.5);
@@ -115,15 +142,6 @@ body {
 #btn-import:hover {
     background-color: var(--accent-purple);
     color: white;
-}
-
-#corner-bar {
-    position: fixed;
-    left: 16px;
-    bottom: 16px;
-    display: flex;
-    gap: 8px;
-    z-index: 20;
 }
 
 /* --- Character Progress Counter & Mascot Avatar --- */
@@ -1891,28 +1909,6 @@ body {
     }
 }
 
-/* --- Narrow screens: Settings joins the top bar ---
-   Fixed to the viewport's bottom-left corner, the Settings button sat on top
-   of the writing canvas on any screen too narrow to keep the two apart, so a
-   stroke started under it hit the button. Here it drops into the top bar's
-   flow as a gear. The label stays in the markup, and so for screen readers;
-   only its visual size goes to zero. */
-@media (max-width: 760px) {
-    #corner-bar {
-        position: static;
-        flex-shrink: 0;
-    }
-    #btn-settings {
-        font-size: 0;
-        padding: 6px 10px;
-        line-height: 1;
-    }
-    #btn-settings::before {
-        content: "⚙";
-        font-size: 1.05rem;
-    }
-}
-
 /* --- Phones: the card fills the screen ---
    Edge to edge instead of a floating bordered card, with every vertical gap
    tightened. The canvas takes whatever height is left over (see
@@ -1980,7 +1976,6 @@ body {
         padding: 6px 9px;
         font-size: 0.8rem;
     }
-    #btn-settings { padding: 6px 8px; }
     #action-sidebar { gap: 6px; }
     .action-btn {
         flex-basis: 56px;
