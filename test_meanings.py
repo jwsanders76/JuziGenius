@@ -3,6 +3,7 @@ import re
 import unittest
 
 import init_vocab_db as ivd
+import resync_character_meanings as resync
 
 UNWANTED = re.compile(r"surname|radical|classical|archaic|literary|dialect|simplified form", re.I)
 
@@ -39,6 +40,21 @@ class GeneratedFile(unittest.TestCase):
         top = sorted(self.committed.items(), key=lambda kv: kv[1].get("freq") or 10**9)[:500]
         for char, entry in top:
             self.assertFalse(UNWANTED.search(entry["meaning"].replace("Wang (very common surname)", "").replace("Zhang (common surname)", "").replace("Lin (common surname)", "").replace("Ma (common surname)", "").replace("Li (very common surname)", "").replace("Luo (surname)", "")), f"{char}: {entry['meaning']}")
+
+
+class Resync(unittest.TestCase):
+    def test_override_wins_other_meanings_are_only_stripped(self):
+        brain = {"unlocked_chars": {
+            "也": {"meaning": "also; classical final particle of strong affirmation or identity"},
+            "倍": {"meaning": "times/fold"},
+            "马": {"meaning": "horse; surname"},
+            "人": {"meaning": "person; people"},
+        }}
+        stale = resync.stale_characters(brain, {"也": "also; too"})
+        self.assertEqual(stale["也"][1], "also; too")
+        self.assertEqual(stale["马"][1], "horse")
+        self.assertNotIn("倍", stale)
+        self.assertNotIn("人", stale)
 
 
 if __name__ == "__main__":
