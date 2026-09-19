@@ -13,7 +13,7 @@
          opens the default account's data instead of their own. -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#121214">
-    <meta name="description" content="Hardcore Mandarin handwriting practice with spaced repetition. Fully offline.">
+    <meta name="description" content="Hardcore Mandarin handwriting practice with spaced repetition.">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -134,7 +134,7 @@
                 <div id="paste-open">
                     <p class="modal-subtitle">Paste Chinese below to unlock characters and discover words. Include the English right after each word or sentence -- same line ("你好 - hello") or the line below -- and it's saved as a practice sentence too.</p>
                     <textarea id="import-textarea" maxlength="8000" placeholder="你好 - hello&#10;再见 - goodbye&#10;我喜欢在每天早上喝热茶。&#10;I like to drink hot tea every morning."></textarea>
-                    <p class="import-translation-note">Fully offline, no AI needed &mdash; the English/Chinese split is detected locally from the text you paste.</p>
+                    <p class="import-translation-note">The English/Chinese split is detected locally from the text you paste.</p>
                 </div>
                 <!-- Shown instead on the free plan, which doesn't include pasting
                      (see plans.py). The server refuses the import either way. -->
@@ -160,7 +160,7 @@
 
             <!-- HSK Sentences: local, offline, no AI/key needed -->
             <div class="mode-panel" data-mode-panel="hsk" hidden>
-                <p class="modal-subtitle">Pulls real example sentences from the local HSK corpus that use only characters you've already unlocked. Works fully offline &mdash; no AI, no API key.</p>
+                <p class="modal-subtitle">Pulls real example sentences from the HSK data that use only characters you've already unlocked.</p>
             </div>
 
             <div class="modal-actions">
@@ -660,7 +660,7 @@
     <div id="sentence-import-modal" class="modal-overlay">
         <div class="modal-card progress-card">
             <h2 class="modal-title">Quick-Add Writable Sentences</h2>
-            <p class="modal-subtitle">Every corpus sentence you can already write in full, not yet in your Sentence Bank. Check the ones you know and add them straight to your bank &mdash; no handwriting required.</p>
+            <p class="modal-subtitle">Every built-in sentence you can already write in full, not yet in your Sentence Bank. Check the ones you know and add them straight to your bank &mdash; no handwriting required.</p>
 
             <div class="import-list-actions">
                 <button type="button" id="sentence-import-select-all" class="top-btn import-list-action-btn">Select All</button>

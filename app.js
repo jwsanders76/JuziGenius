@@ -3568,9 +3568,9 @@ function renderProgress(p) {
 
         <div class="stat-row">
             ${statTile(p.unlocked_chars.toLocaleString(), "characters unlocked", "Total characters in your practice pool.")}
-            ${statTile(p.playable_sentences.toLocaleString(), "sentences writable", "Corpus sentences you can currently write every character of.",
+            ${statTile(p.playable_sentences.toLocaleString(), "sentences writable", "Built-in sentences you can currently write every character of.",
                 p.playable_sentences >= 1
-                    ? `<button type="button" id="sentence-import-open" class="sentence-import-btn" title="Add writable corpus sentences straight to your Sentence Bank">Import</button>`
+                    ? `<button type="button" id="sentence-import-open" class="sentence-import-btn" title="Add sentences you can already write straight to your Sentence Bank">Import</button>`
                     : "")}
             ${statTile(p.due_count.toLocaleString(), "due today", "Characters scheduled for review right now.")}
             ${statTile((p.new_backlog || 0).toLocaleString(), "waiting", `Unlocked characters queued for later days. New characters are introduced at most ${p.daily_new_limit} per day, most frequent first.`)}
