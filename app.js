@@ -1076,6 +1076,9 @@ function watchLayoutSize() {
     const refit = () => {
         fitCanvasToViewportHeight();
         syncWriterToCanvas();
+        // The victory card lives in the canvas and is sized off the room left
+        // inside it, so a rotate or a resize has to re-fit it too.
+        fitVictorySolution();
     };
     if ("ResizeObserver" in window && elements.appContainer) {
         new ResizeObserver(refit).observe(elements.appContainer);
@@ -1344,12 +1347,15 @@ function triggerSentenceCompletion() {
             <div class="victory-card">
                 <img src="/avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
+                ${renderVictorySolution(currentSentence)}
                 <div class="victory-actions">
                     <button id="btn-repeat" class="btn-repeat">↺ Repeat</button>
                     <button id="btn-next" class="btn-next">Next →</button>
                 </div>
             </div>
         `;
+
+        fitVictorySolution();
 
         const btnNext = document.getElementById("btn-next");
         if (btnNext) {
@@ -1361,6 +1367,141 @@ function triggerSentenceCompletion() {
             btnRepeat.addEventListener("click", repeatSentence);
         }
     }
+}
+
+/**
+ * The sentence just written, shown back to the learner large, with each
+ * character's reading underneath it. The card used to say only "Well Done!",
+ * which celebrates the work without ever showing them the finished thing they
+ * made; this is the answer they earned, and reading it back with the tones is
+ * the moment the pinyin actually sticks.
+ *
+ * Readings come from char_pinyin, which is per-POSITION and so context-correct
+ * with tone sandhi already applied (see pinyin_for_sentence in juzi_engine.py):
+ * 长 reads cháng in 很长 and zhǎng in 长大, and a sentence using both gets both.
+ * char_metadata is the fallback for a sentence saved before that field existed,
+ * and it can only hold one reading per character.
+ *
+ * Punctuation is left out. It has no reading, so its column is a blank under a
+ * comma, and a sentence-final 。 is exactly one column too many -- it wraps
+ * onto a second row on its own and sits there as an orphan. The learner never
+ * writes it either (advancePastPunctuation steps over it), and the assembly
+ * line above the canvas still shows the sentence punctuated.
+ *
+ * This only builds the columns. How big they are is fitVictorySolution's job,
+ * because it depends on room this markup doesn't exist in yet.
+ */
+function renderVictorySolution(sentence) {
+    // renderAssemblyLine and char_pinyin both index `chinese`, not the
+    // chinese_id identityChinese() prefers, so this has to as well or the
+    // readings land under the wrong characters.
+    const chars = Array.from((sentence && sentence.chinese) || "");
+    if (!chars.length) return "";
+
+    const readings = sentence.char_pinyin || [];
+    const meta = sentence.char_metadata || {};
+    const readingFor = (char, idx) =>
+        readings[idx] || (meta[char] && meta[char].pinyin) || "";
+
+    // Filtered after the index is captured, because char_pinyin is parallel to
+    // the unfiltered string.
+    const written = chars
+        .map((char, idx) => ({ char, idx }))
+        .filter(entry => !isPunctuation(entry.char));
+    if (!written.length) return "";
+
+    const columns = written.map(({ char, idx }) => {
+        const reading = readingFor(char, idx);
+        return `<div class="victory-solution-col">
+                    <span class="victory-solution-char">${escapeHtml(char)}</span>
+                    <span class="victory-solution-pinyin">${escapeHtml(reading)}</span>
+                </div>`;
+    }).join("");
+
+    // The longest reading is what actually sets the column width once the
+    // characters get small, so fitVictorySolution needs it and can't measure
+    // it from the DOM without a reflow per column.
+    const longest = written.reduce(
+        (n, { char, idx }) => Math.max(n, readingFor(char, idx).length), 1);
+
+    return `<div class="victory-solution" data-count="${written.length}" data-longest="${longest}">${columns}</div>`;
+}
+
+/**
+ * Sizes the sentence on the victory card, and decides where its rows break.
+ *
+ * Measured rather than calculated from the canvas size. The canvas is anywhere
+ * between 200px and 420px square depending on what the viewport height leaves
+ * (see #tian-zi-ge), and the mascot, title and button row take a much bigger
+ * share of the small one than of the large one -- so a formula in cqw that
+ * looks right at 420px crowds the buttons at 200px. The solution box is a flex
+ * child that both grows and shrinks, so by the time this runs its clientHeight
+ * IS the room left over, whatever the furniture above and below came out at.
+ *
+ * The rows are chosen before the size, fewest first, and the search stops at
+ * the first row count that can be read comfortably. Letting the row wrap where
+ * it liked instead put the ninth character of a nine-character sentence alone
+ * on a second row; 5 and 4 is the better picture, and it is also bigger.
+ */
+function fitVictorySolution() {
+    const box = document.querySelector(".victory-solution");
+    if (!box) return;
+
+    const count = Number(box.dataset.count) || 0;
+    const longest = Number(box.dataset.longest) || 1;
+    // clientWidth/clientHeight include the box's own padding, and sizing the
+    // characters to fill that as well overflowed the box by exactly the
+    // padding -- which raised a scrollbar, which took width off the row, which
+    // then wrapped a two-character word onto two lines.
+    const pad = getComputedStyle(box);
+    const width = box.clientWidth - parseFloat(pad.paddingLeft) - parseFloat(pad.paddingRight);
+    const height = box.clientHeight - parseFloat(pad.paddingTop) - parseFloat(pad.paddingBottom);
+    if (!count || width <= 0 || height <= 0) return;
+
+    // One column's width and one row's height, as functions of the character
+    // size. These mirror .victory-solution-* in style.css and have to be kept
+    // with them: 0.34 and its 8px floor are the pinyin's font-size, 1.05 and
+    // 1.35 their line-heights, 0.12 and 0.1 the gaps. GLYPH is the average
+    // width of a lowercase latin letter as a fraction of its font size, near
+    // enough for pinyin -- a tone mark sits above the vowel, not beside it.
+    const GLYPH = 0.52;
+    const pinyinSize = c => Math.max(8, c * 0.34);
+    // The reading, not the character, is what sets the column width once the
+    // characters are small: at the 8px floor a six-letter zhuāng stays 25px
+    // wide however far the character above it shrinks.
+    const columnWidth = c => Math.max(c, longest * GLYPH * pinyinSize(c)) + c * 0.12;
+    const rowHeight = c => c * 1.05 + pinyinSize(c) * 1.35 + c * 0.1;
+
+    const MAX = width * 0.28;
+    const FLOOR = 11;
+    const COMFORTABLE = Math.max(FLOOR, width * 0.095);
+
+    let best = { size: 0, perRow: Math.ceil(count / 4) };
+    for (let rows = 1; rows <= 4; rows++) {
+        const perRow = Math.ceil(count / rows);
+        let size = 0;
+        for (let c = MAX; c >= FLOOR; c -= 0.5) {
+            if (columnWidth(c) * perRow <= width && rowHeight(c) * rows <= height) {
+                size = c;
+                break;
+            }
+        }
+        if (size > best.size) best = { size, perRow };
+        if (size >= COMFORTABLE) break;
+    }
+    // Nothing fits even at the floor: a very long sentence on a 200px canvas.
+    // Take the floor and let the box scroll rather than shrink past reading.
+    if (!best.size) best.size = FLOOR;
+
+    const size = `${best.size.toFixed(1)}px`;
+    // Guarded because the ResizeObserver that calls this watches an ancestor,
+    // and writing a style it didn't change would keep waking itself up.
+    if (box.style.getPropertyValue("--victory-char-size") === size) return;
+    box.style.setProperty("--victory-char-size", size);
+    // Caps the row at the column count the size was chosen for, so the
+    // sentence breaks where this decided and not wherever it happens to run
+    // out of room.
+    box.style.maxWidth = `${Math.ceil(columnWidth(best.size) * best.perRow)}px`;
 }
 
 /**

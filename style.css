@@ -510,11 +510,17 @@ body {
 }
 
 /* --- Victory Card Display (Inside Canvas upon Completion) --- */
+/* The mascot and title sit at the TOP rather than centred as a group, because
+   the card now also shows the sentence just written (.victory-solution) and
+   that needs the middle of the card. Repeat/Next stay pinned to the bottom
+   edge via margin-top on .victory-actions, so the card reads top to bottom --
+   praise, the finished sentence, what to do next -- and fills the square
+   instead of floating a short stack in the centre. */
 .victory-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     width: 100%;
     height: 100%;
     background-color: #fdfaf3;
@@ -528,19 +534,86 @@ body {
     to { opacity: 1; transform: scale(1); }
 }
 
+/* Smaller than it was (80px), and with less beneath it: the room it gives up
+   goes to the sentence below. The glow is black rather than the accent orange
+   it used to be -- on a cream card an orange halo reads as the mascot being
+   lit from behind, where a neutral shadow just lifts it off the paper and
+   leaves the orange of the mascot itself as the only orange on the card. */
 .victory-mascot {
-    width: 80px;
-    height: 80px;
+    width: 64px;
+    height: 64px;
     object-fit: contain;
-    filter: drop-shadow(0 3px 8px rgba(243, 156, 18, 0.45));
-    margin-bottom: 8px;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
+    margin-bottom: 4px;
 }
 
 .victory-title {
     font-size: 1.1rem;
     font-weight: 800;
     color: #27ae60;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
+}
+
+/* The sentence just written, character by character with its reading beneath
+   each one. Built by renderVictorySolution() in app.js and then sized by
+   fitVictorySolution(), which measures this box and writes --victory-char-size
+   and a max-width onto it; the values here are what it looks like until that
+   runs, and if it never does.
+
+   flex: 1 1 auto with min-height: 0 is what makes the measuring work -- this
+   box takes exactly the room the mascot, title and buttons leave, growing into
+   spare space and shrinking rather than pushing the buttons off the card. A
+   sentence too long for even that scrolls. The ratios below are duplicated in
+   fitVictorySolution's own column arithmetic; change one and change both. */
+.victory-solution {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: center;
+    /* align-content, not just align-items: this box takes all the room the
+       mascot, title and buttons leave, and without it the wrapped rows stretch
+       to fill that room and the characters sit against the buttons with a gap
+       under the title. Centred, the sentence sits in the middle of the card
+       whatever its length. */
+    align-content: center;
+    /* Proportional, so the columns keep the same rhythm whether the characters
+       came out at 110px or at 25px. Kept under the 0.22 of slack
+       renderVictorySolution() budgets per column, so the row it sized for
+       always fits. */
+    column-gap: calc(var(--victory-char-size) * 0.12);
+    row-gap: calc(var(--victory-char-size) * 0.1);
+    width: 100%;
+    margin: 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 0;
+    /* Where fitVictorySolution() usually lands on a full-width canvas. */
+    --victory-char-size: 36px;
+}
+
+.victory-solution-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* #333333 is Hanzi Writer's own strokeColor (see setupCurrentCharacterWriter):
+   the characters read back in the same ink the learner just wrote them in. */
+.victory-solution-char {
+    font-family: "Noto Serif SC", serif;
+    font-size: var(--victory-char-size);
+    line-height: 1.05;
+    color: #333333;
+}
+
+/* A floor in px as well as a ratio, so the tones stay legible on a 200px
+   canvas where the proportional size alone would land under 5px. */
+.victory-solution-pinyin {
+    font-size: max(8px, calc(var(--victory-char-size) * 0.34));
+    line-height: 1.35;
+    color: #6b6b6b;
+    white-space: nowrap;
 }
 
 /* Pronunciation controls, sitting in the action row beside Clear/Hint/Skip.
@@ -599,6 +672,10 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+    /* Pins the row to the bottom edge, whatever height the solution above it
+       came out at. */
+    margin-top: auto;
+    padding-top: 8px;
 }
 
 .btn-next {
@@ -665,15 +742,20 @@ body {
     .stroke-error-note { display: none; }
     .victory-card { padding: 8px; }
     .victory-mascot {
-        width: 56px;
-        height: 56px;
-        margin-bottom: 4px;
+        width: 48px;
+        height: 48px;
+        margin-bottom: 2px;
     }
     .victory-title {
         font-size: 1rem;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
     }
-    .victory-actions { gap: 6px; }
+    .victory-actions {
+        gap: 6px;
+        padding-top: 4px;
+    }
+    /* Nothing for .victory-solution here: it is sized from the room this
+       block leaves it, measured rather than assumed (fitVictorySolution). */
     .btn-repeat,
     .btn-next {
         padding: 7px 10px;
