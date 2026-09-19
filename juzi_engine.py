@@ -1972,7 +1972,6 @@ class JuziEngine:
         # refresher view) so the stage-threshold logic exists in one place.
         stages = {"new": 0, "learning": 0, "young": 0, "mature": 0}
         factors, intervals = [], []
-        forecast = {}
         character_list = []
         for char, meta in unlocked.items():
             last = meta.get("last")
@@ -2003,13 +2002,6 @@ class JuziEngine:
                 continue
             factors.append(meta.get("factor", 2.5) or 2.5)
             intervals.append(interval)
-            try:
-                next_due = date.fromisoformat(last) + timedelta(days=interval)
-            except ValueError:
-                continue
-            offset = (next_due - today).days
-            if 0 < offset <= 14:
-                forecast[offset] = forecast.get(offset, 0) + 1
 
         # Most-common-first -- the same ordering the frequency-coverage bars
         # above use, and the most useful order for a "what have I learned"
@@ -2065,16 +2057,12 @@ class JuziEngine:
             "frequency_bands": frequency_bands,
             "hsk_levels": [hsk_levels[k] for k in sorted(hsk_levels)],
             "sentences_completed_unique": len(completed),
-            "sentences_completed_total": sum(
-                (e.get("count", 0) or 0) for e in completed.values()),
             # Reported so the Start Over tab can name what a reset destroys.
             # Everything else here is re-derivable -- reseed a tier and the
             # characters come back -- but these are sentences the user typed
             # in from their own reading, and nothing can reconstruct them.
             "pasted_sentences": len(brain_data.get("pasted_sentences", []) or []),
             "playable_sentences": self.count_playable_sentences(set(practice["unlocked_chars"])),
-            "forecast": [{"in_days": d, "count": forecast.get(d, 0)}
-                         for d in range(1, 15)],
             "characters": character_list,
             "words": word_list,
             "sentence_bank": sentence_bank,

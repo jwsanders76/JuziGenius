@@ -1276,42 +1276,92 @@ body {
 
 .stage-seg { height: 100%; }
 
+/* The legend doubles as the stages' definition list, so it is a four-column
+   grid -- swatch, name, meaning, count -- one row per stage, rather than the
+   wrapping row of name/count pairs it used to be. The meaning column takes
+   the slack so the counts stay in a straight right-aligned column, and no
+   row costs more than one line until the meaning genuinely has to wrap. */
 .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 18px;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: baseline;
+    gap: 6px 8px;
     margin-bottom: 10px;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
     font-size: 0.76rem;
     color: var(--text-secondary);
 }
+
+/* The row wrapper is dissolved so its four children become the grid's own
+   items and land in the four columns. `display: contents` rather than
+   `subgrid` because it needs no fallback story -- subgrid dropped by an
+   older engine would stack each row vertically. */
+.legend-item { display: contents; }
+
+.legend-label {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.legend-note { color: var(--text-secondary); }
 
 .legend-swatch {
     width: 10px;
     height: 10px;
     border-radius: 3px;
     flex-shrink: 0;
+    /* Baseline-aligned rows would hang a bare square off the text baseline;
+       this sits it on the line with the words beside it. */
+    transform: translateY(1px);
 }
 
 .legend-value {
     color: var(--text-primary);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
-.forecast-svg { width: 100%; height: auto; display: block; }
+/* The "?" beside a heading (see infoButton in app.js). Sized to the heading
+   it follows rather than to a touch target: it sits inline in running text,
+   and an oversized circle there reads as a separate control. */
+.info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    margin-left: 6px;
+    padding: 0;
+    vertical-align: middle;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+}
 
-.forecast-svg .axis-line { stroke: var(--border-color); stroke-width: 1; }
+.info-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-gold);
+}
 
-.forecast-svg .axis-text {
-    fill: var(--text-secondary);
-    font-size: 9px;
-    font-family: inherit;
+.info-btn:focus-visible { outline: 2px solid var(--accent-purple); outline-offset: 2px; }
+
+.info-btn[aria-expanded="true"] {
+    color: var(--text-primary);
+    border-color: var(--accent-gold);
+}
+
+/* Set off from the surrounding notes so it reads as an answer to the "?"
+   rather than as more body copy that was there all along. */
+.info-note {
+    border-left: 2px solid var(--accent-gold);
+    padding-left: 10px;
+    margin-bottom: 10px;
 }
 
 /* --- Progress view: Characters tab --- */

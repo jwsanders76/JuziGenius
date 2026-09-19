@@ -2242,13 +2242,18 @@ async function handleAddSuggestedCharacters() {
    the question that keeps someone going on a months-long project.
 
    Chart forms follow the data's job: coverage and stages are magnitudes and
-   part-of-wholes, which are bars, and bars are plain HTML here (responsive,
-   readable by a screen reader, no coordinate maths). Only the forecast --
-   which needs a shared baseline and a time axis -- is drawn as SVG. No chart
-   library: this app is offline-first and a CDN dependency would break that.
+   part-of-wholes, which are bars, and every bar here is plain HTML
+   (responsive, readable by a screen reader, no coordinate maths). There is
+   no SVG chart and no chart library -- a 14-day review forecast was the one
+   thing drawn as SVG, and it was removed on September 18, 2026 as confusing
+   and unhelpful, on the owner's instruction. `progress_summary` no longer
+   computes it either.
 
    Every value is directly labelled, so nothing depends on reading a colour
-   or on hovering; `title` carries the secondary detail.
+   or on hovering. `title` carries secondary detail, and where a term can't
+   be guessed at all it is spelled out on the page instead -- the study
+   stages' definitions, and the "?" beside HSK coverage, which a `title`
+   alone would have hidden from every phone.
    ========================================================================== */
 
 // Ordinal ramp for the study stages, new -> mature. One hue stepped by
@@ -2256,15 +2261,35 @@ async function handleAddSuggestedCharacters() {
 // categories. Validated against the #262630 card surface: lightness is
 // monotonic, contrast runs 2.78:1 to 11.31:1 (ordinal floor is 2:1), and the
 // worst adjacent colour-vision-deficiency separation is dE 9.5 (target 8).
+//
+// `note` is the stage's definition and is shown in the legend, not just
+// hovered: the four names are the app's own vocabulary, and a learner has no
+// way to guess where the boundaries are. Written as what the learner sees --
+// how long until it comes back -- rather than in the scheduler's terms; the
+// thresholds themselves are `progress_summary`'s (under 7 days, under 21,
+// beyond), and the two have to be changed together.
 const STAGE_STYLE = [
-    { key: "new",      label: "New",      color: "#256abf", note: "Unlocked but never reviewed" },
-    { key: "learning", label: "Learning", color: "#3987e5", note: "Interval under a week" },
-    { key: "young",    label: "Young",    color: "#86b6ef", note: "Interval of one to three weeks" },
-    { key: "mature",   label: "Mature",   color: "#cde2fb", note: "Interval over three weeks" }
+    { key: "new",      label: "New",      color: "#256abf", note: "Unlocked, not practised yet" },
+    { key: "learning", label: "Learning", color: "#3987e5", note: "Comes back within a week" },
+    { key: "young",    label: "Young",    color: "#86b6ef", note: "Holding for one to three weeks" },
+    { key: "mature",   label: "Mature",   color: "#cde2fb", note: "Holding for more than three weeks" }
 ];
 
 const COVERAGE_COLOR = "#f39c12";   // 6.83:1 on the card surface
-const FORECAST_COLOR = "#d95926";   // 3.86:1
+
+// Shown by the "?" next to the HSK coverage heading. Long enough to actually
+// answer the question, since someone who doesn't know what HSK is gets no
+// help at all from a row of level numbers. The last sentence is the honest
+// caveat: the exam's levels are defined by vocabulary lists, and what this
+// app can count is characters.
+const HSK_EXPLAINER =
+    "HSK (汉语水平考试) is China's official Chinese proficiency test for " +
+    "learners whose first language isn't Chinese. Its six levels each come " +
+    "with a published word list, so they double as a standard ladder of what " +
+    "to learn next — level 1 is the beginner end, level 6 the most advanced. " +
+    "The rows here count characters rather than the exam's word lists, so " +
+    "they say how much of each level you can already write, not what you " +
+    "would score.";
 
 /**
  * Shows only the tab buttons belonging to the given group -- "progress"
@@ -3305,44 +3330,33 @@ function coverageRow(label, known, total, title) {
 }
 
 /**
- * The 14-day review forecast, as SVG columns on a shared baseline. A time
- * axis with a zero baseline is the one form here that genuinely needs
- * coordinates; everything else is a bar and stays in HTML.
+ * A "?" beside a heading that explains a term the app can't assume anyone
+ * knows. Two ways in on purpose: `title` is the hover popup on anything with
+ * a pointer, and a click reveals the same words as a note under the heading,
+ * because a `title` does nothing at all on a phone -- which is where most of
+ * this app is read.
  */
-function forecastChart(forecast) {
-    const max = Math.max(1, ...forecast.map(d => d.count));
-    const W = 460, H = 132, PAD_L = 26, PAD_B = 20, PAD_T = 8;
-    const plotW = W - PAD_L - 8, plotH = H - PAD_B - PAD_T;
-    const slot = plotW / forecast.length;
-    const barW = Math.max(6, slot - 6);
+function infoButton(targetId, label, text) {
+    return `<button type="button" class="info-btn" aria-controls="${targetId}"
+                    aria-expanded="false" aria-label="${escapeAttr(label)}"
+                    title="${escapeAttr(text)}">?</button>`;
+}
 
-    const bars = forecast.map((d, i) => {
-        const h = d.count ? Math.max(2, (d.count / max) * plotH) : 0;
-        const x = PAD_L + i * slot + (slot - barW) / 2;
-        const y = PAD_T + plotH - h;
-        const day = `In ${d.in_days} day${d.in_days === 1 ? "" : "s"}: ${d.count} character${d.count === 1 ? "" : "s"} due`;
-        if (!h) {
-            return `<rect x="${x}" y="${PAD_T + plotH - 2}" width="${barW}" height="2" rx="1"
-                     fill="var(--border-color)"><title>${escapeAttr(day)}</title></rect>`;
-        }
-        return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4"
-                 fill="${FORECAST_COLOR}"><title>${escapeAttr(day)}</title></rect>`;
-    }).join("");
-
-    // Recessive axis: a baseline and a single max gridline, nothing more.
-    const ticks = forecast.map((d, i) =>
-        (d.in_days === 1 || d.in_days === 7 || d.in_days === 14)
-            ? `<text class="axis-text" x="${PAD_L + i * slot + slot / 2}" y="${H - 6}" text-anchor="middle">${d.in_days}d</text>`
-            : "").join("");
-
-    return `<svg class="forecast-svg" viewBox="0 0 ${W} ${H}" role="img"
-                 aria-label="Characters due each day for the next fourteen days">
-        <line class="axis-line" x1="${PAD_L}" y1="${PAD_T}" x2="${W - 8}" y2="${PAD_T}" stroke-dasharray="2 3"/>
-        <text class="axis-text" x="${PAD_L - 6}" y="${PAD_T + 4}" text-anchor="end">${max}</text>
-        <line class="axis-line" x1="${PAD_L}" y1="${PAD_T + plotH}" x2="${W - 8}" y2="${PAD_T + plotH}"/>
-        <text class="axis-text" x="${PAD_L - 6}" y="${PAD_T + plotH + 4}" text-anchor="end">0</text>
-        ${bars}${ticks}
-    </svg>`;
+/**
+ * Wires every info button inside `root` to the note it names in
+ * `aria-controls`. Called after each render rather than once at startup,
+ * since the buttons are replaced wholesale with their container's innerHTML.
+ */
+function bindInfoButtons(root) {
+    if (!root) return;
+    root.querySelectorAll(".info-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const note = document.getElementById(btn.getAttribute("aria-controls"));
+            if (!note) return;
+            note.hidden = !note.hidden;
+            btn.setAttribute("aria-expanded", String(!note.hidden));
+        });
+    });
 }
 
 function renderProgress(p) {
@@ -3359,10 +3373,16 @@ function renderProgress(p) {
                          title="${escapeAttr(`${s.label}: ${p.stages[s.key]} characters — ${s.note}`)}"></div>`;
         }).join("");
 
+    // The legend is also the definition list -- swatch, name, what the name
+    // means, count -- one row per stage. It used to be a wrapping row of
+    // name/count pairs with the meaning only in a `title`, which is invisible
+    // on a phone, so the four names went undefined for most of the people
+    // reading them.
     const legend = STAGE_STYLE.map(s => `
-        <div class="legend-item" title="${escapeAttr(s.note)}">
+        <div class="legend-item">
             <span class="legend-swatch" style="background:${s.color}"></span>
             <span class="legend-label">${s.label}</span>
+            <span class="legend-note">${escapeHtml(s.note)}</span>
             <span class="legend-value">${p.stages[s.key]}</span>
         </div>`).join("");
 
@@ -3402,40 +3422,27 @@ function renderProgress(p) {
 
         <section class="progress-section">
             <h3 class="progress-title">Study stages</h3>
-            <p class="progress-note">Where your unlocked characters sit in the review schedule.</p>
+            <p class="progress-note">Every character you write correctly waits longer before it comes round again. These are the four bands of that wait: a character climbs as you keep getting it right, and drops back when you don't.</p>
             <div class="stage-bar">${segments}</div>
             <div class="legend">${legend}</div>
-            ${p.median_interval != null ? `<p class="progress-note">Typical review interval <strong>${p.median_interval} days</strong> (median), average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
+            ${p.median_interval != null ? `<p class="progress-note">Typical wait between reviews <strong>${p.median_interval} day${p.median_interval === 1 ? "" : "s"}</strong> (median), average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
         </section>
 
         <section class="progress-section">
-            <h3 class="progress-title">Review forecast</h3>
-            <p class="progress-note">Characters coming due over the next two weeks.</p>
-            ${forecastChart(p.forecast)}
-        </section>
-
-        <section class="progress-section">
-            <h3 class="progress-title">HSK coverage</h3>
+            <h3 class="progress-title">HSK coverage ${infoButton("hsk-explainer", "What is HSK?", HSK_EXPLAINER)}</h3>
+            <p id="hsk-explainer" class="progress-note info-note" hidden>${escapeHtml(HSK_EXPLAINER)}</p>
             ${hskRows}
-        </section>
-
-        <section class="progress-section">
-            <h3 class="progress-title">Sentences</h3>
-            <p class="progress-note">
-                <strong>${p.sentences_completed_unique.toLocaleString()}</strong> different sentences written
-                (<strong>${p.sentences_completed_total.toLocaleString()}</strong> completions in total),
-                and <strong>${p.unlocked_words.toLocaleString()}</strong> compound words recorded.
-            </p>
         </section>
     `;
 
-    // Rebound on every render since the button is part of the innerHTML
-    // just replaced above -- any listener attached to a previous render's
-    // button is gone along with that element.
+    // Rebound on every render since these are part of the innerHTML just
+    // replaced above -- any listener attached to a previous render's
+    // elements is gone along with them.
     const importBtn = document.getElementById("sentence-import-open");
     if (importBtn) {
         importBtn.addEventListener("click", openSentenceImportModal);
     }
+    bindInfoButtons(elements.progressBody);
 }
 
 /**
