@@ -17,6 +17,14 @@
     --accent-purple: #8e44ad;
     --border-color: #3f3f50;
 
+    /* Every control in the top bar is this tall -- Import, the unlocked
+       counter, Progress and the gear -- so the row reads as one set of
+       controls rather than four different shapes. The number came from the
+       gear, which was sized as a comfortable touch target; the other three
+       were 30px and 36px and are now matched to it. Change it here, not in
+       the rules that consume it. */
+    --top-control-size: 44px;
+
     /* Overridden per-sentence by fitAssemblyLineToOneLine() (app.js) once a
        sentence's character count is known, so a long sentence's slots (and,
        proportionally, the canvas and pinyin hint) shrink just enough to
@@ -97,6 +105,18 @@ body {
     transition: all 0.2s ease;
 }
 
+/* Only the two in the top bar. .top-btn is also worn by the modals' own
+   small buttons (Select all, Log Out, the Quick-Add pair), which are
+   deliberately shorter and must not be dragged up to a touch target. The
+   padding is left alone and simply stops deciding the height, so the
+   narrow-screen rule that trims it horizontally still works. */
+#top-bar .top-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--top-control-size);
+}
+
 .top-btn:hover {
     color: var(--text-primary);
     border-color: var(--accent-gold);
@@ -113,8 +133,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: var(--top-control-size);
+    height: var(--top-control-size);
     padding: 0;
     background-color: var(--card-bg);
     color: var(--text-secondary);
@@ -154,6 +174,7 @@ body {
 #character-counter {
     display: flex;
     align-items: center;
+    min-height: var(--top-control-size);
     gap: 8px;
     font-size: 0.85rem;
     color: var(--text-secondary);
