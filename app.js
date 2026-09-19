@@ -2344,6 +2344,13 @@ function switchProgressTab(tab) {
     elements.progressPanels.forEach(panel => {
         panel.hidden = panel.dataset.progressPanel !== tab;
     });
+    // Back to the top of the new panel. The card is the modal's scroll region
+    // (see .modal-card in style.css) and keeps its position across a tab
+    // switch, so without this a tab opened after scrolling through a long one
+    // starts part-way down -- or, if the new panel is shorter, at a scroll
+    // position it doesn't have, which reads as a blank modal.
+    const card = elements.progressModal && elements.progressModal.querySelector(".modal-card");
+    if (card) card.scrollTop = 0;
     if (tab !== "reset") armAccountReset(false);
     // Loaded on demand rather than alongside /api/progress: most visits to
     // this modal never open Settings, and the panel wants the account's live
