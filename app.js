@@ -2247,7 +2247,7 @@ function isTypingTarget(target) {
 }
 
 /**
- * True while the Add Practice Sentences modal or the onboarding tier picker
+ * True while the Add to Your Practice modal or the onboarding tier picker
  * is on screen. Read from the computed style rather than the inline one, so
  * it's correct before any code has assigned to style.display (the initial
  * "none" comes from the .modal-overlay rule in style.css, not from an inline
