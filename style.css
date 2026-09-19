@@ -331,7 +331,11 @@ body {
 }
 
 .action-btn {
-    flex: 1 1 70px;
+    /* Clear and Hints split whatever the row has left, equally, whatever
+       their labels happen to say -- a zero basis rather than the old fixed
+       70px, which made all four controls the same width and left the audio
+       icon and Skip mostly empty. Skip and the icon opt out below. */
+    flex: 1 1 0;
     padding: 14px 8px;
     border-radius: 8px;
     border: none;
@@ -367,6 +371,11 @@ body {
     background-color: var(--card-bg);
     color: #d35400;
     border: 1px solid var(--border-color);
+    /* Skip takes its label's width and none of the row's spare space, so it
+       sits narrower than Clear and Hints. Those two are part of practising a
+       character; this one abandons it, and it shouldn't be the widest, most
+       inviting target under the canvas. */
+    flex: 0 0 auto;
 }
 
 /* --- Canvas Wrapper & InkStone Canvas --- */
@@ -538,12 +547,14 @@ body {
    Available from the moment a sentence loads, not gated behind completion --
    icon-only, with the label as a hover tooltip rather than visible text, so
    they read as a small always-there toolbar rather than a fourth and fifth
-   action button. Same flex-basis as .action-btn so all four items in the
-   row (this pair counts as one) get comparable visual weight. */
+   action button. It takes only the width an icon needs -- matching
+   .action-btn's flex-basis gave it a quarter of the row for one glyph, and
+   the empty space read as a bigger control than it is. The row's remaining
+   width goes to the labelled buttons instead. */
 #sentence-audio-controls {
     display: flex;
     gap: 10px;
-    flex: 1 1 70px;
+    flex: 0 0 auto;
 }
 
 #sentence-audio-controls[hidden] {
@@ -551,11 +562,15 @@ body {
 }
 
 .btn-audio-icon {
-    flex: 1;
+    /* No fixed height: 40px here against .action-btn's padding-derived ~46px
+       left this button visibly short of the three beside it. Stretching to
+       the flex line keeps all four the same height whatever the buttons'
+       font-size or padding becomes. */
+    flex: 0 0 48px;
+    align-self: stretch;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
     background-color: var(--card-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -2078,14 +2093,13 @@ body {
     }
     #action-sidebar { gap: 6px; }
     .action-btn {
-        flex-basis: 56px;
         font-size: 0.8rem;
         white-space: nowrap;
     }
     #sentence-audio-controls {
-        flex-basis: 56px;
         gap: 6px;
     }
+    .btn-audio-icon { flex-basis: 40px; }
 }
 
 /* --- Plans: locked features and the upgrade screen ---
