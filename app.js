@@ -334,6 +334,8 @@ function cacheDomElements() {
     elements.modePanels = elements.importModal.querySelectorAll(".mode-panel");
     elements.suggestionsList = document.getElementById("suggestions-list");
     elements.charSuggestionsList = document.getElementById("char-suggestions-list");
+    elements.wordSelectToggle = document.getElementById("word-select-toggle");
+    elements.charSelectToggle = document.getElementById("char-select-toggle");
     elements.backlogNote = document.getElementById("backlog-note");
     elements.btnProgress = document.getElementById("btn-progress");
     elements.progressModal = document.getElementById("progress-modal");
@@ -474,6 +476,9 @@ function initEventListeners() {
             if (elements.progressModal) elements.progressModal.style.display = "none";
         });
     }
+
+    bindSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
+    bindSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
 
     if (elements.sentenceImportSelectAll) {
         elements.sentenceImportSelectAll.addEventListener("click", () => {
@@ -1800,12 +1805,53 @@ function handleModalSubmit() {
 }
 
 /**
+ * Keeps a Select all / Deselect all toggle in step with the list below it:
+ * hidden while there is nothing to check, and labelled with whichever of
+ * the two actions would actually change something. One button rather than
+ * the pair the Quick-Add modal uses -- a row offering both makes the reader
+ * work out which one applies before pressing either.
+ *
+ * Shared by Suggest Characters and Suggest Words, whose rows carry the same
+ * .suggestion-checkbox class; the list element is what tells them apart.
+ * Call it after anything that rewrites a list, including the "Loading..."
+ * and error states, which have no checkboxes and so must hide the button.
+ */
+function syncSelectAllToggle(button, list) {
+    if (!button || !list) return;
+    const boxes = list.querySelectorAll(".suggestion-checkbox");
+    button.hidden = boxes.length === 0;
+    if (boxes.length === 0) return;
+    button.textContent = Array.from(boxes).every(box => box.checked)
+        ? "Deselect all"
+        : "Select all";
+}
+
+/**
+ * Wires that toggle once, at startup. The change listener goes on the list
+ * rather than on each checkbox, because both lists are rebuilt from scratch
+ * on every render -- per-box listeners would be thrown away with the rows
+ * they were attached to, and the label would then go stale the first time
+ * someone ticked a row by hand.
+ */
+function bindSelectAllToggle(button, list) {
+    if (!button || !list) return;
+    button.addEventListener("click", () => {
+        const boxes = list.querySelectorAll(".suggestion-checkbox");
+        const selectAll = !Array.from(boxes).every(box => box.checked);
+        boxes.forEach(box => { box.checked = selectAll; });
+        syncSelectAllToggle(button, list);
+    });
+    list.addEventListener("change", () => syncSelectAllToggle(button, list));
+}
+
+/**
  * Fetches the highest-frequency compound words the user hasn't added yet
  * and renders them as a checkbox list in the "Suggest Words" tab.
  */
 async function loadSuggestions() {
     if (!elements.suggestionsList) return;
     elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Loading suggestions...</p>`;
+    syncSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
 
     try {
         const response = await fetch(`${API_BASE}/api/suggestions`);
@@ -1815,6 +1861,7 @@ async function loadSuggestions() {
     } catch (err) {
         console.error(err);
         elements.suggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
+        syncSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
     }
 }
 
@@ -1828,6 +1875,7 @@ function renderSuggestions(suggestions, limitReached = false) {
         } else {
             elements.suggestionsList.innerHTML = `<p class="suggestions-empty">No new words to suggest &mdash; you've added them all!</p>`;
         }
+        syncSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
         return;
     }
 
@@ -1856,6 +1904,8 @@ function renderSuggestions(suggestions, limitReached = false) {
         row.append(checkbox, wordSpan, pinyinSpan, meaningSpan);
         elements.suggestionsList.appendChild(row);
     });
+
+    syncSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
 }
 
 /**
@@ -2278,6 +2328,7 @@ function isPunctuation(char) {
 async function loadCharacterSuggestions() {
     if (!elements.charSuggestionsList) return;
     elements.charSuggestionsList.innerHTML = `<p class="suggestions-empty">Loading suggestions…</p>`;
+    syncSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
 
     try {
         const response = await fetch(`${API_BASE}/api/characters/suggestions`);
@@ -2287,6 +2338,7 @@ async function loadCharacterSuggestions() {
     } catch (err) {
         console.error(err);
         elements.charSuggestionsList.innerHTML = `<p class="suggestions-empty">Could not load suggestions.</p>`;
+        syncSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
     }
 }
 
@@ -2301,6 +2353,7 @@ function renderCharacterSuggestions(suggestions, limitReached = false) {
             elements.charSuggestionsList.innerHTML =
                 `<p class="suggestions-empty">Nothing left to suggest &mdash; you've unlocked every character in the dictionary!</p>`;
         }
+        syncSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
         return;
     }
 
@@ -2347,6 +2400,8 @@ function renderCharacterSuggestions(suggestions, limitReached = false) {
         row.append(checkbox, charSpan, pinyinSpan, meaningSpan, statsSpan, unlocksSpan);
         elements.charSuggestionsList.appendChild(row);
     });
+
+    syncSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
 }
 
 async function handleAddSuggestedCharacters() {
@@ -3587,7 +3642,6 @@ function renderProgress(p) {
             <p class="progress-note">Every character you write correctly waits longer before it comes round again. These are the four bands of that wait: a character climbs as you keep getting it right, and drops back when you don't.</p>
             <div class="stage-bar">${segments}</div>
             <div class="legend">${legend}</div>
-            ${p.median_interval != null ? `<p class="progress-note">Typical wait between reviews <strong>${p.median_interval} day${p.median_interval === 1 ? "" : "s"}</strong> (median), average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
         </section>
 
         <section class="progress-section">
