@@ -1438,6 +1438,9 @@ function renderVictorySolution(sentence) {
  * child that both grows and shrinks, so by the time this runs its clientHeight
  * IS the room left over, whatever the furniture above and below came out at.
  *
+ * Measuring the CARD's width rather than this box's is load-bearing, not a
+ * detail -- see the comment on the measurement itself.
+ *
  * The rows are chosen before the size, fewest first, and the search stops at
  * the first row count that can be read comfortably. Letting the row wrap where
  * it liked instead put the ninth character of a nine-character sentence alone
@@ -1447,15 +1450,33 @@ function fitVictorySolution() {
     const box = document.querySelector(".victory-solution");
     if (!box) return;
 
+    const card = box.parentElement;
+    if (!card) return;
+
     const count = Number(box.dataset.count) || 0;
     const longest = Number(box.dataset.longest) || 1;
-    // clientWidth/clientHeight include the box's own padding, and sizing the
-    // characters to fill that as well overflowed the box by exactly the
+
+    // The WIDTH is measured off the card, not off this box, and that is not a
+    // detail: this function sets a max-width on the box, so measuring the box
+    // would be measuring its own last answer. It ratcheted -- every time the
+    // ResizeObserver refired, the fit read the narrower box, chose a smaller
+    // size, set a narrower max-width again, and within a few passes a 109px
+    // character had collapsed to 34px inside a 39px-wide box. The card's
+    // content box is the one width in this picture that nothing here moves.
+    //
+    // The HEIGHT is safe to take from this box, because flex-grow keeps it
+    // filling the room left over whatever its contents do.
+    //
+    // Both subtract padding: clientWidth and clientHeight include it, and
+    // sizing the characters to fill that too overflowed the box by exactly the
     // padding -- which raised a scrollbar, which took width off the row, which
     // then wrapped a two-character word onto two lines.
-    const pad = getComputedStyle(box);
-    const width = box.clientWidth - parseFloat(pad.paddingLeft) - parseFloat(pad.paddingRight);
-    const height = box.clientHeight - parseFloat(pad.paddingTop) - parseFloat(pad.paddingBottom);
+    const cardPad = getComputedStyle(card);
+    const boxPad = getComputedStyle(box);
+    const width = card.clientWidth
+        - parseFloat(cardPad.paddingLeft) - parseFloat(cardPad.paddingRight);
+    const height = box.clientHeight
+        - parseFloat(boxPad.paddingTop) - parseFloat(boxPad.paddingBottom);
     if (!count || width <= 0 || height <= 0) return;
 
     // One column's width and one row's height, as functions of the character

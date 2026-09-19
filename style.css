@@ -457,6 +457,17 @@ body {
         linear-gradient(to bottom, transparent calc(66.66% - 0.75px), rgba(61, 47, 36, 0.2) 66.66%, transparent calc(66.66% + 0.75px));
 }
 
+/* ...but not over a card. The grid is a pseudo-element of the canvas itself,
+   so it paints ON TOP of whatever is rendered inside it -- and it is on by
+   default, which meant every learner got three grey lines ruled across the
+   success card and across the no-stroke-data card. Invisible while the cards
+   were a mascot and two buttons; not invisible once the card carries the
+   sentence read back. :has() rather than a class toggled in JS, so the grid
+   cannot be left switched off by a code path that forgets to put it back. */
+#tian-zi-ge.show-grid:has(.victory-card, .stroke-error-card)::after {
+    display: none;
+}
+
 /* --- Stroke Data Failure Card (character can't be practiced offline) --- */
 .stroke-error-card {
     display: flex;
