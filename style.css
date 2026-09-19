@@ -351,6 +351,13 @@ body {
        up width smoothly, where flex-wrap used to drop Skip onto a second
        line as soon as the labels stopped fitting. */
     flex-wrap: nowrap;
+    /* Every clamp() in this row and the two rules below is preceded by a
+       plain value it can fall back to. An engine that cannot parse the
+       math function drops that one declaration and keeps the plain one, so
+       the row degrades to sane phone-sized values instead of to the
+       property's initial value. See .btn-audio-icon for the real-device
+       bug that made this worth doing. */
+    gap: 6px;
     gap: clamp(4px, 1.8vw, 8px);
     width: 100%;
 }
@@ -367,9 +374,11 @@ body {
        narrower than any real phone. */
     flex: 1 1 0;
     min-width: 0;
+    padding: 12px 4px;
     padding: clamp(12px, 2.6vw, 14px) clamp(3px, 2vw, 8px);
     border-radius: 8px;
     border: none;
+    font-size: 0.85rem;
     font-size: clamp(0.72rem, 2.7vw, 0.95rem);
     font-weight: 600;
     cursor: pointer;
@@ -673,7 +682,10 @@ body {
 #sentence-audio-controls {
     display: flex;
     gap: 10px;
-    flex: 0 0 auto;
+    /* flex: none, not 0 0 auto with a shrinkable child: this wrapper must
+       reserve exactly the width its button draws, or the button overflows
+       it and collides with Clear (see .btn-audio-icon). */
+    flex: none;
 }
 
 #sentence-audio-controls[hidden] {
@@ -684,8 +696,21 @@ body {
     /* No fixed height: 40px here against .action-btn's padding-derived ~46px
        left this button visibly short of the three beside it. Stretching to
        the flex line keeps all four the same height whatever the buttons'
-       font-size or padding becomes. */
-    flex: 0 0 clamp(36px, 11vw, 48px);
+       font-size or padding becomes.
+
+       The width is a width, and the flex shorthand is kept free of math
+       functions on purpose. `flex: 0 0 clamp(36px, 11vw, 48px)` was live
+       for one deploy and iOS Safari dropped the whole declaration, which
+       WebKit does for a math function inside the flex shorthand even where
+       it accepts clamp() on its own. The button then sized to its glyph,
+       overflowed the wrapper reserving space for it, and its right edge
+       landed on top of Clear -- reported from an iPhone with a screenshot.
+       Chromium parses that shorthand fine, so a desktop preview cannot see
+       it. Keep `flex: none` plain, and state the width separately with its
+       own plain fallback ahead of the clamp. */
+    flex: none;
+    width: 40px;
+    width: clamp(36px, 11vw, 48px);
     align-self: stretch;
     display: flex;
     align-items: center;
