@@ -3642,7 +3642,6 @@ function renderProgress(p) {
             <p class="progress-note">Every character you write correctly waits longer before it comes round again. These are the four bands of that wait: a character climbs as you keep getting it right, and drops back when you don't.</p>
             <div class="stage-bar">${segments}</div>
             <div class="legend">${legend}</div>
-            ${p.median_interval != null ? `<p class="progress-note">Typical wait between reviews <strong>${p.median_interval} day${p.median_interval === 1 ? "" : "s"}</strong> (median), average ease <strong>${p.avg_factor}</strong>.</p>` : ""}
         </section>
 
         <section class="progress-section">
