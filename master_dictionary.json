@@ -3647,7 +3647,7 @@
   },
   "划": {
     "pinyin": "huà",
-    "meaning": "to row or paddle boat; to scratch",
+    "meaning": "to scratch; to plan (计划); to row (a boat)",
     "freq": 522,
     "strokes": 6,
     "hsk": 4
@@ -3668,7 +3668,7 @@
   },
   "陈": {
     "pinyin": "chén",
-    "meaning": "exhibit, display; plead; a surname",
+    "meaning": "to display; to state; Chen (very common surname)",
     "freq": 525,
     "strokes": 7,
     "hsk": 6
@@ -3710,7 +3710,7 @@
   },
   "兴": {
     "pinyin": "xìng",
-    "meaning": "thrive, prosper, flourish",
+    "meaning": "interest (兴趣); to flourish",
     "freq": 531,
     "strokes": 6,
     "hsk": 1
@@ -3787,7 +3787,7 @@
   },
   "志": {
     "pinyin": "zhì",
-    "meaning": "purpose, will, determination; annals",
+    "meaning": "will; ambition; magazine (杂志)",
     "freq": 542,
     "strokes": 7,
     "hsk": 4
@@ -3815,7 +3815,7 @@
   },
   "巴": {
     "pinyin": "bā",
-    "meaning": "greatly desire, anxiously hope",
+    "meaning": "to hope for; to stick to; used in names (巴黎 Paris)",
     "freq": 546,
     "strokes": 4,
     "hsk": 5
@@ -3864,7 +3864,7 @@
   },
   "施": {
     "pinyin": "shī",
-    "meaning": "grant, bestow; give; act; name",
+    "meaning": "to carry out; to give; to apply",
     "freq": 553,
     "strokes": 9,
     "hsk": 5
@@ -3990,21 +3990,21 @@
   },
   "项": {
     "pinyin": "xiàng",
-    "meaning": "neck, nape of neck; sum; funds",
+    "meaning": "item; term (项目 project); neck",
     "freq": 571,
     "strokes": 9,
     "hsk": 5
   },
   "故": {
     "pinyin": "gù",
-    "meaning": "ancient, old; reason, because",
+    "meaning": "therefore; reason; former; deceased",
     "freq": 572,
     "strokes": 9,
     "hsk": 3
   },
   "按": {
     "pinyin": "àn",
-    "meaning": "put hand on, press down with hand",
+    "meaning": "to press; according to",
     "freq": 573,
     "strokes": 9,
     "hsk": 4
@@ -4018,7 +4018,7 @@
   },
   "米": {
     "pinyin": "mǐ",
-    "meaning": "hulled or husked uncooked rice",
+    "meaning": "rice (uncooked); meter (unit of length)",
     "freq": 575,
     "strokes": 6,
     "hsk": 1
@@ -4053,7 +4053,7 @@
   },
   "斗": {
     "pinyin": "dòu",
-    "meaning": "Chinese peck; liquid measure",
+    "meaning": "to fight; to struggle; to compete",
     "freq": 580,
     "strokes": 4,
     "hsk": 5
@@ -4081,7 +4081,7 @@
   },
   "纪": {
     "pinyin": "jì",
-    "meaning": "record, annal, historical account",
+    "meaning": "era; record; discipline (纪律)",
     "freq": 584,
     "strokes": 6,
     "hsk": 4
@@ -4179,21 +4179,21 @@
   },
   "愿": {
     "pinyin": "yuàn",
-    "meaning": "sincere, honest, virtuous",
+    "meaning": "to wish; to be willing (愿意)",
     "freq": 598,
     "strokes": 14,
     "hsk": 3
   },
   "千": {
     "pinyin": "qiān",
-    "meaning": "thousand; many, numerous; very; (Cant.) a cheater, swindler",
+    "meaning": "thousand; many, numerous; very",
     "freq": 599,
     "strokes": 3,
     "hsk": 2
   },
   "值": {
     "pinyin": "zhí",
-    "meaning": "price",
+    "meaning": "value; to be worth",
     "freq": 600,
     "strokes": 10,
     "hsk": 4
@@ -4207,7 +4207,7 @@
   },
   "男": {
     "pinyin": "nán",
-    "meaning": "male, man; son; baron",
+    "meaning": "male; man",
     "freq": 602,
     "strokes": 7,
     "hsk": 2
@@ -4249,7 +4249,7 @@
   },
   "倒": {
     "pinyin": "dào",
-    "meaning": "fall over; lie down; take turns",
+    "meaning": "to fall over; to pour out; on the contrary",
     "freq": 608,
     "strokes": 10,
     "hsk": 4
@@ -4340,7 +4340,7 @@
   },
   "刚": {
     "pinyin": "gāng",
-    "meaning": "hard, tough, rigid, strong",
+    "meaning": "just (now); barely (刚才 just now); firm",
     "freq": 621,
     "strokes": 6,
     "hsk": 3
@@ -4354,7 +4354,7 @@
   },
   "毛": {
     "pinyin": "máo",
-    "meaning": "hair, fur, feathers; coarse",
+    "meaning": "hair; fur; a tenth of a yuan",
     "freq": 623,
     "strokes": 4,
     "hsk": 4
@@ -4396,7 +4396,7 @@
   },
   "般": {
     "pinyin": "bān",
-    "meaning": "sort, manner, kind, category",
+    "meaning": "kind; sort (一般 ordinary)",
     "freq": 629,
     "strokes": 10,
     "hsk": 3
@@ -4424,7 +4424,7 @@
   },
   "校": {
     "pinyin": "xiào",
-    "meaning": "school; military field officer",
+    "meaning": "school; to proofread",
     "freq": 633,
     "strokes": 10,
     "hsk": 1
@@ -4445,7 +4445,7 @@
   },
   "假": {
     "pinyin": "jiǎ",
-    "meaning": "falsehood, deception; vacation",
+    "meaning": "fake; false; holiday (假期)",
     "freq": 636,
     "strokes": 11,
     "hsk": 3
@@ -4500,7 +4500,7 @@
   },
   "股": {
     "pinyin": "gǔ",
-    "meaning": "thighs, haunches, rump; share",
+    "meaning": "share (of stock); strand; thigh",
     "freq": 644,
     "strokes": 8,
     "hsk": 5
@@ -4570,7 +4570,7 @@
   },
   "尼": {
     "pinyin": "ní",
-    "meaning": "Buddhist nun; transliteration",
+    "meaning": "Buddhist nun; used in foreign names",
     "freq": 654,
     "strokes": 5
   },
@@ -4618,14 +4618,14 @@
   },
   "素": {
     "pinyin": "sù",
-    "meaning": "white (silk); plain; vegetarian; formerly; normally",
+    "meaning": "plain; vegetarian; element (元素)",
     "freq": 661,
     "strokes": 10,
     "hsk": 5
   },
   "药": {
     "pinyin": "yào",
-    "meaning": "leaf of Dahurian angelica plant; medicine",
+    "meaning": "medicine; drug",
     "freq": 662,
     "strokes": 9,
     "hsk": 2
@@ -4695,7 +4695,7 @@
   },
   "险": {
     "pinyin": "xiǎn",
-    "meaning": "narrow pass, strategic point",
+    "meaning": "dangerous; risk; insurance (保险)",
     "freq": 672,
     "strokes": 9,
     "hsk": 4
@@ -4716,14 +4716,14 @@
   },
   "陆": {
     "pinyin": "lù",
-    "meaning": "land, continental; army",
+    "meaning": "land; continent",
     "freq": 675,
     "strokes": 7,
     "hsk": 5
   },
   "习": {
     "pinyin": "xí",
-    "meaning": "practice; flapping wings",
+    "meaning": "to practice; habit (习惯)",
     "freq": 676,
     "strokes": 3,
     "hsk": 1
@@ -4765,7 +4765,7 @@
   },
   "排": {
     "pinyin": "pái",
-    "meaning": "row, rank, line",
+    "meaning": "row; to arrange; to line up",
     "freq": 682,
     "strokes": 11,
     "hsk": 4
@@ -4835,7 +4835,7 @@
   },
   "云": {
     "pinyin": "yún",
-    "meaning": "say, speak; clouds",
+    "meaning": "cloud; to say (formal)",
     "freq": 692,
     "strokes": 4,
     "hsk": 4
@@ -4863,14 +4863,14 @@
   },
   "龙": {
     "pinyin": "lóng",
-    "meaning": "dragon; symbolic of emperor",
+    "meaning": "dragon",
     "freq": 696,
     "strokes": 5,
     "hsk": 5
   },
   "树": {
     "pinyin": "shù",
-    "meaning": "tree; plant; set up, establish",
+    "meaning": "tree; to establish",
     "freq": 697,
     "strokes": 9,
     "hsk": 3
@@ -4905,7 +4905,7 @@
   },
   "冲": {
     "pinyin": "chōng",
-    "meaning": "soar; pour boiling water over",
+    "meaning": "to rush; to rinse; to flush",
     "freq": 702,
     "strokes": 6,
     "hsk": 5
@@ -4926,7 +4926,7 @@
   },
   "范": {
     "pinyin": "fàn",
-    "meaning": "bee-like insect",
+    "meaning": "model; pattern; Fan (common surname)",
     "freq": 705,
     "hsk": 5
   },
@@ -5093,7 +5093,7 @@
   },
   "余": {
     "pinyin": "yú",
-    "meaning": "I, my, me; surplus",
+    "meaning": "surplus; remainder; more than",
     "freq": 729,
     "strokes": 7,
     "hsk": 5
@@ -5114,7 +5114,7 @@
   },
   "差": {
     "pinyin": "chà",
-    "meaning": "to differ; different, wrong; nearly, almost; an officer",
+    "meaning": "to differ; poor (quality); short of",
     "freq": 732,
     "strokes": 9,
     "hsk": 3
@@ -5149,7 +5149,7 @@
   },
   "占": {
     "pinyin": "zhàn",
-    "meaning": "divine; observe; versify",
+    "meaning": "to occupy; to take up; to account for (a share)",
     "freq": 737,
     "strokes": 5,
     "hsk": 4
@@ -5163,14 +5163,14 @@
   },
   "征": {
     "pinyin": "zhēng",
-    "meaning": "invade, attack, conquer",
+    "meaning": "to conquer; to levy; to seek (征求)",
     "freq": 739,
     "strokes": 8,
     "hsk": 5
   },
   "修": {
     "pinyin": "xiū",
-    "meaning": "study; repair; cultivate",
+    "meaning": "to repair; to fix; to build; to study",
     "freq": 740,
     "strokes": 9,
     "hsk": 4
@@ -5184,7 +5184,7 @@
   },
   "挥": {
     "pinyin": "huī",
-    "meaning": "direct; wipe away; squander",
+    "meaning": "to wave; to wield; to command",
     "freq": 742,
     "strokes": 9,
     "hsk": 5
@@ -5247,7 +5247,7 @@
   },
   "刘": {
     "pinyin": "liú",
-    "meaning": "kill, destroy",
+    "meaning": "Liu (very common surname)",
     "freq": 751,
     "strokes": 6
   },
@@ -5316,7 +5316,7 @@
   },
   "伊": {
     "pinyin": "yī",
-    "meaning": "third person pronoun; he, she, this, that",
+    "meaning": "used in foreign names (伊朗 Iran, 伊拉克 Iraq)",
     "freq": 761,
     "strokes": 6
   },
@@ -5371,7 +5371,7 @@
   },
   "帮": {
     "pinyin": "bāng",
-    "meaning": "help, assist; defend; shoe upper",
+    "meaning": "to help; group; gang",
     "freq": 769,
     "strokes": 9,
     "hsk": 2
@@ -5385,7 +5385,7 @@
   },
   "佛": {
     "pinyin": "fú",
-    "meaning": "Buddha; of Buddhism; merciful person; Buddhist image; the dead (Jap.)",
+    "meaning": "Buddha; Buddhist",
     "freq": 771,
     "strokes": 7,
     "hsk": 5
@@ -5406,7 +5406,7 @@
   },
   "优": {
     "pinyin": "yōu",
-    "meaning": "superior, excellent; actor",
+    "meaning": "excellent; superior",
     "freq": 774,
     "strokes": 6,
     "hsk": 4
@@ -5427,7 +5427,7 @@
   },
   "著": {
     "pinyin": "zhe",
-    "meaning": "manifest; (Cant.) to wear",
+    "meaning": "to write; notable (著名); a written work",
     "freq": 777,
     "strokes": 11,
     "hsk": 4
@@ -5504,7 +5504,7 @@
   },
   "阵": {
     "pinyin": "zhèn",
-    "meaning": "column, row or file of troops",
+    "meaning": "a spell or burst (一阵 measure word); battle formation",
     "freq": 788,
     "strokes": 6,
     "hsk": 5
@@ -5546,7 +5546,7 @@
   },
   "顿": {
     "pinyin": "dùn",
-    "meaning": "pause, stop; bow, kowtow; arrange",
+    "meaning": "pause; measure word for meals (一顿饭)",
     "freq": 794,
     "strokes": 10,
     "hsk": 5
@@ -5588,7 +5588,7 @@
   },
   "央": {
     "pinyin": "yāng",
-    "meaning": "center, conclude, run out; beg",
+    "meaning": "center (中央); to beg",
     "freq": 800,
     "strokes": 5,
     "hsk": 6
@@ -5623,14 +5623,14 @@
   },
   "索": {
     "pinyin": "suǒ",
-    "meaning": "large rope, cable; rules, laws; to demand, to exact; to search, inquire; isolated",
+    "meaning": "rope; to search; to demand (索取)",
     "freq": 805,
     "strokes": 10,
     "hsk": 5
   },
   "胡": {
     "pinyin": "hú",
-    "meaning": "recklessly, foolishly; wildly",
+    "meaning": "recklessly (胡说); beard; used in 胡同 (alley)",
     "freq": 806,
     "strokes": 9,
     "hsk": 5
@@ -5679,7 +5679,7 @@
   },
   "释": {
     "pinyin": "shì",
-    "meaning": "interprete, elucidate; release",
+    "meaning": "to explain; to release",
     "freq": 813,
     "strokes": 12,
     "hsk": 4
@@ -5700,7 +5700,7 @@
   },
   "弟": {
     "pinyin": "dì",
-    "meaning": "young brother; junior; i, me",
+    "meaning": "younger brother",
     "freq": 816,
     "strokes": 7,
     "hsk": 2
@@ -5749,7 +5749,7 @@
   },
   "欧": {
     "pinyin": "ōu",
-    "meaning": "translit.: Europe; ohm",
+    "meaning": "Europe (欧洲); used in foreign names",
     "freq": 823,
     "strokes": 8,
     "hsk": 5
@@ -5805,7 +5805,7 @@
   },
   "介": {
     "pinyin": "jiè",
-    "meaning": "forerunner, herald, harbinger; to lie between; sea shell; to wear armor",
+    "meaning": "to introduce (介绍); to lie between",
     "freq": 831,
     "strokes": 4,
     "hsk": 2
@@ -5931,7 +5931,7 @@
   },
   "掉": {
     "pinyin": "diào",
-    "meaning": "turn, move; shake, wag; drop down",
+    "meaning": "to fall; to drop; to lose",
     "freq": 849,
     "strokes": 11,
     "hsk": 4
@@ -6001,7 +6001,7 @@
   },
   "楚": {
     "pinyin": "chǔ",
-    "meaning": "name of feudal state; clear",
+    "meaning": "clear (in 清楚); Chu (name of a state)",
     "freq": 859,
     "strokes": 13,
     "hsk": 3
@@ -6064,7 +6064,7 @@
   },
   "困": {
     "pinyin": "kùn",
-    "meaning": "to surround, beseige; to be surrounded; difficult",
+    "meaning": "sleepy; difficult; trapped",
     "freq": 868,
     "strokes": 7,
     "hsk": 4
@@ -6141,7 +6141,7 @@
   },
   "毫": {
     "pinyin": "háo",
-    "meaning": "fine hair; measure of length",
+    "meaning": "tiny bit; milli- (毫米 millimeter); (not) at all (毫无)",
     "freq": 879,
     "strokes": 11,
     "hsk": 5
@@ -6197,7 +6197,7 @@
   },
   "耳": {
     "pinyin": "ěr",
-    "meaning": "ear; merely, only; handle",
+    "meaning": "ear",
     "freq": 887,
     "strokes": 6,
     "hsk": 3
@@ -6239,7 +6239,7 @@
   },
   "固": {
     "pinyin": "gù",
-    "meaning": "to become solid, solidify; strength",
+    "meaning": "solid; firm; certainly",
     "freq": 893,
     "strokes": 8,
     "hsk": 5
@@ -6253,7 +6253,7 @@
   },
   "松": {
     "pinyin": "sōng",
-    "meaning": "pine tree; fir tree",
+    "meaning": "pine tree; loose",
     "freq": 895,
     "strokes": 8,
     "hsk": 4
@@ -6274,7 +6274,7 @@
   },
   "鲁": {
     "pinyin": "lǔ",
-    "meaning": "foolish, stupid, rash; vulgar",
+    "meaning": "foolish; rash; short for Shandong",
     "freq": 898,
     "strokes": 12,
     "hsk": 6
@@ -6414,7 +6414,7 @@
   },
   "湖": {
     "pinyin": "hú",
-    "meaning": "a lake; Hubei, Hunan; bluish-green",
+    "meaning": "lake",
     "freq": 918,
     "strokes": 12,
     "hsk": 6
@@ -6428,14 +6428,14 @@
   },
   "叶": {
     "pinyin": "yè",
-    "meaning": "to harmonize, to rhyme; to unite; (borrowed for) leaf",
+    "meaning": "leaf",
     "freq": 920,
     "strokes": 5,
     "hsk": 4
   },
   "春": {
     "pinyin": "chūn",
-    "meaning": "spring; wanton",
+    "meaning": "spring (season)",
     "freq": 921,
     "strokes": 9,
     "hsk": 3
@@ -6463,7 +6463,7 @@
   },
   "予": {
     "pinyin": "yǔ",
-    "meaning": "I, me; to give",
+    "meaning": "to give (formal)",
     "freq": 925,
     "strokes": 4,
     "hsk": 6
@@ -6491,7 +6491,7 @@
   },
   "呀": {
     "pinyin": "ya",
-    "meaning": "particle used to express surprise or mild emphasis; (Cant.) slurred form of the number ten",
+    "meaning": "particle used to express surprise or mild emphasis",
     "freq": 929,
     "strokes": 7,
     "hsk": 4
@@ -6561,7 +6561,7 @@
   },
   "输": {
     "pinyin": "shū",
-    "meaning": "transport, carry, haul",
+    "meaning": "to lose (a contest); to transport",
     "freq": 939,
     "strokes": 13,
     "hsk": 4
@@ -6722,7 +6722,7 @@
   },
   "寻": {
     "pinyin": "xún",
-    "meaning": "seek, search, look for; ancient",
+    "meaning": "to seek; to look for",
     "freq": 962,
     "strokes": 6,
     "hsk": 5
@@ -6750,7 +6750,7 @@
   },
   "勒": {
     "pinyin": "lēi",
-    "meaning": "strangle, tighten",
+    "meaning": "to tighten; to strangle",
     "freq": 966,
     "strokes": 11
   },
@@ -6777,7 +6777,7 @@
   },
   "伦": {
     "pinyin": "lún",
-    "meaning": "normal human relationships",
+    "meaning": "ethics; used in foreign names (伦敦 London)",
     "freq": 970,
     "strokes": 6,
     "hsk": 6
@@ -6791,7 +6791,7 @@
   },
   "奥": {
     "pinyin": "ào",
-    "meaning": "mysterious, obscure, profound",
+    "meaning": "profound; used in 奥运 (Olympics) and 奥地利 (Austria)",
     "freq": 972,
     "strokes": 12,
     "hsk": 6
@@ -6812,7 +6812,7 @@
   },
   "俄": {
     "pinyin": "é",
-    "meaning": "sudden(ly), soon; Russian",
+    "meaning": "Russia; Russian; suddenly",
     "freq": 975,
     "strokes": 9
   },
@@ -6832,7 +6832,7 @@
   },
   "洛": {
     "pinyin": "luò",
-    "meaning": "river in Shanxi province; city",
+    "meaning": "used in names (洛杉矶 Los Angeles)",
     "freq": 978,
     "strokes": 9
   },
@@ -7033,7 +7033,7 @@
   },
   "爷": {
     "pinyin": "yé",
-    "meaning": "father, grandfather",
+    "meaning": "grandpa (爷爷); old sir; master",
     "freq": 1007,
     "strokes": 6,
     "hsk": 3
@@ -7061,7 +7061,7 @@
   },
   "馆": {
     "pinyin": "guǎn",
-    "meaning": "public building",
+    "meaning": "public building or shop (图书馆 library, 饭馆 restaurant)",
     "freq": 1011,
     "strokes": 11,
     "hsk": 2
@@ -7096,7 +7096,7 @@
   },
   "卷": {
     "pinyin": "juǎn",
-    "meaning": "scroll; curl; make a comeback",
+    "meaning": "to roll up; scroll; volume; exam paper",
     "freq": 1016,
     "strokes": 8,
     "hsk": 5
@@ -7138,7 +7138,7 @@
   },
   "训": {
     "pinyin": "xùn",
-    "meaning": "teach, instruct; exegesis",
+    "meaning": "to train; to teach; instruction",
     "freq": 1022,
     "strokes": 5,
     "hsk": 5
@@ -7173,7 +7173,7 @@
   },
   "翻": {
     "pinyin": "fān",
-    "meaning": "flip over, upset, capsize",
+    "meaning": "to turn over; to flip; to translate (翻译)",
     "freq": 1027,
     "strokes": 18,
     "hsk": 4
@@ -7257,7 +7257,7 @@
   },
   "蒙": {
     "pinyin": "méng",
-    "meaning": "cover; ignorant; suffer; mongolia",
+    "meaning": "to cover; to deceive; Mongolia (蒙古)",
     "freq": 1039,
     "strokes": 13,
     "hsk": 6
@@ -7306,13 +7306,13 @@
   },
   "萨": {
     "pinyin": "sà",
-    "meaning": "Buddhist gods or immortals",
+    "meaning": "used in 菩萨 (bodhisattva) and foreign names",
     "freq": 1046,
     "strokes": 11
   },
   "伙": {
     "pinyin": "huǒ",
-    "meaning": "companion, colleague; utensils",
+    "meaning": "partner; group (伙伴)",
     "freq": 1047,
     "strokes": 6,
     "hsk": 4
@@ -7417,7 +7417,7 @@
   },
   "杨": {
     "pinyin": "yáng",
-    "meaning": "willow, poplar, aspen",
+    "meaning": "poplar; Yang (common surname)",
     "freq": 1062,
     "strokes": 7
   },
@@ -7444,14 +7444,14 @@
   },
   "曲": {
     "pinyin": "qū",
-    "meaning": "crooked, bent; wrong, false",
+    "meaning": "song; melody; crooked",
     "freq": 1066,
     "strokes": 6,
     "hsk": 6
   },
   "刀": {
     "pinyin": "dāo",
-    "meaning": "knife; old coin; measure",
+    "meaning": "knife; blade",
     "freq": 1067,
     "strokes": 2,
     "hsk": 4
@@ -7479,7 +7479,7 @@
   },
   "虚": {
     "pinyin": "xū",
-    "meaning": "false",
+    "meaning": "empty; false; weak",
     "freq": 1071,
     "strokes": 11,
     "hsk": 5
@@ -7493,7 +7493,7 @@
   },
   "析": {
     "pinyin": "xī",
-    "meaning": "split wood; break apart; divide",
+    "meaning": "to analyze (分析); to split",
     "freq": 1073,
     "strokes": 8,
     "hsk": 5
@@ -7542,7 +7542,7 @@
   },
   "塞": {
     "pinyin": "sāi",
-    "meaning": "stop up, block, seal, cork; pass, frontier; fortress",
+    "meaning": "to stuff; to block; frontier pass",
     "freq": 1080,
     "strokes": 13,
     "hsk": 6
@@ -7598,7 +7598,7 @@
   },
   "绿": {
     "pinyin": "lǜ",
-    "meaning": "green; chlorine",
+    "meaning": "green",
     "freq": 1088,
     "strokes": 11,
     "hsk": 3
@@ -7619,14 +7619,14 @@
   },
   "套": {
     "pinyin": "tào",
-    "meaning": "case, cover, wrapper, envelope",
+    "meaning": "set (measure word); cover; case",
     "freq": 1091,
     "strokes": 10,
     "hsk": 5
   },
   "贸": {
     "pinyin": "mào",
-    "meaning": "trade, barter; mixed; rashly",
+    "meaning": "trade (贸易)",
     "freq": 1092,
     "strokes": 9,
     "hsk": 5
@@ -7745,14 +7745,14 @@
   },
   "川": {
     "pinyin": "chuān",
-    "meaning": "stream, river; flow; boil",
+    "meaning": "river; short for Sichuan",
     "freq": 1109,
     "strokes": 3,
     "hsk": 6
   },
   "申": {
     "pinyin": "shēn",
-    "meaning": "to state to a superior, report; extend; 9th terrestrial branch",
+    "meaning": "to state; to apply (申请)",
     "freq": 1110,
     "strokes": 5,
     "hsk": 4
@@ -7808,7 +7808,7 @@
   },
   "络": {
     "pinyin": "luò",
-    "meaning": "enmesh, wrap around; web, net",
+    "meaning": "net; web (网络 network)",
     "freq": 1118,
     "strokes": 9,
     "hsk": 5
@@ -7822,13 +7822,13 @@
   },
   "朱": {
     "pinyin": "zhū",
-    "meaning": "cinnabar, vermilion",
+    "meaning": "vermilion red; Zhu (common surname)",
     "freq": 1120,
     "strokes": 6
   },
   "埃": {
     "pinyin": "āi",
-    "meaning": "fine dust, dirt",
+    "meaning": "dust; used in 埃及 (Egypt)",
     "freq": 1121,
     "strokes": 10
   },
@@ -7862,7 +7862,7 @@
   },
   "夏": {
     "pinyin": "xià",
-    "meaning": "summer; great, grand, big",
+    "meaning": "summer",
     "freq": 1126,
     "strokes": 10,
     "hsk": 3
@@ -7890,7 +7890,7 @@
   },
   "筑": {
     "pinyin": "zhù",
-    "meaning": "ancient lute; build",
+    "meaning": "to build (建筑 architecture)",
     "freq": 1130,
     "strokes": 12,
     "hsk": 5
@@ -7925,7 +7925,7 @@
   },
   "吴": {
     "pinyin": "wú",
-    "meaning": "name of warring state",
+    "meaning": "Wu (very common surname)",
     "freq": 1135,
     "strokes": 7
   },
@@ -8001,7 +8001,7 @@
   },
   "搞": {
     "pinyin": "gǎo",
-    "meaning": "to clear, clarify",
+    "meaning": "to do; to handle; to make (informal)",
     "freq": 1146,
     "strokes": 13,
     "hsk": 5
@@ -8015,7 +8015,7 @@
   },
   "措": {
     "pinyin": "cuò",
-    "meaning": "place; collect, arrange; employ",
+    "meaning": "to arrange; to handle (措施 measures)",
     "freq": 1148,
     "strokes": 11,
     "hsk": 5
@@ -8043,14 +8043,14 @@
   },
   "培": {
     "pinyin": "péi",
-    "meaning": "bank up with dirt; cultivate",
+    "meaning": "to cultivate; to train (培养)",
     "freq": 1152,
     "strokes": 11,
     "hsk": 5
   },
   "迷": {
     "pinyin": "mí",
-    "meaning": "bewitch, charm, infatuate",
+    "meaning": "to be lost; to be fascinated; fan (球迷)",
     "freq": 1153,
     "strokes": 9,
     "hsk": 4
@@ -8071,7 +8071,7 @@
   },
   "宇": {
     "pinyin": "yǔ",
-    "meaning": "house; building, structure; eaves",
+    "meaning": "universe (宇宙); eaves",
     "freq": 1156,
     "strokes": 6,
     "hsk": 6
@@ -8092,7 +8092,7 @@
   },
   "梅": {
     "pinyin": "méi",
-    "meaning": "plums; prunes",
+    "meaning": "plum (blossom)",
     "freq": 1159,
     "strokes": 11
   },
@@ -8133,7 +8133,7 @@
   },
   "乃": {
     "pinyin": "nǎi",
-    "meaning": "then; really, indeed; as it turned out, after all; namely",
+    "meaning": "then; thus; namely (formal)",
     "freq": 1165,
     "strokes": 2
   },
@@ -8153,14 +8153,14 @@
   },
   "丁": {
     "pinyin": "dīng",
-    "meaning": "male adult; robust, vigorous; 4th heavenly stem",
+    "meaning": "adult male; small cube; Ding (surname)",
     "freq": 1168,
     "strokes": 2,
     "hsk": 6
   },
   "赵": {
     "pinyin": "zhào",
-    "meaning": "ancient state",
+    "meaning": "Zhao (very common surname)",
     "freq": 1169,
     "strokes": 9
   },
@@ -8180,7 +8180,7 @@
   },
   "蒋": {
     "pinyin": "jiǎng",
-    "meaning": "hydropyrum latifalium",
+    "meaning": "Jiang (common surname)",
     "freq": 1172,
     "strokes": 12
   },
@@ -8193,7 +8193,7 @@
   },
   "耶": {
     "pinyin": "yé",
-    "meaning": "used in transliteration",
+    "meaning": "used in 耶稣 (Jesus)",
     "freq": 1174,
     "strokes": 8
   },
@@ -8227,7 +8227,7 @@
   },
   "赞": {
     "pinyin": "zàn",
-    "meaning": "help, support, assist, aid",
+    "meaning": "to praise; to support (赞成)",
     "freq": 1179,
     "strokes": 16,
     "hsk": 5
@@ -8339,14 +8339,14 @@
   },
   "瓦": {
     "pinyin": "wǎ",
-    "meaning": "tile; earthenware pottery; girl",
+    "meaning": "roof tile; watt",
     "freq": 1195,
     "strokes": 4,
     "hsk": 6
   },
   "莱": {
     "pinyin": "lái",
-    "meaning": "goosefoot, weed; fallow field",
+    "meaning": "used in foreign names (好莱坞 Hollywood)",
     "freq": 1196,
     "strokes": 10
   },
@@ -8471,7 +8471,7 @@
   },
   "召": {
     "pinyin": "zhào",
-    "meaning": "imperial decree; summon",
+    "meaning": "to summon; to call together (召开)",
     "freq": 1214,
     "strokes": 5,
     "hsk": 5
@@ -8520,7 +8520,7 @@
   },
   "韩": {
     "pinyin": "hán",
-    "meaning": "fence; Korea",
+    "meaning": "Korea (韩国); Han (surname)",
     "freq": 1221,
     "strokes": 12
   },
@@ -8540,7 +8540,7 @@
   },
   "曼": {
     "pinyin": "màn",
-    "meaning": "long, extended, vast; beautiful",
+    "meaning": "graceful; used in foreign names (曼谷 Bangkok)",
     "freq": 1224,
     "strokes": 11
   },
@@ -8567,14 +8567,14 @@
   },
   "戴": {
     "pinyin": "dài",
-    "meaning": "wear on top; support",
+    "meaning": "to wear (on the head, face or hands)",
     "freq": 1228,
     "strokes": 17,
     "hsk": 4
   },
   "童": {
     "pinyin": "tóng",
-    "meaning": "child, boy, servant boy; virgin",
+    "meaning": "child (儿童)",
     "freq": 1229,
     "strokes": 12,
     "hsk": 4
@@ -8609,7 +8609,7 @@
   },
   "绍": {
     "pinyin": "shào",
-    "meaning": "continue, carry on; join",
+    "meaning": "used in 介绍 (to introduce)",
     "freq": 1234,
     "strokes": 8,
     "hsk": 2
@@ -8665,7 +8665,7 @@
   },
   "丈": {
     "pinyin": "zhàng",
-    "meaning": "unit of length equal 3.3 meters; gentleman, man, husband",
+    "meaning": "husband (丈夫); unit of length (about 3.3 m)",
     "freq": 1242,
     "strokes": 3,
     "hsk": 2
@@ -8707,7 +8707,7 @@
   },
   "玛": {
     "pinyin": "mǎ",
-    "meaning": "agate; cornelian",
+    "meaning": "used in foreign names (玛丽 Mary)",
     "freq": 1248,
     "strokes": 7
   },
@@ -8796,7 +8796,7 @@
   },
   "牌": {
     "pinyin": "pái",
-    "meaning": "signboard, placard",
+    "meaning": "sign; card; brand (品牌)",
     "freq": 1261,
     "strokes": 12,
     "hsk": 4
@@ -8908,7 +8908,7 @@
   },
   "杜": {
     "pinyin": "dù",
-    "meaning": "stop, prevent; restrict",
+    "meaning": "to prevent; to stop; Du (surname)",
     "freq": 1277,
     "strokes": 7,
     "hsk": 6
@@ -8929,13 +8929,13 @@
   },
   "丹": {
     "pinyin": "dān",
-    "meaning": "cinnabar (native HgS); vermilion (artificial HgS used as pigment)",
+    "meaning": "red; used in 丹麦 (Denmark)",
     "freq": 1280,
     "strokes": 4
   },
   "狗": {
     "pinyin": "gǒu",
-    "meaning": "dog, canis familiaris",
+    "meaning": "dog",
     "freq": 1281,
     "strokes": 8,
     "hsk": 1
@@ -8949,7 +8949,7 @@
   },
   "仪": {
     "pinyin": "yí",
-    "meaning": "ceremony, rites gifts; admire",
+    "meaning": "ceremony; instrument (仪器); appearance",
     "freq": 1283,
     "strokes": 5,
     "hsk": 6
@@ -9005,7 +9005,7 @@
   },
   "艾": {
     "pinyin": "ài",
-    "meaning": "artemisia, mugwort; translit.",
+    "meaning": "mugwort; used in names and 艾滋病 (AIDS)",
     "freq": 1291,
     "strokes": 5
   },
@@ -9130,7 +9130,7 @@
   },
   "挑": {
     "pinyin": "tiāo",
-    "meaning": "a load carried on the shoulders; to carry",
+    "meaning": "to choose; to pick out; to carry on a pole",
     "freq": 1309,
     "strokes": 9,
     "hsk": 5
@@ -9158,7 +9158,7 @@
   },
   "徐": {
     "pinyin": "xú",
-    "meaning": "slowly, quietly, calmly; composed, dignified",
+    "meaning": "slowly; Xu (common surname)",
     "freq": 1313,
     "strokes": 10
   },
@@ -9192,7 +9192,7 @@
   },
   "泰": {
     "pinyin": "tài",
-    "meaning": "great, exalted, superior; big",
+    "meaning": "safe and calm; Thailand (泰国)",
     "freq": 1318,
     "strokes": 10,
     "hsk": 6
@@ -9283,7 +9283,7 @@
   },
   "拒": {
     "pinyin": "jù",
-    "meaning": "ward off with hand, defend",
+    "meaning": "to refuse; to resist",
     "freq": 1331,
     "strokes": 7,
     "hsk": 4
@@ -9310,14 +9310,14 @@
   },
   "鼻": {
     "pinyin": "bí",
-    "meaning": "nose; first",
+    "meaning": "nose",
     "freq": 1335,
     "strokes": 14,
     "hsk": 3
   },
   "闹": {
     "pinyin": "nào",
-    "meaning": "quarrel; dispute hotly",
+    "meaning": "noisy; to make trouble; to quarrel",
     "freq": 1336,
     "strokes": 8,
     "hsk": 4
@@ -9352,7 +9352,7 @@
   },
   "胞": {
     "pinyin": "bāo",
-    "meaning": "womb, placenta, fetal membrane",
+    "meaning": "cell (细胞); compatriot (同胞)",
     "freq": 1341,
     "strokes": 9,
     "hsk": 6
@@ -9491,7 +9491,7 @@
   },
   "偶": {
     "pinyin": "ǒu",
-    "meaning": "accidentally, coincidently; an idol",
+    "meaning": "by chance (偶然); even (number); idol",
     "freq": 1361,
     "strokes": 11,
     "hsk": 4
@@ -9651,7 +9651,7 @@
   },
   "冬": {
     "pinyin": "dōng",
-    "meaning": "winter, 11th lunar month",
+    "meaning": "winter",
     "freq": 1384,
     "strokes": 5,
     "hsk": 3
@@ -9727,7 +9727,7 @@
   },
   "盾": {
     "pinyin": "dùn",
-    "meaning": "shield, shield-shaped object; currency sign for Dutch guilder",
+    "meaning": "shield; contradiction (矛盾)",
     "freq": 1395,
     "strokes": 9,
     "hsk": 5
@@ -9874,7 +9874,7 @@
   },
   "梁": {
     "pinyin": "liáng",
-    "meaning": "bridge; beam; rafters",
+    "meaning": "beam; Liang (common surname)",
     "freq": 1416,
     "strokes": 11,
     "hsk": 6
@@ -9888,7 +9888,7 @@
   },
   "菲": {
     "pinyin": "fēi",
-    "meaning": "fragrant, luxuriant; the Philippines",
+    "meaning": "used in 菲律宾 (Philippines)",
     "freq": 1418,
     "strokes": 11
   },
@@ -9950,7 +9950,7 @@
   },
   "荷": {
     "pinyin": "hé",
-    "meaning": "lotus, water lily, holland",
+    "meaning": "lotus; used in 荷兰 (Netherlands)",
     "freq": 1427,
     "strokes": 10
   },
@@ -10040,7 +10040,7 @@
   },
   "迪": {
     "pinyin": "dí",
-    "meaning": "enlighten, advance; progress",
+    "meaning": "used in foreign names (迪士尼 Disney)",
     "freq": 1440,
     "strokes": 8
   },
@@ -10262,7 +10262,7 @@
   },
   "伍": {
     "pinyin": "wǔ",
-    "meaning": "five, company of five; troops",
+    "meaning": "troops; ranks (队伍)",
     "freq": 1472,
     "strokes": 6,
     "hsk": 6
@@ -10290,7 +10290,7 @@
   },
   "黎": {
     "pinyin": "lí",
-    "meaning": "numerous, many; black",
+    "meaning": "used in 巴黎 (Paris); Li (surname)",
     "freq": 1476,
     "strokes": 15,
     "hsk": 6
@@ -10374,7 +10374,7 @@
   },
   "乔": {
     "pinyin": "qiáo",
-    "meaning": "tall, lofty; proud, stately",
+    "meaning": "tall; Qiao (surname)",
     "freq": 1488,
     "strokes": 6
   },
@@ -10436,7 +10436,7 @@
   },
   "腊": {
     "pinyin": "là",
-    "meaning": "year end sacrifice; dried meat",
+    "meaning": "cured (meat) (腊肉); 12th lunar month",
     "freq": 1497,
     "strokes": 12
   },
@@ -10463,7 +10463,7 @@
   },
   "彭": {
     "pinyin": "péng",
-    "meaning": "name of ancient country",
+    "meaning": "Peng (common surname)",
     "freq": 1501,
     "strokes": 12
   },
@@ -10483,7 +10483,7 @@
   },
   "凤": {
     "pinyin": "fèng",
-    "meaning": "male phoenix; symbol of joy",
+    "meaning": "phoenix (凤凰)",
     "freq": 1504,
     "strokes": 4
   },
@@ -10503,7 +10503,7 @@
   },
   "佩": {
     "pinyin": "pèi",
-    "meaning": "belt ornament, pendant; wear at waist, tie to the belt; respect",
+    "meaning": "to admire (佩服); to wear",
     "freq": 1507,
     "strokes": 8,
     "hsk": 5
@@ -10573,7 +10573,7 @@
   },
   "尸": {
     "pinyin": "shī",
-    "meaning": "corpse; to impersonate the dead; to preside",
+    "meaning": "corpse (尸体)",
     "freq": 1517,
     "strokes": 3,
     "hsk": 6
@@ -10587,7 +10587,7 @@
   },
   "帕": {
     "pinyin": "pà",
-    "meaning": "turban, kerchief, veil; wrap",
+    "meaning": "handkerchief; used in foreign names (帕金森 Parkinson)",
     "freq": 1519,
     "strokes": 8
   },
@@ -10607,7 +10607,7 @@
   },
   "届": {
     "pinyin": "jiè",
-    "meaning": "numerary adjunct for time, term",
+    "meaning": "session or term (measure word, 第一届)",
     "freq": 1522,
     "strokes": 8,
     "hsk": 5
@@ -10642,7 +10642,7 @@
   },
   "飘": {
     "pinyin": "piāo",
-    "meaning": "whirlwind, cyclone; floating",
+    "meaning": "to float; to flutter in the air",
     "freq": 1527,
     "strokes": 15,
     "hsk": 5
@@ -10656,7 +10656,7 @@
   },
   "闲": {
     "pinyin": "xián",
-    "meaning": "fence, guard; defend; idle time",
+    "meaning": "idle; free time; leisure",
     "freq": 1529,
     "strokes": 7,
     "hsk": 5
@@ -10684,7 +10684,7 @@
   },
   "勃": {
     "pinyin": "bó",
-    "meaning": "suddenly, sudden, quick",
+    "meaning": "vigorous (蓬勃)",
     "freq": 1533,
     "strokes": 9,
     "hsk": 6
@@ -10726,7 +10726,7 @@
   },
   "邪": {
     "pinyin": "xié",
-    "meaning": "wrong, evil, depraved, vicious, perverse, heterodox",
+    "meaning": "evil; wicked; abnormal",
     "freq": 1539,
     "strokes": 6
   },
@@ -10746,14 +10746,14 @@
   },
   "滚": {
     "pinyin": "gǔn",
-    "meaning": "turn",
+    "meaning": "to roll; to boil; get lost!",
     "freq": 1542,
     "strokes": 13,
     "hsk": 5
   },
   "奏": {
     "pinyin": "zòu",
-    "meaning": "memorialize emperor; report",
+    "meaning": "to play (music); to achieve (奏效)",
     "freq": 1543,
     "strokes": 9,
     "hsk": 6
@@ -10767,7 +10767,7 @@
   },
   "颜": {
     "pinyin": "yán",
-    "meaning": "face, facial appearance",
+    "meaning": "color (颜色); face",
     "freq": 1545,
     "strokes": 15,
     "hsk": 2
@@ -10781,14 +10781,14 @@
   },
   "绩": {
     "pinyin": "jī",
-    "meaning": "spin; achievements",
+    "meaning": "achievement (成绩 grade)",
     "freq": 1547,
     "strokes": 11,
     "hsk": 3
   },
   "贡": {
     "pinyin": "gòng",
-    "meaning": "offer tribute; tribute, gifts",
+    "meaning": "tribute; contribution (贡献)",
     "freq": 1548,
     "strokes": 7,
     "hsk": 5
@@ -10851,7 +10851,7 @@
   },
   "柳": {
     "pinyin": "liǔ",
-    "meaning": "willow tree; pleasure",
+    "meaning": "willow",
     "freq": 1557,
     "strokes": 9
   },
@@ -10871,7 +10871,7 @@
   },
   "颇": {
     "pinyin": "pō",
-    "meaning": "lean one side; very, rather",
+    "meaning": "quite; rather",
     "freq": 1560,
     "strokes": 11,
     "hsk": 6
@@ -10941,13 +10941,13 @@
   },
   "曹": {
     "pinyin": "cáo",
-    "meaning": "ministry officials",
+    "meaning": "Cao (common surname)",
     "freq": 1570,
     "strokes": 11
   },
   "朵": {
     "pinyin": "duǒ",
-    "meaning": "cluster of flowers; earlobe",
+    "meaning": "measure word for flowers and clouds",
     "freq": 1571,
     "strokes": 6,
     "hsk": 3
@@ -10975,7 +10975,7 @@
   },
   "孟": {
     "pinyin": "mèng",
-    "meaning": "first in series; great, eminent",
+    "meaning": "Meng (surname); first (of three)",
     "freq": 1575,
     "strokes": 8
   },
@@ -11037,7 +11037,7 @@
   },
   "娜": {
     "pinyin": "nà",
-    "meaning": "elegant, graceful, delicate",
+    "meaning": "graceful; used in girls' names",
     "freq": 1584,
     "strokes": 9
   },
@@ -11084,7 +11084,7 @@
   },
   "逻": {
     "pinyin": "luó",
-    "meaning": "patrol; inspect; watch; patrol",
+    "meaning": "logic (逻辑); to patrol",
     "freq": 1591,
     "strokes": 11,
     "hsk": 5
@@ -11181,14 +11181,14 @@
   },
   "贷": {
     "pinyin": "dài",
-    "meaning": "lend; borrow; pardon",
+    "meaning": "loan; to lend (贷款)",
     "freq": 1605,
     "strokes": 9,
     "hsk": 5
   },
   "昌": {
     "pinyin": "chāng",
-    "meaning": "light of sun; good, proper",
+    "meaning": "prosperous (昌盛); used in names",
     "freq": 1606,
     "strokes": 8,
     "hsk": 6
@@ -11313,7 +11313,7 @@
   },
   "奈": {
     "pinyin": "nài",
-    "meaning": "but, how; bear, stand, endure",
+    "meaning": "used in 无奈 (helpless); to bear",
     "freq": 1624,
     "strokes": 8,
     "hsk": 5
@@ -11333,7 +11333,7 @@
   },
   "澳": {
     "pinyin": "ào",
-    "meaning": "inlet, bay; dock, bank",
+    "meaning": "Australia (澳大利亚); Macau (澳门); bay",
     "freq": 1627,
     "strokes": 15
   },
@@ -11346,7 +11346,7 @@
   },
   "董": {
     "pinyin": "dǒng",
-    "meaning": "direct, supervise",
+    "meaning": "director (董事); Dong (surname)",
     "freq": 1629,
     "strokes": 12,
     "hsk": 6
@@ -11416,7 +11416,7 @@
   },
   "丢": {
     "pinyin": "diū",
-    "meaning": "discard",
+    "meaning": "to lose; to throw away",
     "freq": 1639,
     "strokes": 6,
     "hsk": 4
@@ -11444,7 +11444,7 @@
   },
   "辖": {
     "pinyin": "xiá",
-    "meaning": "linchpin of wheel; control",
+    "meaning": "to govern; jurisdiction (管辖)",
     "freq": 1643,
     "strokes": 14,
     "hsk": 6
@@ -11479,13 +11479,13 @@
   },
   "魏": {
     "pinyin": "wèi",
-    "meaning": "kingdom of Wei",
+    "meaning": "Wei (surname)",
     "freq": 1648,
     "strokes": 17
   },
   "吾": {
     "pinyin": "wú",
-    "meaning": "i, my, our; resist, impede",
+    "meaning": "I; my (formal)",
     "freq": 1649,
     "strokes": 7
   },
@@ -11498,7 +11498,7 @@
   },
   "祝": {
     "pinyin": "zhù",
-    "meaning": "pray for happiness or blessings",
+    "meaning": "to wish; to congratulate (祝福)",
     "freq": 1651,
     "strokes": 9,
     "hsk": 4
@@ -11526,7 +11526,7 @@
   },
   "鉴": {
     "pinyin": "jiàn",
-    "meaning": "mirror, looking glass; reflect",
+    "meaning": "to examine (鉴定); to learn from (借鉴)",
     "freq": 1655,
     "strokes": 13,
     "hsk": 6
@@ -11539,7 +11539,7 @@
   },
   "械": {
     "pinyin": "xiè",
-    "meaning": "weapons; implements, instruments",
+    "meaning": "machinery (机械); tool",
     "freq": 1657,
     "strokes": 11,
     "hsk": 6
@@ -11609,7 +11609,7 @@
   },
   "韦": {
     "pinyin": "wéi",
-    "meaning": "tanned leather",
+    "meaning": "Wei (surname); tanned leather",
     "freq": 1667,
     "strokes": 4
   },
@@ -11706,7 +11706,7 @@
   },
   "沈": {
     "pinyin": "chén",
-    "meaning": "sink, submerge; addicted to",
+    "meaning": "Shen (surname); to sink",
     "freq": 1681,
     "strokes": 7
   },
@@ -11794,13 +11794,13 @@
   },
   "瑟": {
     "pinyin": "sè",
-    "meaning": "large stringed musical instrument; dignified, massive; sound of wind",
+    "meaning": "used in 瑟瑟发抖 (trembling); a zither-like instrument",
     "freq": 1694,
     "strokes": 13
   },
   "戈": {
     "pinyin": "gē",
-    "meaning": "halberd, spear, lance",
+    "meaning": "dagger-axe (a weapon); used in 戈壁 (Gobi Desert)",
     "freq": 1695,
     "strokes": 4
   },
@@ -11834,14 +11834,14 @@
   },
   "吨": {
     "pinyin": "dūn",
-    "meaning": "metric ton; (Cant.) to babble, gibberish",
+    "meaning": "metric ton",
     "freq": 1700,
     "strokes": 7,
     "hsk": 5
   },
   "琴": {
     "pinyin": "qín",
-    "meaning": "Chinese lute or guitar",
+    "meaning": "stringed instrument; piano (钢琴)",
     "freq": 1701,
     "strokes": 12,
     "hsk": 4
@@ -11875,7 +11875,7 @@
   },
   "仲": {
     "pinyin": "zhòng",
-    "meaning": "middle brother; go between, mediator",
+    "meaning": "second in order; used in 仲裁 (arbitration)",
     "freq": 1706,
     "strokes": 6
   },
@@ -11909,13 +11909,13 @@
   },
   "卢": {
     "pinyin": "lú",
-    "meaning": "cottage, hut; black",
+    "meaning": "Lu (common surname)",
     "freq": 1711,
     "strokes": 5
   },
   "仗": {
     "pinyin": "zhàng",
-    "meaning": "rely upon; protector; fight; war, weaponry",
+    "meaning": "war; battle (打仗); to rely on",
     "freq": 1712,
     "strokes": 5,
     "hsk": 6
@@ -11943,7 +11943,7 @@
   },
   "吕": {
     "pinyin": "lǚ",
-    "meaning": "a musical note",
+    "meaning": "Lü (surname)",
     "freq": 1716,
     "strokes": 6
   },
@@ -11962,7 +11962,7 @@
   },
   "冯": {
     "pinyin": "féng",
-    "meaning": "gallop; by dint of",
+    "meaning": "Feng (common surname)",
     "freq": 1719,
     "strokes": 5
   },
@@ -11982,13 +11982,13 @@
   },
   "敦": {
     "pinyin": "dūn",
-    "meaning": "esteem; honest, candid, sincere",
+    "meaning": "honest; used in 敦煌 and 伦敦 (London)",
     "freq": 1722,
     "strokes": 12
   },
   "纠": {
     "pinyin": "jiū",
-    "meaning": "investigate, inspect",
+    "meaning": "to twist; to correct (纠正); to entangle",
     "freq": 1723,
     "strokes": 5,
     "hsk": 6
@@ -12023,7 +12023,7 @@
   },
   "苍": {
     "pinyin": "cāng",
-    "meaning": "blue; green",
+    "meaning": "pale (苍白); dark green; vast",
     "freq": 1728,
     "strokes": 7,
     "hsk": 6
@@ -12044,7 +12044,7 @@
   },
   "凌": {
     "pinyin": "líng",
-    "meaning": "pure; virtuous; insult; maltreat",
+    "meaning": "to insult; used in 凌晨 (before dawn)",
     "freq": 1731,
     "strokes": 10,
     "hsk": 5
@@ -12072,7 +12072,7 @@
   },
   "涂": {
     "pinyin": "tú",
-    "meaning": "name of certain rivers",
+    "meaning": "to smear; to apply; to scribble",
     "freq": 1735,
     "strokes": 10,
     "hsk": 5
@@ -12114,7 +12114,7 @@
   },
   "熊": {
     "pinyin": "xióng",
-    "meaning": "a bear; brilliant; bright",
+    "meaning": "bear (animal)",
     "freq": 1741,
     "strokes": 14,
     "hsk": 3
@@ -12156,7 +12156,7 @@
   },
   "赋": {
     "pinyin": "fù",
-    "meaning": "tax; give; endow; army; diffuse",
+    "meaning": "to endow; to grant",
     "freq": 1747,
     "strokes": 12,
     "hsk": 6
@@ -12170,7 +12170,7 @@
   },
   "秩": {
     "pinyin": "zhì",
-    "meaning": "order; orderly; salary; decade",
+    "meaning": "order (秩序)",
     "freq": 1749,
     "strokes": 10,
     "hsk": 5
@@ -12212,13 +12212,13 @@
   },
   "袁": {
     "pinyin": "yuán",
-    "meaning": "robe",
+    "meaning": "Yuan (common surname)",
     "freq": 1755,
     "strokes": 10
   },
   "侯": {
     "pinyin": "hóu",
-    "meaning": "marquis, lord; target in archery",
+    "meaning": "marquis; Hou (surname)",
     "freq": 1756,
     "strokes": 9
   },
@@ -12238,7 +12238,7 @@
   },
   "昆": {
     "pinyin": "kūn",
-    "meaning": "elder brother; descendants",
+    "meaning": "used in 昆虫 (insect) and 昆明 (Kunming)",
     "freq": 1759,
     "strokes": 8,
     "hsk": 5
@@ -12293,7 +12293,7 @@
   },
   "纽": {
     "pinyin": "niǔ",
-    "meaning": "knot; button; handle, knob; tie",
+    "meaning": "button; knob; used in 纽约 (New York)",
     "freq": 1767,
     "strokes": 7,
     "hsk": 6
@@ -12307,7 +12307,7 @@
   },
   "玻": {
     "pinyin": "bō",
-    "meaning": "glass",
+    "meaning": "used in 玻璃 (glass)",
     "freq": 1769,
     "strokes": 9,
     "hsk": 5
@@ -12515,7 +12515,7 @@
   },
   "癌": {
     "pinyin": "ái",
-    "meaning": "cancer; marmoset",
+    "meaning": "cancer",
     "freq": 1799,
     "strokes": 17,
     "hsk": 6
@@ -12612,7 +12612,7 @@
   },
   "郭": {
     "pinyin": "guō",
-    "meaning": "outer part (of a city)",
+    "meaning": "Guo (common surname); outer city wall",
     "freq": 1813,
     "strokes": 10
   },
@@ -12721,7 +12721,7 @@
   },
   "雕": {
     "pinyin": "diāo",
-    "meaning": "engrave, inlay, carve; exhaust; used for",
+    "meaning": "to carve; to engrave; eagle",
     "freq": 1829,
     "strokes": 16,
     "hsk": 6
@@ -12860,7 +12860,7 @@
   },
   "庞": {
     "pinyin": "páng",
-    "meaning": "disorderly, messy; huge, big",
+    "meaning": "huge; Pang (surname)",
     "freq": 1849,
     "strokes": 8,
     "hsk": 6
@@ -12902,7 +12902,7 @@
   },
   "玲": {
     "pinyin": "líng",
-    "meaning": "tinkling of jade",
+    "meaning": "used in girls' names; delicate (玲珑)",
     "freq": 1855,
     "strokes": 9
   },
@@ -12983,7 +12983,7 @@
   },
   "酷": {
     "pinyin": "kù",
-    "meaning": "strong, stimulating; very",
+    "meaning": "cool (slang); cruel",
     "freq": 1867,
     "strokes": 14,
     "hsk": 6
@@ -13056,7 +13056,7 @@
   },
   "莉": {
     "pinyin": "lì",
-    "meaning": "white jasmine",
+    "meaning": "used in girls' names (茉莉 jasmine)",
     "freq": 1878,
     "strokes": 10
   },
@@ -13096,7 +13096,7 @@
   },
   "枚": {
     "pinyin": "méi",
-    "meaning": "stalk of shrub, trunk of tree",
+    "meaning": "measure word for small objects (coins, stamps)",
     "freq": 1884,
     "strokes": 8,
     "hsk": 6
@@ -13117,14 +13117,14 @@
   },
   "傅": {
     "pinyin": "fù",
-    "meaning": "tutor, teacher; assist",
+    "meaning": "master (师傅); Fu (surname)",
     "freq": 1887,
     "strokes": 12,
     "hsk": 4
   },
   "帅": {
     "pinyin": "shuài",
-    "meaning": "commander, commander-in-chief",
+    "meaning": "handsome; commander",
     "freq": 1888,
     "strokes": 5,
     "hsk": 4
@@ -13165,7 +13165,7 @@
   },
   "璃": {
     "pinyin": "lí",
-    "meaning": "glass",
+    "meaning": "used in 玻璃 (glass)",
     "freq": 1894,
     "strokes": 14,
     "hsk": 5
@@ -13193,7 +13193,7 @@
   },
   "萧": {
     "pinyin": "xiāo",
-    "meaning": "common artemisia; dejected",
+    "meaning": "Xiao (surname); desolate",
     "freq": 1898,
     "strokes": 11
   },
@@ -13213,7 +13213,7 @@
   },
   "丑": {
     "pinyin": "chǒu",
-    "meaning": "clown, comedian; 2nd terrestrial branch",
+    "meaning": "ugly; clown",
     "freq": 1901,
     "strokes": 4,
     "hsk": 5
@@ -13227,7 +13227,7 @@
   },
   "柯": {
     "pinyin": "kē",
-    "meaning": "axe-handle; stalk, bough",
+    "meaning": "Ke (surname); used in names",
     "freq": 1903,
     "strokes": 9
   },
@@ -13310,14 +13310,14 @@
   },
   "郁": {
     "pinyin": "yù",
-    "meaning": "sweet smelling, rich in aroma; (Cant.) to move, hit",
+    "meaning": "sweet smelling, rich in aroma",
     "freq": 1915,
     "strokes": 8,
     "hsk": 6
   },
   "溃": {
     "pinyin": "kuì",
-    "meaning": "flooding river; militarily defeat",
+    "meaning": "to collapse; to break through",
     "freq": 1916,
     "strokes": 12,
     "hsk": 6
@@ -13331,14 +13331,14 @@
   },
   "糟": {
     "pinyin": "zāo",
-    "meaning": "sediment, dregs; pickle",
+    "meaning": "messy; bad (糟糕)",
     "freq": 1918,
     "strokes": 17,
     "hsk": 5
   },
   "葛": {
     "pinyin": "gé",
-    "meaning": "edible bean",
+    "meaning": "kudzu vine; Ge (surname)",
     "freq": 1919,
     "strokes": 12
   },
@@ -13390,7 +13390,7 @@
   },
   "鹰": {
     "pinyin": "yīng",
-    "meaning": "falcon; Accipiter species (various)",
+    "meaning": "eagle; hawk",
     "freq": 1927,
     "strokes": 18
   },
@@ -13403,14 +13403,14 @@
   },
   "丘": {
     "pinyin": "qiū",
-    "meaning": "hill; elder; empty; a name",
+    "meaning": "hill; mound",
     "freq": 1929,
     "strokes": 5,
     "hsk": 6
   },
   "桂": {
     "pinyin": "guì",
-    "meaning": "cassia or cinnamon",
+    "meaning": "cinnamon; osmanthus (桂花); short for Guangxi",
     "freq": 1930,
     "strokes": 10
   },
@@ -13423,7 +13423,7 @@
   },
   "聊": {
     "pinyin": "liáo",
-    "meaning": "somewhat, slightly, at least",
+    "meaning": "to chat (聊天); somewhat",
     "freq": 1932,
     "strokes": 11,
     "hsk": 3
@@ -13451,7 +13451,7 @@
   },
   "茨": {
     "pinyin": "cí",
-    "meaning": "thatching; caltrop, Tribulus terrestris",
+    "meaning": "thatch; used in foreign names",
     "freq": 1936,
     "strokes": 9
   },
@@ -13567,7 +13567,7 @@
   },
   "薛": {
     "pinyin": "xuē",
-    "meaning": "kind of marsh grass; feudal state",
+    "meaning": "Xue (surname)",
     "freq": 1953,
     "strokes": 16
   },
@@ -13580,14 +13580,14 @@
   },
   "夸": {
     "pinyin": "kuā",
-    "meaning": "extravagant, luxurious; handsome",
+    "meaning": "to praise; to boast",
     "freq": 1955,
     "strokes": 6,
     "hsk": 5
   },
   "豫": {
     "pinyin": "yù",
-    "meaning": "relaxed, comfortable, at ease",
+    "meaning": "used in 犹豫 (to hesitate); short for Henan",
     "freq": 1956,
     "strokes": 15,
     "hsk": 5
@@ -13657,7 +13657,7 @@
   },
   "哼": {
     "pinyin": "hēng",
-    "meaning": "hum; sing softly; groan, moan; (Cant.) an interjecting indicating disapproval",
+    "meaning": "hum; sing softly; groan, moan",
     "freq": 1966,
     "strokes": 10,
     "hsk": 6
@@ -13810,7 +13810,7 @@
   },
   "喂": {
     "pinyin": "wèi",
-    "meaning": "interjection to call attention",
+    "meaning": "hello (on the phone); to feed",
     "freq": 1988,
     "strokes": 12,
     "hsk": 1
@@ -13886,7 +13886,7 @@
   },
   "乾": {
     "pinyin": "gān",
-    "meaning": "dry; first hexagram; warming principle of the sun, penetrating and fertilizing, heavenly generative principle (male)",
+    "meaning": "dry",
     "freq": 1999,
     "strokes": 11
   },
@@ -13926,7 +13926,7 @@
   },
   "酬": {
     "pinyin": "chóu",
-    "meaning": "toast; reward, recompense",
+    "meaning": "reward; pay (报酬)",
     "freq": 2005,
     "strokes": 13,
     "hsk": 6
@@ -13940,7 +13940,7 @@
   },
   "姻": {
     "pinyin": "yīn",
-    "meaning": "relatives by marriage",
+    "meaning": "marriage (婚姻)",
     "freq": 2007,
     "strokes": 9,
     "hsk": 5
@@ -13953,7 +13953,7 @@
   },
   "氛": {
     "pinyin": "fēn",
-    "meaning": "gas, vapor, air",
+    "meaning": "atmosphere (气氛)",
     "freq": 2009,
     "strokes": 8,
     "hsk": 5
@@ -14001,7 +14001,7 @@
   },
   "猩": {
     "pinyin": "xīng",
-    "meaning": "species of orangutan",
+    "meaning": "used in 猩猩 (ape)",
     "freq": 2016,
     "strokes": 12
   },
@@ -14041,7 +14041,7 @@
   },
   "驳": {
     "pinyin": "bó",
-    "meaning": "varicolored, variegated; mixed",
+    "meaning": "to refute (反驳)",
     "freq": 2022,
     "strokes": 7,
     "hsk": 6
@@ -14062,7 +14062,7 @@
   },
   "於": {
     "pinyin": "yú",
-    "meaning": "in, at, on; interjection alas!",
+    "meaning": "in; at (formal, same as 于)",
     "freq": 2025,
     "strokes": 8
   },
@@ -14082,7 +14082,7 @@
   },
   "秒": {
     "pinyin": "miǎo",
-    "meaning": "beard of grain or corn; a second",
+    "meaning": "second (of time)",
     "freq": 2028,
     "strokes": 9,
     "hsk": 4
@@ -14116,7 +14116,7 @@
   },
   "辅": {
     "pinyin": "fǔ",
-    "meaning": "cheek bone; protective; assist",
+    "meaning": "to assist (辅助); auxiliary",
     "freq": 2033,
     "strokes": 11,
     "hsk": 5
@@ -14137,7 +14137,7 @@
   },
   "疆": {
     "pinyin": "jiāng",
-    "meaning": "boundary, border, frontier",
+    "meaning": "frontier; Xinjiang (新疆)",
     "freq": 2036,
     "strokes": 19,
     "hsk": 6
@@ -14178,14 +14178,14 @@
   },
   "嗯": {
     "pinyin": "ń",
-    "meaning": "final particle",
+    "meaning": "hmm; yes (interjection)",
     "freq": 2042,
     "strokes": 13,
     "hsk": 5
   },
   "泊": {
     "pinyin": "pō",
-    "meaning": "anchor vessel; lie at anchor",
+    "meaning": "to moor; lake (湖泊)",
     "freq": 2043,
     "strokes": 8,
     "hsk": 6
@@ -14199,7 +14199,7 @@
   },
   "骤": {
     "pinyin": "zhòu",
-    "meaning": "procedure; gallop; sudden(ly)",
+    "meaning": "suddenly (骤然); step",
     "freq": 2045,
     "strokes": 17,
     "hsk": 5
@@ -14240,7 +14240,7 @@
   },
   "贾": {
     "pinyin": "jiǎ",
-    "meaning": "merchant; buy, trade",
+    "meaning": "Jia (surname); merchant",
     "freq": 2051,
     "strokes": 10
   },
@@ -14355,7 +14355,7 @@
   },
   "蛮": {
     "pinyin": "mán",
-    "meaning": "barbarians; barbarous, savage",
+    "meaning": "rather; quite (colloquial); barbarous",
     "freq": 2068,
     "strokes": 12,
     "hsk": 6
@@ -14368,7 +14368,7 @@
   },
   "潘": {
     "pinyin": "pān",
-    "meaning": "water in which rice has been rinsed; a river that flows into the Han",
+    "meaning": "Pan (common surname)",
     "freq": 2070,
     "strokes": 15
   },
@@ -14475,7 +14475,7 @@
   },
   "辽": {
     "pinyin": "liáo",
-    "meaning": "distant, far",
+    "meaning": "vast; short for Liaoning; Liao dynasty",
     "freq": 2086,
     "strokes": 5,
     "hsk": 6
@@ -14743,7 +14743,7 @@
   },
   "莎": {
     "pinyin": "shā",
-    "meaning": "kind of sedge grass, used anciently for raincoats",
+    "meaning": "used in foreign names (莎士比亚 Shakespeare)",
     "freq": 2125,
     "strokes": 10
   },
@@ -14776,7 +14776,7 @@
   },
   "葡": {
     "pinyin": "pú",
-    "meaning": "grapes",
+    "meaning": "used in 葡萄 (grape) and 葡萄牙 (Portugal)",
     "freq": 2130,
     "strokes": 12,
     "hsk": 4
@@ -14796,7 +14796,7 @@
   },
   "鸭": {
     "pinyin": "yā",
-    "meaning": "duck; Anas species (various)",
+    "meaning": "duck",
     "freq": 2133,
     "strokes": 10,
     "hsk": 4
@@ -14817,14 +14817,14 @@
   },
   "谊": {
     "pinyin": "yì",
-    "meaning": "friendship; appropriate, suitable",
+    "meaning": "friendship (友谊)",
     "freq": 2136,
     "strokes": 10,
     "hsk": 4
   },
   "圳": {
     "pinyin": "zhèn",
-    "meaning": "furrow in field, small drainage ditch",
+    "meaning": "used in 深圳 (Shenzhen)",
     "freq": 2137,
     "strokes": 6
   },
@@ -14837,7 +14837,7 @@
   },
   "仑": {
     "pinyin": "lún",
-    "meaning": "logical reasons, logical order",
+    "meaning": "used in 昆仑 (Kunlun) and foreign names",
     "freq": 2139,
     "strokes": 4
   },
@@ -14864,7 +14864,7 @@
   },
   "陀": {
     "pinyin": "tuó",
-    "meaning": "steep bank, rough terrain",
+    "meaning": "used in 陀螺 (spinning top) and 佛陀 (Buddha)",
     "freq": 2143,
     "strokes": 7
   },
@@ -14923,7 +14923,7 @@
   },
   "甫": {
     "pinyin": "fǔ",
-    "meaning": "begin; man, father; great; a distance of ten li",
+    "meaning": "just (formal); used in names (杜甫)",
     "freq": 2152,
     "strokes": 7
   },
@@ -14971,7 +14971,7 @@
   },
   "陕": {
     "pinyin": "shǎn",
-    "meaning": "mountain pass; Shanxi province",
+    "meaning": "short for Shaanxi (陕西)",
     "freq": 2159,
     "strokes": 8
   },
@@ -15184,13 +15184,13 @@
   },
   "怔": {
     "pinyin": "zhēng",
-    "meaning": "a disease resembling neurosis",
+    "meaning": "to be stunned; dazed",
     "freq": 2191,
     "strokes": 8
   },
   "渊": {
     "pinyin": "yuān",
-    "meaning": "surge up, bubble up, gush forth",
+    "meaning": "abyss; deep pool; profound",
     "freq": 2192,
     "strokes": 11
   },
@@ -15277,7 +15277,7 @@
   },
   "琼": {
     "pinyin": "qióng",
-    "meaning": "jade; rare, precious; elegant; (Cant.) to coagulate",
+    "meaning": "jade; rare, precious; elegant",
     "freq": 2205,
     "strokes": 12
   },
@@ -15304,13 +15304,13 @@
   },
   "菩": {
     "pinyin": "pú",
-    "meaning": "herb, aromatic plant",
+    "meaning": "used in 菩萨 (bodhisattva)",
     "freq": 2209,
     "strokes": 11
   },
   "萄": {
     "pinyin": "táo",
-    "meaning": "grapes",
+    "meaning": "used in 葡萄 (grape)",
     "freq": 2210,
     "strokes": 11,
     "hsk": 4
@@ -15372,7 +15372,7 @@
   },
   "狄": {
     "pinyin": "dí",
-    "meaning": "tribe from northern china; surnam",
+    "meaning": "Di (surname)",
     "freq": 2219,
     "strokes": 7
   },
@@ -15419,7 +15419,7 @@
   },
   "蔡": {
     "pinyin": "cài",
-    "meaning": "species of tortoise",
+    "meaning": "Cai (common surname)",
     "freq": 2226,
     "strokes": 14
   },
@@ -15471,7 +15471,7 @@
   },
   "僚": {
     "pinyin": "liáo",
-    "meaning": "companion, colleague; officials; bureaucracy; a pretty face",
+    "meaning": "colleague (同僚); official",
     "freq": 2234,
     "strokes": 14
   },
@@ -15531,7 +15531,7 @@
   },
   "陌": {
     "pinyin": "mò",
-    "meaning": "foot path between rice fields",
+    "meaning": "unfamiliar (陌生)",
     "freq": 2243,
     "strokes": 8,
     "hsk": 5
@@ -15551,7 +15551,7 @@
   },
   "兆": {
     "pinyin": "zhào",
-    "meaning": "omen; million; mega; also trillion. China = million; Japan and Taiwan = trillion",
+    "meaning": "omen; sign; trillion",
     "freq": 2246,
     "strokes": 6,
     "hsk": 6
@@ -15572,7 +15572,7 @@
   },
   "刹": {
     "pinyin": "shā",
-    "meaning": "temple, shrine, monastary",
+    "meaning": "instant (刹那); to brake (刹车)",
     "freq": 2249,
     "strokes": 8,
     "hsk": 6
@@ -15586,7 +15586,7 @@
   },
   "芒": {
     "pinyin": "máng",
-    "meaning": "Miscanthus sinensis",
+    "meaning": "mango (芒果); sharp tip",
     "freq": 2251,
     "strokes": 6,
     "hsk": 6
@@ -15662,7 +15662,7 @@
   },
   "厘": {
     "pinyin": "lí",
-    "meaning": "thousandth part of tael",
+    "meaning": "centi- (厘米 centimeter)",
     "freq": 2262,
     "strokes": 9,
     "hsk": 5
@@ -15866,7 +15866,7 @@
   },
   "稣": {
     "pinyin": "sū",
-    "meaning": "revive, to rise again; collect",
+    "meaning": "used in 耶稣 (Jesus)",
     "freq": 2292,
     "strokes": 13
   },
@@ -15939,7 +15939,7 @@
   },
   "玫": {
     "pinyin": "méi",
-    "meaning": "rose",
+    "meaning": "used in 玫瑰 (rose)",
     "freq": 2303,
     "strokes": 8
   },
@@ -15973,7 +15973,7 @@
   },
   "姚": {
     "pinyin": "yáo",
-    "meaning": "handsome, elegant",
+    "meaning": "Yao (common surname)",
     "freq": 2308,
     "strokes": 9
   },
@@ -16004,7 +16004,7 @@
   },
   "寨": {
     "pinyin": "zhài",
-    "meaning": "stockade, stronghold, outpost; brothel",
+    "meaning": "stockade; fortified village",
     "freq": 2313,
     "strokes": 14
   },
@@ -16092,7 +16092,7 @@
   },
   "啡": {
     "pinyin": "fēi",
-    "meaning": "morphine; coffee",
+    "meaning": "used in 咖啡 (coffee)",
     "freq": 2326,
     "strokes": 11,
     "hsk": 2
@@ -16169,7 +16169,7 @@
   },
   "夷": {
     "pinyin": "yí",
-    "meaning": "ancient barbarian tribes",
+    "meaning": "to level to the ground",
     "freq": 2337,
     "strokes": 6
   },
@@ -16187,7 +16187,7 @@
   },
   "侨": {
     "pinyin": "qiáo",
-    "meaning": "sojourn, lodge",
+    "meaning": "overseas Chinese (华侨)",
     "freq": 2340,
     "strokes": 8,
     "hsk": 6
@@ -16226,7 +16226,7 @@
   },
   "杭": {
     "pinyin": "háng",
-    "meaning": "cross stream; navigate",
+    "meaning": "Hangzhou (杭州)",
     "freq": 2346,
     "strokes": 8
   },
@@ -16448,7 +16448,7 @@
   },
   "咖": {
     "pinyin": "kā",
-    "meaning": "coffee; a phonetic",
+    "meaning": "used in 咖啡 (coffee)",
     "freq": 2379,
     "strokes": 8,
     "hsk": 2
@@ -16575,7 +16575,7 @@
   },
   "蓬": {
     "pinyin": "péng",
-    "meaning": "type of raspberry; fairyland",
+    "meaning": "disheveled; used in 蓬勃 (thriving)",
     "freq": 2398,
     "strokes": 13,
     "hsk": 6
@@ -16744,7 +16744,7 @@
   },
   "嘿": {
     "pinyin": "hēi",
-    "meaning": "be silent, be quiet",
+    "meaning": "hey!; hehe",
     "freq": 2423,
     "strokes": 15,
     "hsk": 6
@@ -16811,7 +16811,7 @@
   },
   "哇": {
     "pinyin": "wa",
-    "meaning": "vomit; cry of an infant",
+    "meaning": "wow (interjection)",
     "freq": 2433,
     "strokes": 9,
     "hsk": 6
@@ -16873,7 +16873,7 @@
   },
   "斌": {
     "pinyin": "bīn",
-    "meaning": "refined, having both appearance",
+    "meaning": "refined; used in men's names",
     "freq": 2442,
     "strokes": 12
   },
@@ -16892,7 +16892,7 @@
   },
   "肆": {
     "pinyin": "sì",
-    "meaning": "indulge; excess; numeral four; particle meaning now, therefore; shop",
+    "meaning": "reckless (肆意); four (financial numeral)",
     "freq": 2445,
     "strokes": 13,
     "hsk": 6
@@ -16938,7 +16938,7 @@
   },
   "邱": {
     "pinyin": "qiū",
-    "meaning": "hill; mound; grave",
+    "meaning": "Qiu (common surname)",
     "freq": 2452,
     "strokes": 7
   },
@@ -16977,7 +16977,7 @@
   },
   "帘": {
     "pinyin": "lián",
-    "meaning": "flag-sign of a tavern",
+    "meaning": "curtain (窗帘)",
     "freq": 2458,
     "strokes": 8,
     "hsk": 5
@@ -17059,7 +17059,7 @@
   },
   "乖": {
     "pinyin": "guāi",
-    "meaning": "rebel; crafty, shrewd",
+    "meaning": "well-behaved (of a child); obedient",
     "freq": 2470,
     "strokes": 8,
     "hsk": 5
@@ -17080,7 +17080,7 @@
   },
   "阎": {
     "pinyin": "yán",
-    "meaning": "village gate",
+    "meaning": "Yan (surname); 阎王 (King of Hell)",
     "freq": 2473,
     "strokes": 11
   },
@@ -17113,7 +17113,7 @@
   },
   "苹": {
     "pinyin": "píng",
-    "meaning": "artemisia; duckweed; apple",
+    "meaning": "used in 苹果 (apple)",
     "freq": 2478,
     "strokes": 8,
     "hsk": 1
@@ -17134,7 +17134,7 @@
   },
   "钥": {
     "pinyin": "yào",
-    "meaning": "key; lock",
+    "meaning": "used in 钥匙 (key)",
     "freq": 2481,
     "strokes": 9,
     "hsk": 4
@@ -17194,7 +17194,7 @@
   },
   "胳": {
     "pinyin": "gē",
-    "meaning": "armpit, arms",
+    "meaning": "used in 胳膊 (arm)",
     "freq": 2490,
     "strokes": 10,
     "hsk": 4
@@ -17207,7 +17207,7 @@
   },
   "瑰": {
     "pinyin": "guī",
-    "meaning": "extraordinary, fabulous; rose",
+    "meaning": "used in 玫瑰 (rose)",
     "freq": 2492,
     "strokes": 13
   },
@@ -17274,7 +17274,7 @@
   },
   "衬": {
     "pinyin": "chèn",
-    "meaning": "underwear; inner garments",
+    "meaning": "lining; shirt (衬衫)",
     "freq": 2502,
     "strokes": 8,
     "hsk": 3
@@ -17340,7 +17340,7 @@
   },
   "兜": {
     "pinyin": "dōu",
-    "meaning": "pouch",
+    "meaning": "pocket; to go around",
     "freq": 2512,
     "strokes": 11,
     "hsk": 6
@@ -17408,7 +17408,7 @@
   },
   "迦": {
     "pinyin": "jiā",
-    "meaning": "character for transliteration",
+    "meaning": "used in transliterations (释迦 Shakya)",
     "freq": 2522,
     "strokes": 8
   },
@@ -17427,7 +17427,7 @@
   },
   "咸": {
     "pinyin": "xián",
-    "meaning": "together; all, completely; united",
+    "meaning": "salty; all (formal)",
     "freq": 2525,
     "strokes": 9,
     "hsk": 4
@@ -17480,7 +17480,7 @@
   },
   "詹": {
     "pinyin": "zhān",
-    "meaning": "talk too much, verbose",
+    "meaning": "Zhan (surname)",
     "freq": 2533,
     "strokes": 13
   },
@@ -17519,7 +17519,7 @@
   },
   "芯": {
     "pinyin": "xīn",
-    "meaning": "pith from rush (juncus effusus)",
+    "meaning": "core; wick; chip (芯片)",
     "freq": 2539,
     "strokes": 7
   },
@@ -17563,7 +17563,7 @@
   },
   "佣": {
     "pinyin": "yōng",
-    "meaning": "commission fee",
+    "meaning": "commission fee (佣金); servant",
     "freq": 2546,
     "strokes": 7,
     "hsk": 6
@@ -17576,7 +17576,7 @@
   },
   "碌": {
     "pinyin": "lù",
-    "meaning": "rough, uneven, rocky; mediocre",
+    "meaning": "used in 忙碌 (busy)",
     "freq": 2548,
     "strokes": 13,
     "hsk": 6
@@ -17602,7 +17602,7 @@
   },
   "崔": {
     "pinyin": "cuī",
-    "meaning": "high, lofty, towering",
+    "meaning": "Cui (surname)",
     "freq": 2552,
     "strokes": 11
   },
@@ -17693,7 +17693,7 @@
   },
   "幢": {
     "pinyin": "chuáng",
-    "meaning": "carriage curtain; sun screen",
+    "meaning": "measure word for buildings (一幢楼)",
     "freq": 2566,
     "strokes": 15,
     "hsk": 6
@@ -17836,7 +17836,7 @@
   },
   "甸": {
     "pinyin": "diān",
-    "meaning": "suburbs of capital; govern; crops",
+    "meaning": "used in place names; pasture (草甸)",
     "freq": 2588,
     "strokes": 7
   },
@@ -17929,7 +17929,7 @@
   },
   "蜀": {
     "pinyin": "shǔ",
-    "meaning": "name of an ancient state",
+    "meaning": "short for Sichuan (蜀)",
     "freq": 2602,
     "strokes": 13
   },
@@ -17969,7 +17969,7 @@
   },
   "奎": {
     "pinyin": "kuí",
-    "meaning": "stride of man; one of the twenty-eight lunar mansions",
+    "meaning": "used in names (奎)",
     "freq": 2608,
     "strokes": 9
   },
@@ -18070,7 +18070,7 @@
   },
   "鹤": {
     "pinyin": "hè",
-    "meaning": "crane; Grus species (various)",
+    "meaning": "crane (bird)",
     "freq": 2624,
     "strokes": 15
   },
@@ -18095,7 +18095,7 @@
   },
   "垃": {
     "pinyin": "lā",
-    "meaning": "garbage, refuse, waste",
+    "meaning": "used in 垃圾 (garbage)",
     "freq": 2628,
     "strokes": 8,
     "hsk": 4
@@ -18136,7 +18136,7 @@
   },
   "圾": {
     "pinyin": "jī",
-    "meaning": "garbage, rubbish; shaking; danger",
+    "meaning": "used in 垃圾 (garbage)",
     "freq": 2634,
     "strokes": 6,
     "hsk": 4
@@ -18157,7 +18157,7 @@
   },
   "氢": {
     "pinyin": "qīng",
-    "meaning": "ammonia; hydrogen nitride",
+    "meaning": "hydrogen",
     "freq": 2637,
     "strokes": 9
   },
@@ -18230,7 +18230,7 @@
   },
   "蹄": {
     "pinyin": "tí",
-    "meaning": "hoof; leg of pork; little witch",
+    "meaning": "hoof",
     "freq": 2648,
     "strokes": 16
   },
@@ -18322,7 +18322,7 @@
   },
   "魅": {
     "pinyin": "mèi",
-    "meaning": "kind of forest demon, elf",
+    "meaning": "charm (魅力)",
     "freq": 2662,
     "strokes": 14,
     "hsk": 5
@@ -18413,13 +18413,13 @@
   },
   "缅": {
     "pinyin": "miǎn",
-    "meaning": "distant, remote; think of",
+    "meaning": "used in 缅甸 (Myanmar); distant",
     "freq": 2676,
     "strokes": 12
   },
   "喇": {
     "pinyin": "lǎ",
-    "meaning": "horn, bugle; lama; final particle",
+    "meaning": "used in 喇叭 (horn)",
     "freq": 2677,
     "strokes": 12,
     "hsk": 6
@@ -18452,7 +18452,7 @@
   },
   "丫": {
     "pinyin": "yā",
-    "meaning": "forked; bifurcation",
+    "meaning": "girl (丫头); fork",
     "freq": 2682,
     "strokes": 3
   },
@@ -18515,7 +18515,7 @@
   },
   "匀": {
     "pinyin": "yún",
-    "meaning": "equal",
+    "meaning": "even; to divide evenly",
     "freq": 2692,
     "strokes": 4,
     "hsk": 5
@@ -18528,7 +18528,7 @@
   },
   "鸽": {
     "pinyin": "gē",
-    "meaning": "pigeon, dove; Columba species (various)",
+    "meaning": "pigeon; dove",
     "freq": 2694,
     "strokes": 11,
     "hsk": 6
@@ -18596,7 +18596,7 @@
   },
   "叭": {
     "pinyin": "bā",
-    "meaning": "trumpet",
+    "meaning": "used in 喇叭 (horn)",
     "freq": 2704,
     "strokes": 5,
     "hsk": 6
@@ -18740,7 +18740,7 @@
   },
   "尴": {
     "pinyin": "gān",
-    "meaning": "embarrassed; ill at ease",
+    "meaning": "used in 尴尬 (awkward)",
     "freq": 2726,
     "strokes": 13,
     "hsk": 6
@@ -18760,7 +18760,7 @@
   },
   "尬": {
     "pinyin": "gà",
-    "meaning": "limp, staggering gait; embarrass",
+    "meaning": "used in 尴尬 (awkward)",
     "freq": 2729,
     "strokes": 7,
     "hsk": 6
@@ -18819,7 +18819,7 @@
   },
   "狸": {
     "pinyin": "lí",
-    "meaning": "fox",
+    "meaning": "used in 狐狸 (fox)",
     "freq": 2738,
     "strokes": 10
   },
@@ -18864,7 +18864,7 @@
   },
   "萝": {
     "pinyin": "luó",
-    "meaning": "type of creeping plant; turnip",
+    "meaning": "used in 萝卜 (radish)",
     "freq": 2745,
     "strokes": 11
   },
@@ -18927,7 +18927,7 @@
   },
   "厥": {
     "pinyin": "jué",
-    "meaning": "personal pronoun he, she, it",
+    "meaning": "to faint (昏厥); his/her (formal)",
     "freq": 2755,
     "strokes": 12
   },
@@ -19059,7 +19059,7 @@
   },
   "嘶": {
     "pinyin": "sī",
-    "meaning": "neighing of a horse; gravel voiced, husky throated; (Cant.) to hiccough",
+    "meaning": "neighing of a horse; gravel voiced, husky throated",
     "freq": 2776,
     "strokes": 15
   },
@@ -19194,7 +19194,7 @@
   },
   "聂": {
     "pinyin": "niè",
-    "meaning": "whisper",
+    "meaning": "Nie (surname)",
     "freq": 2797,
     "strokes": 10
   },
@@ -19288,7 +19288,7 @@
   },
   "啪": {
     "pinyin": "pā",
-    "meaning": "syllable",
+    "meaning": "pop; crack (sound)",
     "freq": 2812,
     "strokes": 11
   },
@@ -19301,7 +19301,7 @@
   },
   "邵": {
     "pinyin": "shào",
-    "meaning": "various place names",
+    "meaning": "Shao (surname)",
     "freq": 2814,
     "strokes": 7
   },
@@ -19352,7 +19352,7 @@
   },
   "晌": {
     "pinyin": "shǎng",
-    "meaning": "noon, midday; moment; unit land measurement equal to seven mou (",
+    "meaning": "noon, midday; moment",
     "freq": 2822,
     "strokes": 10
   },
@@ -19378,7 +19378,7 @@
   },
   "朦": {
     "pinyin": "méng",
-    "meaning": "condition or appearance of moon",
+    "meaning": "used in 朦胧 (hazy)",
     "freq": 2826,
     "strokes": 17
   },
@@ -19450,7 +19450,7 @@
   },
   "胧": {
     "pinyin": "lóng",
-    "meaning": "condition or appearance of moon",
+    "meaning": "used in 朦胧 (hazy)",
     "freq": 2837,
     "strokes": 9
   },
@@ -19475,7 +19475,7 @@
   },
   "浏": {
     "pinyin": "liú",
-    "meaning": "clear; bright; whistling",
+    "meaning": "used in 浏览 (to browse)",
     "freq": 2841,
     "strokes": 9,
     "hsk": 5
@@ -19570,7 +19570,7 @@
   },
   "骆": {
     "pinyin": "luò",
-    "meaning": "a white horse with black mane; a camel",
+    "meaning": "used in 骆驼 (camel)",
     "freq": 2856,
     "strokes": 9
   },
@@ -19590,7 +19590,7 @@
   },
   "兀": {
     "pinyin": "wù",
-    "meaning": "to cut off the feet",
+    "meaning": "used in 突兀 (abrupt)",
     "freq": 2859,
     "strokes": 3
   },
@@ -19693,7 +19693,7 @@
   },
   "瑜": {
     "pinyin": "yú",
-    "meaning": "flawless gem or jewel",
+    "meaning": "used in 瑜伽 (yoga); flawless jade",
     "freq": 2875,
     "strokes": 13
   },
@@ -19705,7 +19705,7 @@
   },
   "娅": {
     "pinyin": "yà",
-    "meaning": "mutual term of address used by sons-in-law; a brother-in-law",
+    "meaning": "used in girls' names",
     "freq": 2877,
     "strokes": 9
   },
@@ -19750,45 +19750,45 @@
   },
   "粪": {
     "pinyin": "fèn",
-    "meaning": "manure, dung, shit, excrement, night soil",
+    "meaning": "manure; dung",
     "freq": 2884,
     "strokes": 12
   },
   "尹": {
     "pinyin": "yǐn",
-    "meaning": "govern; oversee; director",
+    "meaning": "Yin (surname); to govern",
     "freq": 2885,
     "strokes": 4
   },
   "苟": {
     "pinyin": "gǒu",
-    "meaning": "careless, frivolous; illicit; grammatical particle: if, but, if only; grass name; distinguish DKW 30853 (ji4)",
+    "meaning": "careless; casual (苟且); if (formal)",
     "freq": 2886,
     "strokes": 8,
     "hsk": 6
   },
   "癫": {
     "pinyin": "diān",
-    "meaning": "crazy, mad; madness, mania, insan",
+    "meaning": "crazy; mad",
     "freq": 2887,
     "strokes": 21
   },
   "蚂": {
     "pinyin": "mǎ",
-    "meaning": "ant; leech",
+    "meaning": "used in 蚂蚁 (ant)",
     "freq": 2888,
     "strokes": 9,
     "hsk": 6
   },
   "禹": {
     "pinyin": "yǔ",
-    "meaning": "legendary hsia dynasty founder",
+    "meaning": "Yu the Great (legendary founder of the Xia dynasty); Yu (surname)",
     "freq": 2889,
     "strokes": 9
   },
   "廖": {
     "pinyin": "liào",
-    "meaning": "name of an ancient state",
+    "meaning": "Liao (common surname)",
     "freq": 2890,
     "strokes": 14
   },
@@ -19864,7 +19864,7 @@
   },
   "莺": {
     "pinyin": "yīng",
-    "meaning": "oriole, green finch; Sylvia species (various)",
+    "meaning": "oriole",
     "freq": 2902,
     "strokes": 10
   },
@@ -20018,7 +20018,7 @@
   },
   "轼": {
     "pinyin": "shì",
-    "meaning": "horizontal wooden bar in front",
+    "meaning": "used in names (苏轼 Su Shi)",
     "freq": 2926,
     "strokes": 10
   },
@@ -20067,7 +20067,7 @@
   },
   "竿": {
     "pinyin": "gān",
-    "meaning": "bamboo pole; penis",
+    "meaning": "pole; rod",
     "freq": 2934,
     "strokes": 9
   },
@@ -20144,7 +20144,7 @@
   },
   "鄂": {
     "pinyin": "è",
-    "meaning": "Hubei province; startled",
+    "meaning": "short for Hubei (鄂)",
     "freq": 2946,
     "strokes": 11
   },
@@ -20202,7 +20202,7 @@
   },
   "眯": {
     "pinyin": "mī",
-    "meaning": "be blinded",
+    "meaning": "to squint; to narrow one's eyes",
     "freq": 2955,
     "strokes": 11,
     "hsk": 6
@@ -20247,7 +20247,7 @@
   },
   "琉": {
     "pinyin": "liú",
-    "meaning": "sparkling stone; glazed, opaque",
+    "meaning": "used in 琉璃 (glazed tile)",
     "freq": 2962,
     "strokes": 11
   },
@@ -20260,7 +20260,7 @@
   },
   "蝴": {
     "pinyin": "hú",
-    "meaning": "butterfly",
+    "meaning": "used in 蝴蝶 (butterfly)",
     "freq": 2964,
     "strokes": 15,
     "hsk": 5
@@ -20406,7 +20406,7 @@
   },
   "撼": {
     "pinyin": "hàn",
-    "meaning": "move, shake; (Cant.) to fight",
+    "meaning": "move, shake",
     "freq": 2987,
     "strokes": 16,
     "hsk": 6
@@ -20861,7 +20861,7 @@
   },
   "酶": {
     "pinyin": "méi",
-    "meaning": "enzymes; (Cant.) soft",
+    "meaning": "enzymes",
     "freq": 3058,
     "strokes": 14
   },
@@ -21767,7 +21767,7 @@
   },
   "唔": {
     "pinyin": "wú",
-    "meaning": "hold in mouth; bite; (Cant.) not, negation",
+    "meaning": "hold in mouth; bite",
     "freq": 3202,
     "strokes": 10
   },
@@ -22517,7 +22517,7 @@
   },
   "佬": {
     "pinyin": "lǎo",
-    "meaning": "(Cant.) man, person; mature",
+    "meaning": "mature",
     "freq": 3323,
     "strokes": 8
   },
@@ -23297,7 +23297,7 @@
   },
   "啄": {
     "pinyin": "zhuó",
-    "meaning": "to peck; (Cant.) to slander",
+    "meaning": "to peck",
     "freq": 3449,
     "strokes": 11
   },
@@ -23725,7 +23725,7 @@
   },
   "俾": {
     "pinyin": "bǐ",
-    "meaning": "so that, in order that; to cause; (Cant.) to give (synonymous with Mandarin",
+    "meaning": "so that, in order that; to cause",
     "freq": 3519,
     "strokes": 10
   },
@@ -25177,7 +25177,7 @@
   },
   "唧": {
     "pinyin": "jī",
-    "meaning": "chirping of insects; pump; (Cant.) a final particle",
+    "meaning": "chirping of insects; pump",
     "freq": 3757,
     "strokes": 10
   },
@@ -26242,7 +26242,7 @@
   },
   "甄": {
     "pinyin": "zhēn",
-    "meaning": "to examine, discern; to grade; a surname",
+    "meaning": "to examine, discern; to grade",
     "freq": 3933,
     "strokes": 13
   },
@@ -27650,7 +27650,7 @@
   },
   "咂": {
     "pinyin": "zā",
-    "meaning": "to suck, to smack the lips; (Cant.) to cheat",
+    "meaning": "to suck, to smack the lips",
     "freq": 4167,
     "strokes": 8
   },
@@ -29310,7 +29310,7 @@
   },
   "嘭": {
     "pinyin": "pēng",
-    "meaning": "syllable; (Cant.) to chase, drive away",
+    "meaning": "syllable",
     "freq": 4443,
     "strokes": 15
   },
@@ -30951,7 +30951,7 @@
   },
   "哂": {
     "pinyin": "shěn",
-    "meaning": "smile, laugh at, sneer at; (Cant.) a final particle indicating doing something to the full extent possible",
+    "meaning": "smile, laugh at, sneer at",
     "freq": 4716,
     "strokes": 9
   },
@@ -31011,7 +31011,7 @@
   },
   "噔": {
     "pinyin": "dēng",
-    "meaning": "syllable; (Cant.) for (a recipient of pity or sympathy)",
+    "meaning": "syllable",
     "freq": 4726,
     "strokes": 15
   },
@@ -31167,7 +31167,7 @@
   },
   "咩": {
     "pinyin": "miē",
-    "meaning": "the bleating of sheep; (Cant.) an interrogative particle",
+    "meaning": "the bleating of sheep",
     "freq": 4752,
     "strokes": 9
   },
@@ -33040,7 +33040,7 @@
   },
   "祇": {
     "pinyin": "qí",
-    "meaning": "the spirit of the earth; (used for",
+    "meaning": "the spirit of the earth",
     "freq": 5064,
     "strokes": 8
   },
@@ -33598,7 +33598,7 @@
   },
   "菸": {
     "pinyin": "yān",
-    "meaning": "to fade; withered or dried leaves; tobacco (used for",
+    "meaning": "to fade; withered or dried leaves",
     "freq": 5157,
     "strokes": 11
   },
@@ -34246,7 +34246,7 @@
   },
   "乜": {
     "pinyin": "miē",
-    "meaning": "to squint; (Cant.) what? huh?",
+    "meaning": "to squint",
     "freq": 5265,
     "strokes": 2
   },
@@ -34480,7 +34480,7 @@
   },
   "枳": {
     "pinyin": "zhǐ",
-    "meaning": "trifoliate orange; hedge thorn; (Cant.) a plug",
+    "meaning": "trifoliate orange; hedge thorn",
     "freq": 5304,
     "strokes": 9
   },
@@ -37282,7 +37282,7 @@
   },
   "唿": {
     "pinyin": "hū",
-    "meaning": "sad; (Cant.) a bit, part",
+    "meaning": "sad",
     "freq": 5771,
     "strokes": 11
   },
@@ -37822,7 +37822,7 @@
   },
   "鲃": {
     "pinyin": "bā",
-    "meaning": "a kind of fish; a bonito, (same as",
+    "meaning": "a kind of fish",
     "freq": 5861,
     "strokes": 12
   },
@@ -37852,7 +37852,7 @@
   },
   "嬲": {
     "pinyin": "niǎo",
-    "meaning": "frolic, play with; flirt with; (Cant.) angry",
+    "meaning": "frolic, play with; flirt with",
     "freq": 5866,
     "strokes": 17
   },
@@ -38104,7 +38104,7 @@
   },
   "欹": {
     "pinyin": "yī",
-    "meaning": "fierce dog; interjection of pleas; (Cant.) strange",
+    "meaning": "fierce dog; interjection of pleas",
     "freq": 5908,
     "strokes": 12
   },
@@ -38128,7 +38128,7 @@
   },
   "鞔": {
     "pinyin": "mán",
-    "meaning": "sides or uppers of shoes to stretch a skin on a frame for a drum; (Cant.) to cover",
+    "meaning": "sides or uppers of shoes to stretch a skin on a frame for a drum",
     "freq": 5912,
     "strokes": 16
   },
@@ -39994,7 +39994,7 @@
   },
   "叻": {
     "pinyin": "lè",
-    "meaning": "used in place names; (Cant.) smart, clever",
+    "meaning": "used in place names",
     "freq": 6223,
     "strokes": 5
   },
@@ -40114,7 +40114,7 @@
   },
   "吖": {
     "pinyin": "yā",
-    "meaning": "used in translation; (Cant.) final particle",
+    "meaning": "used in translation",
     "freq": 6243,
     "strokes": 6
   },
@@ -40618,7 +40618,7 @@
   },
   "枨": {
     "pinyin": "chéng",
-    "meaning": "door stop, door jam; touch; (Cant.) to use the body to move someone",
+    "meaning": "door stop, door jam; touch",
     "freq": 6327,
     "strokes": 8
   },
@@ -41152,7 +41152,7 @@
   },
   "氽": {
     "pinyin": "tǔn",
-    "meaning": "to float; to deep fry; (Cant.) to turn inside-out",
+    "meaning": "to float; to deep fry",
     "freq": 6416,
     "strokes": 6
   },
@@ -42004,7 +42004,7 @@
   },
   "哚": {
     "pinyin": "duǒ",
-    "meaning": "chemical element; (Cant.) backing, support of someone powerful; a little",
+    "meaning": "chemical element; a little",
     "freq": 6558,
     "strokes": 9
   },
@@ -43792,7 +43792,7 @@
   },
   "阨": {
     "pinyin": "è",
-    "meaning": "in distress; adverse; strategic; (Cant.) to swindle",
+    "meaning": "in distress; adverse; strategic",
     "freq": 6856,
     "strokes": 6
   },
@@ -43996,7 +43996,7 @@
   },
   "揸": {
     "pinyin": "zhā",
-    "meaning": "handful; to grasp, seize, pick up with fingers; (Cant.) to take, carry",
+    "meaning": "handful; to grasp, seize, pick up with fingers",
     "freq": 6890,
     "strokes": 12
   },
@@ -44950,7 +44950,7 @@
   },
   "䥇": {
     "pinyin": "shàn",
-    "meaning": "chemical element; Sarmarium (Sm); old translation of (",
+    "meaning": "chemical element; Sarmarium (Sm)",
     "freq": 7049,
     "strokes": 18
   },
@@ -48226,7 +48226,7 @@
   },
   "薳": {
     "pinyin": "wěi",
-    "meaning": "name of a herb; (Cant.) a plant stem",
+    "meaning": "name of a herb",
     "freq": 7595,
     "strokes": 16
   },
@@ -48832,7 +48832,7 @@
   },
   "韌": {
     "pinyin": "rèn",
-    "meaning": "strong and pliable, resilient; (Cant.) tough, elastic",
+    "meaning": "strong and pliable, resilient",
     "freq": 7696,
     "strokes": 12
   },
@@ -51484,7 +51484,7 @@
   },
   "艜": {
     "pinyin": "dài",
-    "meaning": "a long narrow vessel with two masts; (Cant.) a rudder",
+    "meaning": "a long narrow vessel with two masts",
     "freq": 8138,
     "strokes": 17
   },
@@ -52522,7 +52522,7 @@
   },
   "篼": {
     "pinyin": "dōu",
-    "meaning": "mountain sedan chair; (Cant.) a simple container without a cover",
+    "meaning": "mountain sedan chair",
     "freq": 8311,
     "strokes": 17
   },
@@ -52588,7 +52588,7 @@
   },
   "窊": {
     "pinyin": "wā",
-    "meaning": "pit, vault; store in pit; (Cant.)",
+    "meaning": "pit, vault; store in pit",
     "freq": 8322,
     "strokes": 10
   },
@@ -52744,7 +52744,7 @@
   },
   "褦": {
     "pinyin": "nài",
-    "meaning": "stupid, dull, ignorant, doltish; (Cant.) to tie up, bind",
+    "meaning": "stupid, dull, ignorant, doltish",
     "freq": 8348,
     "strokes": 15
   },
@@ -53830,7 +53830,7 @@
   },
   "膥": {
     "pinyin": "chūn",
-    "meaning": "(Cant.) eggs of birds or reptiles; testicles",
+    "meaning": "testicles",
     "freq": 8529,
     "strokes": 17
   },
@@ -53914,7 +53914,7 @@
   },
   "趷": {
     "pinyin": "kē",
-    "meaning": "to jolt; (Cant.) to raise up; block",
+    "meaning": "to jolt; block",
     "freq": 8543,
     "strokes": 10
   },
@@ -55252,7 +55252,7 @@
   },
   "鑢": {
     "pinyin": "lǜ",
-    "meaning": "file, rasp; file; polish; (Cant.) to cut",
+    "meaning": "file, rasp; file; polish",
     "freq": 8766,
     "strokes": 23
   },
@@ -56464,7 +56464,7 @@
   },
   "臯": {
     "pinyin": "gāo",
-    "meaning": "to praise; to bless high; eminent; (Cant.) a marsh, pool",
+    "meaning": "to praise; to bless high; eminent",
     "freq": 8968,
     "strokes": 12
   },
@@ -56686,7 +56686,7 @@
   },
   "鈪": {
     "pinyin": "è",
-    "meaning": "(Cant.) bracelet; bangle",
+    "meaning": "bangle",
     "freq": 9005,
     "strokes": 12
   },
@@ -57010,7 +57010,7 @@
   },
   "鱮": {
     "pinyin": "xù",
-    "meaning": "silver carp (Hypophthalmichthys molitrix); bream; (Cant.)",
+    "meaning": "silver carp (Hypophthalmichthys molitrix); bream",
     "freq": 9059,
     "strokes": 24
   },
@@ -59098,7 +59098,7 @@
   },
   "硟": {
     "pinyin": "chàn",
-    "meaning": "(Cant.) to slip; to work and polish gems",
+    "meaning": "to work and polish gems",
     "freq": 9407,
     "strokes": 11
   },
@@ -60082,7 +60082,7 @@
   },
   "跁": {
     "pinyin": "bà",
-    "meaning": "trample on, tread on; search for; (Cant.) to squat down",
+    "meaning": "trample on, tread on; search for",
     "freq": 9571,
     "strokes": 11
   },
@@ -60646,7 +60646,7 @@
   },
   "鬅": {
     "pinyin": "péng",
-    "meaning": "unkempt hair; loose; flowing hair; (Cant.)",
+    "meaning": "unkempt hair; loose; flowing hair",
     "freq": 9665,
     "strokes": 18
   },
@@ -61102,7 +61102,7 @@
   },
   "髧": {
     "pinyin": "dàn",
-    "meaning": "long hair; (Cant.) to hang down, droop",
+    "meaning": "long hair",
     "freq": 9741,
     "strokes": 14
   },
@@ -61288,7 +61288,7 @@
   },
   "舋": {
     "pinyin": "xìn",
-    "meaning": "split; (Cant.) a mark, trace",
+    "meaning": "split",
     "freq": 9772,
     "strokes": 20
   },
@@ -61360,7 +61360,7 @@
   },
   "鉼": {
     "pinyin": "bǐng",
-    "meaning": "plate; (Cant.) a penny",
+    "meaning": "plate",
     "freq": 9784,
     "strokes": 14
   },

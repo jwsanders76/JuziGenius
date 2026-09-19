@@ -21,7 +21,8 @@ SCRIPT_MAP_PATH = "char_script_map.json"
 # archaic / dialect notes, and pointers to variant forms (including ones the
 # source truncated mid-sentence, like "simplified form of").
 _UNWANTED_SENSE = re.compile(
-    r"^\(?surname\b|radical|^rad\.|classical|archaic|literary|obsolete|dialect"
+    r"^\(?(a |the )?surname\b|radical|^rad\.|classical|archaic|literary|obsolete|dialect"
+    r"|\(Cant\.\)|DKW|\([^)]*$"
     r"|^\(?(simp\.? for|simplified form|same as|variant of|abbr\.? of)"
     r"|non-simplified form",
     re.IGNORECASE,
