@@ -80,7 +80,13 @@ const state = {
     sessionJustCompleted: false
 };
 
-const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected", chars: "Unlock Selected" };
+// Every tab's main button adds something that lasts, the HSK tab's
+// included: it opens the bulk-add into the Sentence Bank. That tab's main
+// button used to load a practice batch instead, adding nothing, which in a
+// menu about adding things read as the button doing nothing at all
+// (reported September 19, 2026). The batch swap is the secondary button on
+// the tab itself now.
+const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Add Sentences I Know", suggest: "Add Selected", chars: "Unlock Selected" };
 
 // When the page is served at /u/<slug>/, every API call must carry that
 // same prefix so the server routes it to that friend's own brain.json
@@ -555,6 +561,7 @@ function cacheDomElements() {
     elements.planLifetimeBtn = document.getElementById("plan-lifetime-btn");
     elements.planLifetimeStatus = document.getElementById("plan-lifetime-status");
 
+    elements.hskPracticeSwap = document.getElementById("hsk-practice-swap");
     elements.sentenceImportModal = document.getElementById("sentence-import-modal");
     elements.sentenceImportList = document.getElementById("sentence-import-list");
     elements.sentenceImportNote = document.getElementById("sentence-import-note");
@@ -607,6 +614,10 @@ function initEventListeners() {
 
     bindSelectAllToggle(elements.charSelectToggle, elements.charSuggestionsList);
     bindSelectAllToggle(elements.wordSelectToggle, elements.suggestionsList);
+
+    if (elements.hskPracticeSwap) {
+        elements.hskPracticeSwap.addEventListener("click", handleGenerateSession);
+    }
 
     if (elements.sentenceImportSelectAll) {
         elements.sentenceImportSelectAll.addEventListener("click", () => {
@@ -2373,7 +2384,7 @@ function pasteLocked() {
  */
 function handleModalSubmit() {
     if (state.importMode === "hsk") {
-        handleGenerateSession();
+        openSentenceImportModal("import-menu");
     } else if (state.importMode === "chars") {
         handleAddSuggestedCharacters();
     } else if (state.importMode === "suggest") {
@@ -2591,11 +2602,19 @@ async function handleTextImport() {
 
 /**
  * Fetches a fresh batch of real HSK/Tatoeba example sentences from the local
- * corpus -- no AI, no network, no key needed.
+ * corpus -- no AI, no network, no key needed. Wired to the HSK tab's own
+ * secondary button rather than the modal's main one, so the busy state and
+ * the restored label belong to the button actually pressed.
  */
 async function handleGenerateSession() {
-    elements.modalBtnSubmit.textContent = "Working...";
-    elements.modalBtnSubmit.disabled = true;
+    const button = elements.hskPracticeSwap;
+    // Read off the button rather than repeated as a literal here, so the
+    // label lives in one place (index.html) and can't drift.
+    const originalLabel = button ? button.textContent : "";
+    if (button) {
+        button.textContent = "Working...";
+        button.disabled = true;
+    }
 
     try {
         const response = await apiPost("/api/session/generate");
@@ -2622,11 +2641,27 @@ async function handleGenerateSession() {
             // engine served character-only practice instead (see the
             // Beginner Character-Only Phase / stranded-character-slot
             // behavior in juzi_engine.py's pick_hsk_sentences). Without this,
-            // clicking "Get Sentences" and landing on the same-looking
+            // clicking the button and landing on the same-looking
             // single-character practice reads as the button having done
             // nothing.
             if (result.sentences.every(s => s.chinese.length === 1)) {
                 alert("Not enough characters are unlocked yet to form a full sentence, so you're getting single-character practice instead. Unlock more characters (Suggest Characters or Paste Text) to start getting real sentences.");
+            } else {
+                // The other three tabs all close with a summary of what they
+                // added; this one used to close in silence, and since it
+                // changes only the batch waiting behind the menu -- never the
+                // Sentence Bank, never the "N sentences writable" count -- a
+                // learner checking either of those concluded it had failed
+                // (reported September 19, 2026). Say what it did, and say
+                // where sentences actually come from.
+                const characterCount = result.sentences.filter(s => s.chinese.length === 1).length;
+                const sentenceCount = result.sentences.length - characterCount;
+                let summary = `Loaded ${sentenceCount} new sentence(s) to practice now.`;
+                if (characterCount > 0) {
+                    summary += ` Plus ${characterCount} single character(s) that no sentence uses yet.`;
+                }
+                summary += `\n\nThese are for practice, not additions: a sentence joins your Sentence Bank once you've written it out.`;
+                alert(summary);
             }
         } else {
             alert("No matching sentences found. Try unlocking more characters first.");
@@ -2635,8 +2670,10 @@ async function handleGenerateSession() {
         console.error(err);
         alert(err.message || "Error generating sentences.");
     } finally {
-        elements.modalBtnSubmit.textContent = SUBMIT_LABELS[state.importMode] || "Submit";
-        elements.modalBtnSubmit.disabled = false;
+        if (button) {
+            button.textContent = originalLabel;
+            button.disabled = false;
+        }
     }
 }
 
@@ -4241,7 +4278,9 @@ function renderProgress(p) {
     // elements is gone along with them.
     const importBtn = document.getElementById("sentence-import-open");
     if (importBtn) {
-        importBtn.addEventListener("click", openSentenceImportModal);
+        // Wrapped rather than passed directly: a bare listener hands
+        // openSentenceImportModal the click event as its `openedFrom`.
+        importBtn.addEventListener("click", () => openSentenceImportModal("progress"));
     }
     bindInfoButtons(elements.progressBody);
 }
@@ -4524,8 +4563,17 @@ async function saveSentenceBankRow(row, oldChinese) {
    banked and lets them bulk-add whichever ones they choose in one request.
    ========================================================================== */
 
-async function openSentenceImportModal() {
+/**
+ * Which screen the quick-add was opened from, so a successful add puts the
+ * learner back where they started: the Progress view reloads so its own
+ * numbers move, while the Add to Your Practice menu closes and leaves
+ * practice alone.
+ */
+let sentenceImportOpenedFrom = "progress";
+
+async function openSentenceImportModal(openedFrom = "progress") {
     if (!elements.sentenceImportModal) return;
+    sentenceImportOpenedFrom = openedFrom;
     elements.sentenceImportModal.style.display = "flex";
     elements.sentenceImportList.innerHTML = `<p class="suggestions-empty">Loading…</p>`;
     if (elements.sentenceImportNote) elements.sentenceImportNote.hidden = true;
@@ -4615,10 +4663,18 @@ async function handleSentenceImportSubmit() {
         elements.sentenceImportModal.style.display = "none";
         alert(`Added ${result.added} sentence(s) to your Sentence Bank.`);
 
-        // Refreshes Overview, Character/Word/Sentence Bank and the reset
-        // summary in one go -- the same load openProgressView already does
-        // on open, reused here since the underlying data just changed.
-        openProgressView();
+        if (sentenceImportOpenedFrom === "progress") {
+            // Refreshes Overview, Character/Word/Sentence Bank and the reset
+            // summary in one go -- the same load openProgressView already does
+            // on open, reused here since the underlying data just changed.
+            openProgressView();
+        } else {
+            // Opened from the Add to Your Practice menu, which is finished
+            // now. Dropping the learner into the Progress view instead would
+            // be a screen they never asked for; the batch they're practicing
+            // is untouched by a bank addition, so there's nothing to reload.
+            if (elements.importModal) elements.importModal.style.display = "none";
+        }
     } catch (err) {
         console.error(err);
         alert("Something went wrong adding those sentences. Please try again.");

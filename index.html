@@ -182,9 +182,16 @@
                 <div id="suggestions-list" class="suggestions-list"></div>
             </div>
 
-            <!-- HSK Sentences: local, offline, no AI/key needed -->
+            <!-- HSK Sentences: built-in example sentences, no AI/key needed.
+                 The main button adds to the Sentence Bank, like the other
+                 three tabs do -- this is a menu about adding things, and a
+                 main button that only changed the current practice batch
+                 read as doing nothing at all (reported September 19, 2026).
+                 The batch swap stays as the secondary button. -->
             <div class="mode-panel" data-mode-panel="hsk" hidden>
-                <p class="modal-subtitle">Pulls real example sentences from the HSK data that use only characters you've already unlocked.</p>
+                <p class="modal-subtitle">Built-in sentences you can already write in full, straight into your Sentence Bank &mdash; pick the ones you know, no handwriting needed.</p>
+                <p class="modal-subtitle">Or swap what you're practicing right now for built-in sentences you can write. That changes today's practice only; a sentence joins your Sentence Bank once you've written it out.</p>
+                <button type="button" id="hsk-practice-swap" class="top-btn import-list-action-btn suggestion-select-toggle">Practice New Sentences</button>
             </div>
 
             <div class="modal-actions">

@@ -1816,6 +1816,13 @@ body {
     align-self: flex-start;
 }
 
+/* The HSK tab carries two lines about two different actions -- practice a
+   new batch, or bank a sentence you already know -- and with no margin
+   between paragraphs they read as one run-on block. */
+.mode-panel[data-mode-panel="hsk"] .modal-subtitle + .modal-subtitle {
+    margin-top: 12px;
+}
+
 .import-sentence-list {
     max-height: 46vh;
 }
