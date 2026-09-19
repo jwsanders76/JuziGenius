@@ -346,8 +346,12 @@ body {
 #action-sidebar {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
+    /* One line at every width. The four controls shrink to fit instead of
+       wrapping: nowrap plus the min-width: 0 below is what lets them give
+       up width smoothly, where flex-wrap used to drop Skip onto a second
+       line as soon as the labels stopped fitting. */
+    flex-wrap: nowrap;
+    gap: clamp(4px, 1.8vw, 8px);
     width: 100%;
 }
 
@@ -355,16 +359,25 @@ body {
     /* Clear and Hints split whatever the row has left, equally, whatever
        their labels happen to say -- a zero basis rather than the old fixed
        70px, which made all four controls the same width and left the audio
-       icon and Skip mostly empty. Skip and the icon opt out below. */
+       icon and Skip mostly empty. Skip and the icon opt out below.
+       min-width: 0 overrides a flex item's automatic min-content floor, so a
+       button can shrink past the width of its own label rather than pushing
+       into its neighbours; the label ellipsises instead. Padding and
+       font-size scale with the viewport so that only happens on a screen
+       narrower than any real phone. */
     flex: 1 1 0;
-    padding: 14px 8px;
+    min-width: 0;
+    padding: clamp(12px, 2.6vw, 14px) clamp(3px, 2vw, 8px);
     border-radius: 8px;
     border: none;
-    font-size: 0.95rem;
+    font-size: clamp(0.72rem, 2.7vw, 0.95rem);
     font-weight: 600;
     cursor: pointer;
     transition: filter 0.2s, transform 0.1s, opacity 0.2s;
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .action-btn:active {
@@ -395,8 +408,9 @@ body {
     /* Skip takes its label's width and none of the row's spare space, so it
        sits narrower than Clear and Hints. Those two are part of practising a
        character; this one abandons it, and it shouldn't be the widest, most
-       inviting target under the canvas. */
-    flex: 0 0 auto;
+       inviting target under the canvas. It may still shrink (0 1, not 0 0)
+       when the row runs out of room, rather than forcing an overflow. */
+    flex: 0 1 auto;
 }
 
 /* --- Canvas Wrapper & InkStone Canvas --- */
@@ -671,7 +685,7 @@ body {
        left this button visibly short of the three beside it. Stretching to
        the flex line keeps all four the same height whatever the buttons'
        font-size or padding becomes. */
-    flex: 0 0 48px;
+    flex: 0 0 clamp(36px, 11vw, 48px);
     align-self: stretch;
     display: flex;
     align-items: center;
@@ -2159,19 +2173,6 @@ body {
     .cov-row { grid-template-columns: 62px 1fr 92px; }
 }
 
-/* The action row's five controls (audio pair + Clear/Hint/Skip) get tight at
-   a phone's width once each is holding a multi-word label -- flex-wrap on
-   #action-sidebar already keeps them from clipping off-screen (the bug
-   fixed above, before the action row moved below the canvas and stopped
-   competing with it for width), this just keeps them from wrapping onto an
-   awkward extra line at the sizes a phone actually has room for. */
-@media (max-width: 480px) {
-    .action-btn {
-        padding: 12px 4px;
-        font-size: 0.85rem;
-    }
-}
-
 /* --- Phones: the card fills the screen ---
    Edge to edge instead of a floating bordered card, with every vertical gap
    tightened. The canvas takes whatever height is left over (see
@@ -2226,9 +2227,11 @@ body {
     .counter-label-long { display: none; }
 }
 
-/* --- The narrowest screens: a smaller top bar and action row ---
+/* --- The narrowest screens: a smaller top bar ---
    Includes an ordinary iPhone with Safari's page zoom turned up: 393px at
-   125% leaves 314. Before this the action row wrapped onto a second line. */
+   125% leaves 314. The action row needs nothing here any more -- its
+   controls shrink continuously (see .action-btn) rather than stepping down
+   at a breakpoint and wrapping below it. */
 @media (max-width: 360px) {
     #top-bar { gap: 6px; }
     #character-counter {
@@ -2239,15 +2242,7 @@ body {
         padding: 6px 9px;
         font-size: 0.8rem;
     }
-    #action-sidebar { gap: 6px; }
-    .action-btn {
-        font-size: 0.8rem;
-        white-space: nowrap;
-    }
-    #sentence-audio-controls {
-        gap: 6px;
-    }
-    .btn-audio-icon { flex-basis: 40px; }
+    #sentence-audio-controls { gap: 6px; }
 }
 
 /* --- Plans: locked features and the upgrade screen ---
