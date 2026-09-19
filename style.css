@@ -1711,6 +1711,16 @@ body {
     font-size: 0.75rem;
 }
 
+/* The same button above the Import modal's own suggestion lists. It sits
+   inside a .mode-panel, which is ordinary block flow rather than
+   .modal-card's flex column, so it carries its own spacing. align-self
+   keeps it to its label's width in case the panel ever becomes a flex
+   column too. */
+.suggestion-select-toggle {
+    margin: 10px 0;
+    align-self: flex-start;
+}
+
 .import-sentence-list {
     max-height: 46vh;
 }

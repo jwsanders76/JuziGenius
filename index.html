@@ -149,12 +149,14 @@
                  answer to "what should I learn next?" the app can give. -->
             <div class="mode-panel" data-mode-panel="chars" hidden>
                 <p class="modal-subtitle">The most frequently used characters you haven't unlocked yet. <strong>Unlocks</strong> counts how many practice sentences each one immediately makes writable &mdash; a common character that completes no sentence buys you no practice today.</p>
+                <button type="button" id="char-select-toggle" class="top-btn import-list-action-btn suggestion-select-toggle" hidden>Select all</button>
                 <div id="char-suggestions-list" class="suggestions-list"></div>
             </div>
 
             <!-- Suggest Words: highest-frequency compound words not yet added -->
             <div class="mode-panel" data-mode-panel="suggest" hidden>
                 <p class="modal-subtitle">The most frequently used compound words you haven't added yet, pulled from the local dictionary. Check the ones you want and add them to your vocabulary.</p>
+                <button type="button" id="word-select-toggle" class="top-btn import-list-action-btn suggestion-select-toggle" hidden>Select all</button>
                 <div id="suggestions-list" class="suggestions-list"></div>
             </div>
 
