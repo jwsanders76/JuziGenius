@@ -137,12 +137,96 @@ _words_freq_lock = threading.Lock()
 _corpus_cache = None
 _corpus_lock = threading.Lock()
 
+# Punctuation inside a sentence, as opposed to the mark that ends it. Used
+# only to rank two spellings of the same sentence against each other below.
+_INTERNAL_PUNCT = frozenset("，、；：")
+
+# Words that make a Chinese sentence a question without a question mark.
+_QUESTION_MARKERS = ("吗", "呢", "什么", "哪", "谁", "几点", "怎么", "为什么")
+
+
+def sentence_identity(chinese: str) -> str:
+    """
+    What makes two corpus sentences the same sentence: the hanzi, without the
+    punctuation around them. 你好 and 你好。 are one sentence to write, not
+    two, and the corpora carried both -- the curated HSK tables spell their
+    sentences without a final stop, Tatoeba spells them with one.
+    """
+    return "".join(c for c in chinese if c not in ALLOWED_PUNCT)
+
+
+def _translation_rank(source_rank: int, chinese: str, english: str) -> tuple:
+    """
+    How good a spelling of one sentence is, highest first, for choosing which
+    of a set of duplicates to keep. Mechanical rules only -- nothing here can
+    judge a translation, so it judges the things that are visible:
+
+    1. A capitalised English sentence over "do you have a bicycle?".
+    2. One that ends in a full stop, question or exclamation mark.
+    3. A question mark on the English when the Chinese asks something.
+    4. The Chinese that keeps its commas, e.g. 活到老，学到老。
+    5. The hand-curated HSK tables over Tatoeba, which decides the cases the
+       rules above cannot see: both "I am cold." and "I was so cold." are
+       well-formed English, but only the first is what 我很冷 says. The HSK
+       sentences were written to teach, so their English tends to be literal
+       where Tatoeba's is idiomatic.
+    6. The shorter gloss, then the alphabetically earlier one, so that two
+       equally good translations resolve the same way on every machine
+       rather than by whichever file happened to be read first.
+    """
+    asks_something = chinese.rstrip().endswith("？") or any(
+        marker in chinese for marker in _QUESTION_MARKERS)
+    return (
+        english[:1].isupper(),
+        english.endswith((".", "!", "?")),
+        asks_something == english.endswith("?"),
+        any(c in _INTERNAL_PUNCT for c in chinese),
+        -source_rank,
+        -len(english),
+        chinese.endswith(("。", "！", "？")),
+        english,
+    )
+
+
+def _dedupe_corpus(rows: list) -> list:
+    """
+    One row per sentence, keeping the best-spelled of any duplicates (see
+    _translation_rank) in the order they were first read.
+
+    The duplicates are real and were reported from the quick-add checklist,
+    which offered 你好 "hello." and 你好。 "Hi." as two separate sentences to
+    add. They are not a fault in either source file: the HSK CSVs are
+    word-to-example tables, so one sentence legitimately appears under two
+    words it teaches, and tatoeba_sentences.csv is generated from the
+    upstream Tatoeba dump, which has its own 你好。 that no dedupe in
+    build_extra_sentences.py could match against a different file's
+    differently-punctuated copy. So this collapses them on the way in, where
+    it also survives the next regeneration of either file.
+
+    `rows` carries (source_rank, chinese, english); the rank is the sentence
+    file's position in SENTENCE_SOURCE_FILES, which _translation_rank uses.
+    """
+    best = {}
+    for source_rank, chinese, english in rows:
+        identity = sentence_identity(chinese)
+        if not identity:
+            continue
+        rank = _translation_rank(source_rank, chinese, english)
+        current = best.get(identity)
+        if current is None or rank > current[0]:
+            # Keeping the first winner's position rather than the new one's
+            # means the list stays in corpus order however the ranking falls.
+            position = len(best) if current is None else current[1]
+            best[identity] = (rank, position, chinese, english)
+    return [(chinese, english) for _rank, _position, chinese, english
+            in sorted(best.values(), key=lambda entry: entry[1])]
+
 
 def load_sentence_corpus() -> list:
     """
     Every (chinese, english) pair in SENTENCE_SOURCE_FILES, blanks dropped and
     the Chinese stripped of spaces, exactly as each scanning caller used to do
-    for itself.
+    for itself, and one row per sentence (see _dedupe_corpus).
 
     Treat the returned list as read-only; every caller shares it.
     """
@@ -152,8 +236,8 @@ def load_sentence_corpus() -> list:
     with _corpus_lock:
         if _corpus_cache is not None:
             return _corpus_cache
-        pairs = []
-        for filename in SENTENCE_SOURCE_FILES:
+        rows = []
+        for source_rank, filename in enumerate(SENTENCE_SOURCE_FILES):
             if not os.path.exists(filename):
                 continue
             try:
@@ -162,10 +246,10 @@ def load_sentence_corpus() -> list:
                         chinese = (row.get("sentence") or "").replace(" ", "").strip()
                         english = (row.get("sentence_meaning") or "").strip()
                         if chinese and english:
-                            pairs.append((chinese, english))
+                            rows.append((source_rank, chinese, english))
             except Exception as e:
                 print(f"Warning: could not read {filename}: {e}")
-        _corpus_cache = pairs
+        _corpus_cache = _dedupe_corpus(rows)
         return _corpus_cache
 
 # How many never-before-reviewed characters may enter the due queue on any one
@@ -2109,17 +2193,33 @@ class JuziEngine:
         a count, and a date -- see record_sentence_completion) an English
         side to display in the Sentence Bank. Stops early once every requested
         sentence has been found.
+
+        A sentence banked before the corpus was deduped may be spelled the way
+        the losing copy was -- 你好 where the corpus now keeps 你好。 -- so
+        anything the exact pass misses is matched again on sentence_identity.
+        Without that second pass those sentences would quietly vanish from the
+        Sentence Bank (the caller drops anything with no English) and stop
+        being served as practice, which is not a thing a tidy-up of the
+        reference data is allowed to do to someone's own record. The result
+        stays keyed by the text the caller asked about, so the learner keeps
+        seeing the sentence as they banked it.
         """
         found = {}
         if not chinese_set:
             return found
         remaining = set(chinese_set)
+        by_identity = {}
         for chinese, english in load_sentence_corpus():
             if chinese in remaining:
                 found[chinese] = english
                 remaining.discard(chinese)
                 if not remaining:
-                    break
+                    return found
+            by_identity.setdefault(sentence_identity(chinese), english)
+        for chinese in list(remaining):
+            english = by_identity.get(sentence_identity(chinese))
+            if english:
+                found[chinese] = english
         return found
 
     def count_playable_sentences(self, unlocked_set: set) -> int:
@@ -2150,16 +2250,22 @@ class JuziEngine:
         """
         brain_data = self.practice_view(self._read_brain(), allowed_chars)
         unlocked_set = set(brain_data.get("unlocked_chars", {}).keys())
+        # Matched on sentence_identity rather than the exact text, so a
+        # sentence banked under the spelling the corpus dedupe dropped
+        # (你好, where 你好。 survived) isn't offered back as something new
+        # to add -- which would put the duplicate the dedupe removed straight
+        # back into that learner's own bank.
         already_known = {
-            (item.get("chinese") or "").strip()
+            sentence_identity((item.get("chinese") or "").strip())
             for item in (brain_data.get("pasted_sentences", []) or [])
         }
-        already_known |= set((brain_data.get("completed_sentences", {}) or {}).keys())
+        already_known |= {sentence_identity(chinese) for chinese
+                          in (brain_data.get("completed_sentences", {}) or {})}
 
         matches = [
             {"chinese": chinese, "english": english}
             for chinese, english in load_sentence_corpus()
-            if len(chinese) >= 2 and chinese not in already_known
+            if len(chinese) >= 2 and sentence_identity(chinese) not in already_known
             and all(c in unlocked_set or c in ALLOWED_PUNCT for c in chinese)
         ]
         matches.sort(key=lambda s: (len(s["chinese"]), s["chinese"]))
