@@ -15,6 +15,7 @@ import re
 SOURCE_CSV = "hanzi_db.csv"
 OUTPUT_PATH = "master_dictionary.json"
 OVERRIDES_PATH = "meaning_overrides.json"
+SCRIPT_MAP_PATH = "char_script_map.json"
 
 # Senses a learner never needs: surname tags, radical labels, classical /
 # archaic / dialect notes, and pointers to variant forms (including ones the
@@ -27,12 +28,21 @@ _UNWANTED_SENSE = re.compile(
 )
 
 
+# A whole meaning that is only the start of a sentence the source cut off.
+_TRUNCATED_FRAGMENT = re.compile(
+    r"\(?(simp\.? for|simplified form of|same as|variant of|abbr\.? of)", re.IGNORECASE
+)
+
+
 def clean_meaning(meaning):
-    """Drop the senses above. If that would leave nothing, keep the original:
-    a rare character with only an odd sense is better labelled than blank."""
+    """Drop the senses above. If that would leave nothing, keep the original
+    (a rare character with only a surname sense is better labelled than blank),
+    unless the original is just a truncated fragment, which teaches nothing."""
     senses = [s.strip() for s in meaning.split(";")]
     kept = [s for s in senses if s and not _UNWANTED_SENSE.search(s)]
-    return "; ".join(kept) if kept else meaning
+    if kept:
+        return "; ".join(kept)
+    return "" if _TRUNCATED_FRAGMENT.fullmatch(meaning.strip()) else meaning
 
 
 def load_overrides(path=OVERRIDES_PATH):
@@ -41,6 +51,27 @@ def load_overrides(path=OVERRIDES_PATH):
     and would wipe a hand edit made there."""
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def fill_from_simplified_twin(dictionary, script_map_path=SCRIPT_MAP_PATH):
+    """A character with no meaning that is only the traditional form of a
+    simplified one (陰 for 阴) takes that character's meaning. Skipped when
+    several simplified characters merge into it and they disagree."""
+    with open(script_map_path, "r", encoding="utf-8") as f:
+        simplified_to_traditional = json.load(f)
+    twins = {}
+    for simplified, traditional in simplified_to_traditional.items():
+        if simplified != traditional:
+            twins.setdefault(traditional, []).append(simplified)
+    for char, sources in twins.items():
+        entry = dictionary.get(char)
+        if not entry or entry["meaning"].strip():
+            continue
+        meanings = {dictionary[s]["meaning"] for s in sources
+                    if s in dictionary and dictionary[s]["meaning"].strip()
+                    and not _UNWANTED_SENSE.search(dictionary[s]["meaning"])}
+        if len(meanings) == 1:
+            entry["meaning"] = meanings.pop()
 
 
 def build_master_dictionary(source_csv=SOURCE_CSV, overrides_path=OVERRIDES_PATH):
@@ -81,6 +112,7 @@ def build_master_dictionary(source_csv=SOURCE_CSV, overrides_path=OVERRIDES_PATH
                     except ValueError:
                         pass
             dictionary[char] = entry
+    fill_from_simplified_twin(dictionary)
     return dictionary
 
 

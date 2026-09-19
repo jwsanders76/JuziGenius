@@ -17,6 +17,22 @@ class CleanMeaning(unittest.TestCase):
     def test_keeps_original_rather_than_blank(self):
         self.assertEqual(ivd.clean_meaning("surname"), "surname")
 
+    def test_a_bare_truncated_fragment_becomes_blank(self):
+        self.assertEqual(ivd.clean_meaning("(same as"), "")
+        self.assertEqual(ivd.clean_meaning("(simplified form of"), "")
+
+
+class TraditionalTwin(unittest.TestCase):
+    def test_traditional_form_takes_its_simplified_twins_meaning(self):
+        d = {"阴": {"meaning": "shade; overcast"}, "陰": {"meaning": ""}}
+        ivd.fill_from_simplified_twin(d)
+        self.assertEqual(d["陰"]["meaning"], "shade; overcast")
+
+    def test_a_twin_whose_own_meaning_is_junk_is_not_copied(self):
+        d = {"䓖": {"meaning": "(simplified form of"}, "藭": {"meaning": ""}}
+        ivd.fill_from_simplified_twin(d)
+        self.assertEqual(d["藭"]["meaning"], "")
+
     def test_leaves_ordinary_meanings_alone(self):
         self.assertEqual(ivd.clean_meaning("big, great, vast, large, high"), "big, great, vast, large, high")
 
