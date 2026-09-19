@@ -18,6 +18,7 @@ What it does, and does not:
   words_freq.json that the account doesn't already have, through the engine's
   own add_characters / add_words, so entries look exactly like ones unlocked
   by hand: never graded, `interval` 0, `factor` 2.5.
+* Marks a brand-new account as onboarded, so the tier picker doesn't appear.
 * Only ever adds. An existing entry keeps its SM-2 progress untouched, and
   nothing else in brain.json (settings, sentences, completed sentences) changes.
 * Sentences are not stored as unlocked: once every character is unlocked all
@@ -41,7 +42,7 @@ import shutil
 import subprocess
 
 from accounts import load_accounts
-from brain_history import snapshot
+from brain_history import save_brain, snapshot
 from juzi_engine import JuziEngine
 from user_registry import USERS_DIR, find_by_name, load_registry
 
@@ -126,6 +127,12 @@ def main():
 
     with open(brain_path, "r", encoding="utf-8") as f:
         after = json.load(f)
+    if not after.get("onboarded", True):
+        # A brand-new account is still waiting on the tier picker, whose seed
+        # step refuses (409) once anything is unlocked -- so without this the
+        # learner would land on a picker that can only fail.
+        after["onboarded"] = True
+        save_brain(brain_path, after)
     print(f"Done: {len(after['unlocked_chars'])} characters and {len(after['unlocked_words'])} words unlocked.")
     print("The state before is kept in brain-history; restore_brain.py undoes it.")
     if shutil.which("systemctl"):
