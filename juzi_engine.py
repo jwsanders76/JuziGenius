@@ -428,6 +428,23 @@ class JuziEngine:
         raw = settings.get("character_script")
         return raw if raw in VALID_CHARACTER_SCRIPTS else DEFAULT_CHARACTER_SCRIPT
 
+    def tutorial_seen(self, brain_data: dict = None) -> bool:
+        """
+        Whether this account has already been through (or dismissed) the
+        four-screen tutorial app.js shows over the practice card.
+
+        Missing means False -- unlike `onboarded`, whose missing key defaults
+        True so existing accounts are never re-prompted for a starting tier.
+        The difference is what the two cost when wrong: the tier picker is a
+        blocking choice, while the tutorial is a dismissible card with an X
+        on it, and an account that predates the tutorial has genuinely never
+        been offered it.
+        """
+        if brain_data is None:
+            brain_data = self._read_brain()
+        settings = brain_data.get("settings") or {}
+        return bool(settings.get("tutorial_seen", False))
+
     def apply_character_script(self, sentences: list, script: str) -> list:
         """
         Converts a list of already-built session items (chinese/char_metadata/
@@ -541,6 +558,7 @@ class JuziEngine:
             "unlocked_chars": len(unlocked),
             "study_styles": sorted(self.study_styles(brain_data)),
             "character_script": self.character_script(brain_data),
+            "tutorial_seen": self.tutorial_seen(brain_data),
         }
 
     def update_settings(self, values: dict) -> dict:
@@ -602,6 +620,18 @@ class JuziEngine:
         else:
             script = None
 
+        # The only setting here the user never sets on purpose: it is written
+        # by closing the tutorial, not by a control in the Settings panel.
+        # Strictly a bool -- "true" or 1 would be a stale or hand-rolled
+        # client, and silently accepting either would let a typo switch the
+        # tutorial off for good.
+        if "tutorial_seen" in values:
+            seen = values["tutorial_seen"]
+            if not isinstance(seen, bool):
+                raise ValueError("'tutorial_seen' must be true or false.")
+        else:
+            seen = None
+
         with self.brain_lock:
             brain_data = self._read_brain()
             settings = brain_data.setdefault("settings", {})
@@ -611,6 +641,8 @@ class JuziEngine:
                 settings["study_styles"] = sorted(styles)
             if script is not None:
                 settings["character_script"] = script
+            if seen is not None:
+                settings["tutorial_seen"] = seen
             # Drop dead keys from existing accounts on the first save
             # rather than shipping a migration script, the same way
             # prune_single_char_words heals unlocked_words in place.

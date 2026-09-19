@@ -64,7 +64,14 @@ const state = {
     // Last payload from /api/settings -- held so the Settings panel can
     // validate against the server's own bounds and restore its default
     // without a second request.
-    settings: null
+    settings: null,
+    // Which tutorial screen is on show, and whether this account has already
+    // said it doesn't need the tutorial. tutorialSeen mirrors
+    // settings.tutorial_seen in brain.json (it arrives on the /api/session
+    // envelope) so the answer follows the account to whatever device it
+    // signs in on next, rather than being re-asked per browser.
+    tutorialIndex: 0,
+    tutorialSeen: true
 };
 
 const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected", chars: "Unlock Selected" };
@@ -102,6 +109,63 @@ const HINT_WALKTHROUGH_SPEED = 4.5;
 
 // Number of hint tiers in the staircase (pinyin push / outline / walkthrough).
 const MAX_HINT_TIER = 3;
+
+
+/* ==========================================================================
+   Tutorial content
+   ==========================================================================
+   The four screens of the introduction, in the same shape the Pinyin & Tones
+   tool uses: an id, a heading, a couple of short paragraphs and an optional
+   demonstration. Four is the whole budget on purpose -- this exists to get
+   someone writing, not to document the app, and everything left out is
+   discoverable from the buttons it describes.
+
+   Kept here rather than in a JSON file the way the companion tool does it:
+   server.py serves from an explicit allowlist (ALLOWED_STATIC_PATHS), so a
+   content file would be a second thing to remember to add there, and app.js
+   is already the one front-end file. Editing the wording is still a
+   one-place change.
+
+   `demo` names a block built by buildTutorialDemo below; null means none.
+   ========================================================================== */
+const TUTORIAL_SCREENS = [
+    {
+        id: "welcome",
+        heading: "You write it, by hand",
+        paragraphs: [
+            "JuziGenius gives you the English and asks you to write the Chinese. There is nothing to pick from and nothing to tap through — you draw each character yourself, one stroke at a time.",
+            "That is the whole idea. Recognising a character is real progress; producing one from an empty square is a different level of knowing it."
+        ],
+        demo: "avatar"
+    },
+    {
+        id: "a-round",
+        heading: "How a round goes",
+        paragraphs: [
+            "The English prompt sits at the top, and under it one box per character. The highlighted box is the one you are writing now; the rest fill in behind you as you go.",
+            "Write that character in the square below the boxes. Every stroke is checked as you draw it — the right shape in the right place, in the right order — and a stroke that isn't one of those simply won't take."
+        ],
+        demo: "slots"
+    },
+    {
+        id: "stuck",
+        heading: "When you're stuck",
+        paragraphs: [
+            "<strong>Hints</strong> walks up three steps for the character you're on: the pinyin, then a faint outline to trace, then a full stroke-by-stroke walkthrough. You get three per character, and they build on each other rather than replacing each other.",
+            "Use them whenever you need to, but they do count: leaning on a hint tells JuziGenius you haven't got that character yet, so it comes back sooner, and keeps coming back until you don't need the help. <strong>Clear</strong> wipes what you've drawn, <strong>Skip</strong> moves past a character, and the speaker reads the sentence aloud whenever you want to hear it."
+        ],
+        demo: "hints"
+    },
+    {
+        id: "growing",
+        heading: "Growing your pool",
+        paragraphs: [
+            "<strong>Import</strong> is where more practice comes from: characters and words worth learning next, HSK example sentences, or your own pasted text. <strong>Progress</strong> shows everything you've unlocked and what's due.",
+            "Reviews are scheduled for you — characters come back days apart, sooner if you struggled. The gear holds your settings, and this tutorial, any time you want it again."
+        ],
+        demo: "controls"
+    }
+];
 
 // Upstream stroke data, used only for characters this install didn't vendor
 // (see loadCharacterStrokes). Pinned to the version fetch_stroke_data.py
@@ -405,6 +469,17 @@ function cacheDomElements() {
     elements.onboardingStatus = document.getElementById("onboarding-status");
     elements.onboardingPlanNote = document.getElementById("onboarding-plan-note");
 
+    elements.tutorialModal = document.getElementById("tutorial-modal");
+    elements.tutorialStep = document.getElementById("tutorial-step");
+    elements.tutorialHeading = document.getElementById("tutorial-heading");
+    elements.tutorialBody = document.getElementById("tutorial-body");
+    elements.tutorialDemo = document.getElementById("tutorial-demo");
+    elements.tutorialDontShow = document.getElementById("tutorial-dont-show");
+    elements.tutorialBtnBack = document.getElementById("tutorial-btn-back");
+    elements.tutorialBtnNext = document.getElementById("tutorial-btn-next");
+    elements.tutorialBtnClose = document.getElementById("tutorial-btn-close");
+    elements.settingsBtnTutorial = document.getElementById("settings-btn-tutorial");
+
     // Plans: the locked Paste Text panel, the upgrade screen, Settings' plan section.
     elements.pasteOpen = document.getElementById("paste-open");
     elements.pasteLocked = document.getElementById("paste-locked");
@@ -677,6 +752,56 @@ function initEventListeners() {
         });
     }
 
+    // Tutorial. Every way out of it is wired here: Next/Back walk the
+    // screens, the X closes without an opinion, and a click on the backdrop
+    // does the same -- the click lands on the overlay itself only when it
+    // missed the card, so the test is e.target rather than a stopPropagation
+    // on the card.
+    if (elements.tutorialBtnNext) {
+        elements.tutorialBtnNext.addEventListener("click", () => {
+            if (state.tutorialIndex >= TUTORIAL_SCREENS.length - 1) {
+                closeTutorial(true);
+                return;
+            }
+            state.tutorialIndex++;
+            renderTutorial();
+        });
+    }
+    if (elements.tutorialBtnBack) {
+        elements.tutorialBtnBack.addEventListener("click", () => {
+            if (state.tutorialIndex === 0) return;
+            state.tutorialIndex--;
+            renderTutorial();
+        });
+    }
+    if (elements.tutorialBtnClose) {
+        elements.tutorialBtnClose.addEventListener("click", () => closeTutorial());
+    }
+    if (elements.tutorialModal) {
+        elements.tutorialModal.addEventListener("click", (e) => {
+            if (e.target === elements.tutorialModal) closeTutorial();
+        });
+    }
+    // Settings' way back in. Closes Settings first: the tutorial describes
+    // the practice card, and leaving a full-height Progress modal underneath
+    // it would put the thing being described behind two layers.
+    if (elements.settingsBtnTutorial) {
+        elements.settingsBtnTutorial.addEventListener("click", () => {
+            if (elements.progressModal) elements.progressModal.style.display = "none";
+            openTutorial();
+        });
+    }
+
+    // Escape closes the tutorial, the one modal in the app that offers it.
+    // It is also the only dismissible modal that can appear without being
+    // asked for, which is exactly the case Escape exists for.
+    window.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (!elements.tutorialModal) return;
+        if (window.getComputedStyle(elements.tutorialModal).display === "none") return;
+        closeTutorial();
+    });
+
     // Keyboard navigation: Press Space or Enter to load Next sentence when completed.
     //
     // Scoped deliberately. This listener is on window and calls
@@ -714,6 +839,10 @@ async function fetchNewSession() {
             state.totalUnlockedCount = data.total_unlocked_count || 0;
             state.totalDueCount = data.total_due_count || 0;
             state.newBacklog = data.new_backlog || 0;
+            // Absent on an older server: treated as "seen", so a version
+            // skew offers the tutorial to nobody rather than to everybody on
+            // every single page load.
+            state.tutorialSeen = data.tutorial_seen !== false;
 
             // A brand new create_user.py account that hasn't picked a
             // starting tier yet -- show the picker instead of the normal
@@ -730,6 +859,12 @@ async function fetchNewSession() {
         if (elements.onboardingModal) elements.onboardingModal.style.display = "none";
         updateCharacterCounter();
         updateDueCounter();
+
+        // After the tier picker, never instead of it: an account arriving
+        // here has a pool and a practice card to read the tutorial against.
+        // Offered whether or not there are sentences to practise -- an empty
+        // pool is one of the situations the Import screen explains.
+        if (!state.tutorialSeen) openTutorial();
 
         if (state.sentences.length > 0) {
             state.currentIndex = 0;
@@ -861,6 +996,177 @@ async function chooseOnboardingTier(size) {
         }
         buttons.forEach(b => (b.disabled = false));
     }
+}
+
+/* ==========================================================================
+   Tutorial
+   ==========================================================================
+   Four screens explaining how practice works, offered once on a new account
+   (after the starting tier is picked, so the first thing a brand new account
+   sees is still the choice it cannot avoid) and available from Settings
+   afterwards.
+
+   Closing is always available -- the X, Escape, a click on the backdrop --
+   and closing on its own does not suppress it. "Don't show this again" is
+   what does, and reaching the end counts as the same answer: someone who
+   read all four screens should not be handed them again tomorrow. Both
+   write settings.tutorial_seen, so the answer is the account's and not this
+   browser's.
+   ========================================================================== */
+
+function openTutorial() {
+    if (!elements.tutorialModal) return;
+    // Never over the tier picker: that modal is deliberately not dismissible,
+    // and stacking a dismissible card on top of it would offer a way out of
+    // a choice there is no way out of.
+    if (elements.onboardingModal
+        && window.getComputedStyle(elements.onboardingModal).display !== "none") return;
+
+    state.tutorialIndex = 0;
+    if (elements.tutorialDontShow) elements.tutorialDontShow.checked = false;
+    renderTutorial();
+    elements.tutorialModal.style.display = "flex";
+}
+
+function renderTutorial() {
+    const screen = TUTORIAL_SCREENS[state.tutorialIndex];
+    if (!screen) return;
+
+    const total = TUTORIAL_SCREENS.length;
+    if (elements.tutorialStep) {
+        elements.tutorialStep.textContent = `Step ${state.tutorialIndex + 1} of ${total}`;
+    }
+    if (elements.tutorialHeading) elements.tutorialHeading.textContent = screen.heading;
+
+    if (elements.tutorialBody) {
+        elements.tutorialBody.innerHTML = "";
+        screen.paragraphs.forEach(text => {
+            const p = document.createElement("p");
+            // innerHTML rather than textContent because the screens carry a
+            // little <strong> to pick out a button name. The source is
+            // TUTORIAL_SCREENS, a literal in this file -- no part of it comes
+            // from the server or from anything the user typed.
+            p.innerHTML = text;
+            elements.tutorialBody.appendChild(p);
+        });
+    }
+
+    if (elements.tutorialDemo) {
+        elements.tutorialDemo.innerHTML = "";
+        const demo = buildTutorialDemo(screen.demo);
+        elements.tutorialDemo.hidden = !demo;
+        if (demo) elements.tutorialDemo.appendChild(demo);
+    }
+
+    if (elements.tutorialBtnBack) elements.tutorialBtnBack.disabled = state.tutorialIndex === 0;
+    if (elements.tutorialBtnNext) {
+        elements.tutorialBtnNext.textContent =
+            state.tutorialIndex === total - 1 ? "Start writing" : "Next";
+    }
+}
+
+/**
+ * The illustration on a tutorial screen, or null for a screen without one.
+ *
+ * Built from static markup rather than from the live practice card: the
+ * tutorial opens over a brand new account with no sentence loaded, and on an
+ * account whose session is mid-character, so borrowing the real elements
+ * would show either nothing or someone else's progress.
+ */
+function buildTutorialDemo(kind) {
+    if (kind === "avatar") {
+        const img = document.createElement("img");
+        img.src = "/avatar-nobg-128.png";
+        img.alt = "";
+        img.className = "tutorial-avatar";
+        return img;
+    }
+
+    if (kind === "slots") {
+        // A miniature of the assembly line: two characters written, the third
+        // active, the fourth still to come.
+        const row = document.createElement("div");
+        row.className = "tutorial-demo-row";
+        row.style.display = "flex";
+        row.style.gap = "6px";
+        [
+            { text: "\u6211", state: "" },
+            { text: "\u559d", state: "" },
+            { text: "_", state: "is-active is-empty" },
+            { text: "_", state: "is-empty" }
+        ].forEach(cell => {
+            const slot = document.createElement("div");
+            slot.className = `tutorial-slot ${cell.state}`.trim();
+            slot.textContent = cell.text;
+            row.appendChild(slot);
+        });
+        return row;
+    }
+
+    if (kind === "hints") {
+        return chipRow([
+            ["1", "pinyin"],
+            ["2", "outline"],
+            ["3", "stroke by stroke"]
+        ]);
+    }
+
+    if (kind === "controls") {
+        return chipRow([
+            ["Import", "more to practise"],
+            ["Progress", "what you know"],
+            ["\u2699", "settings"]
+        ]);
+    }
+
+    return null;
+}
+
+/** A row of small labelled pills, used by two of the tutorial demos. */
+function chipRow(pairs) {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.flexWrap = "wrap";
+    row.style.justifyContent = "center";
+    row.style.gap = "8px";
+    pairs.forEach(([lead, label]) => {
+        const chip = document.createElement("span");
+        chip.className = "tutorial-chip";
+        const b = document.createElement("b");
+        b.textContent = lead;
+        chip.appendChild(b);
+        chip.appendChild(document.createTextNode(label));
+        row.appendChild(chip);
+    });
+    return row;
+}
+
+/**
+ * Closes the tutorial. `completed` is true only for "Start writing" on the
+ * last screen; either that or a ticked "Don't show this again" is taken as
+ * the account saying it is done with the tutorial.
+ */
+function closeTutorial(completed = false) {
+    if (!elements.tutorialModal) return;
+    elements.tutorialModal.style.display = "none";
+    const suppress = completed
+        || Boolean(elements.tutorialDontShow && elements.tutorialDontShow.checked);
+    if (suppress) markTutorialSeen();
+}
+
+/**
+ * Remembers, on the account, that the tutorial has been dealt with.
+ *
+ * Fire-and-forget: the local flag is set first so nothing re-opens the
+ * tutorial in this session either way, and a failed save costs the user one
+ * extra offer of a dismissible card next visit -- not worth an error banner
+ * over the practice screen they just asked to get back to.
+ */
+function markTutorialSeen() {
+    if (state.tutorialSeen) return;
+    state.tutorialSeen = true;
+    apiPost("/api/settings", { tutorial_seen: true })
+        .catch(err => console.error("Couldn't save the tutorial preference:", err));
 }
 
 /**
@@ -2297,14 +2603,15 @@ function isTypingTarget(target) {
 }
 
 /**
- * True while the Add to Your Practice modal or the onboarding tier picker
- * is on screen. Read from the computed style rather than the inline one, so
+ * True while the Add to Your Practice modal, the onboarding tier picker or
+ * the tutorial is on screen. Read from the computed style rather than the
+ * inline one, so
  * it's correct before any code has assigned to style.display (the initial
  * "none" comes from the .modal-overlay rule in style.css, not from an inline
  * attribute).
  */
 function isModalOpen() {
-    return [elements.importModal, elements.onboardingModal].some(
+    return [elements.importModal, elements.onboardingModal, elements.tutorialModal].some(
         modal => modal && window.getComputedStyle(modal).display !== "none"
     );
 }

@@ -803,6 +803,14 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
             # (every brain predating the picker) defaults True so existing
             # installs are never re-prompted.
             "onboarded": bool(brain_data.get("onboarded", True)),
+            # Whether to offer the four-screen tutorial once this session is
+            # on screen. Carried on this envelope rather than costing a
+            # second request to /api/settings, which app.js only fetches when
+            # the Settings panel is actually opened. A brain with no such
+            # setting has never been offered it, so this is False there --
+            # including after Start Over, whose empty brain re-arms the
+            # tutorial along with the tier picker.
+            "tutorial_seen": engine.tutorial_seen(brain_data),
         }
 
     def _get_word_suggestions(self, engine):

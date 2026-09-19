@@ -215,6 +215,47 @@
         </div>
     </div>
 
+    <!-- Tutorial Overlay: the four-screen introduction to how practice
+         works, shown once on a new account and reachable afterwards from
+         Settings. Content lives in TUTORIAL_SCREENS in app.js rather than
+         in this file -- the screens are rendered into #tutorial-body, so
+         the wording can be edited in one place without touching markup.
+
+         Dismissible in every direction, unlike the onboarding tier picker:
+         the X, Escape and a click on the backdrop all close it, because
+         there IS a session behind this one and nothing here is required.
+         "Don't show this again" is what makes the dismissal stick; closing
+         without it means the tutorial is offered again next visit. -->
+    <div id="tutorial-modal" class="modal-overlay">
+        <div class="modal-card tutorial-card" role="dialog" aria-modal="true" aria-labelledby="tutorial-heading">
+            <div class="tutorial-header">
+                <p class="tutorial-step" id="tutorial-step"></p>
+                <button type="button" id="tutorial-btn-close" class="tutorial-close"
+                        title="Close the tutorial" aria-label="Close the tutorial">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <h2 class="modal-title" id="tutorial-heading"></h2>
+            <div id="tutorial-body" class="tutorial-body"></div>
+            <div id="tutorial-demo" class="tutorial-demo" hidden></div>
+
+            <div class="tutorial-footer">
+                <label class="setting-checkbox-row tutorial-suppress" for="tutorial-dont-show">
+                    <input type="checkbox" id="tutorial-dont-show">
+                    <span>Don't show this again</span>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" id="tutorial-btn-back" class="modal-btn btn-secondary">Back</button>
+                    <button type="button" id="tutorial-btn-next" class="modal-btn btn-primary">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Progress Overlay -->
     <div id="progress-modal" class="modal-overlay">
         <div class="modal-card progress-card">
@@ -361,6 +402,23 @@
                             <button type="button" id="plan-lifetime-btn" class="modal-btn btn-primary plan-manage-btn">Switch to lifetime</button>
                         </div>
                         <p id="plan-lifetime-status" class="progress-note" role="status" hidden></p>
+                    </section>
+
+                    <!-- The way back into the four-screen introduction. It
+                         sits at the top of Settings, above the preferences,
+                         because someone who opens Settings looking for "how
+                         does this work again?" should not have to read past
+                         three toggles to find it. -->
+                    <section class="progress-section">
+                        <h3 class="progress-title">How JuziGenius works</h3>
+                        <p class="progress-note">
+                            A short introduction to writing practice, hints and adding
+                            new characters. Four screens, and you can leave at any point.
+                        </p>
+
+                        <button type="button" id="settings-btn-tutorial" class="modal-btn btn-secondary">
+                            Show the tutorial
+                        </button>
                     </section>
 
                     <section class="progress-section">

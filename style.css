@@ -2340,3 +2340,165 @@ body {
 .upgrade-card { text-align: center; }
 .upgrade-card .stat-row { justify-content: center; margin: 14px 0; }
 .upgrade-card .progress-note { margin-top: 10px; }
+
+/* --- Tutorial -----------------------------------------------------------
+
+   The four-screen introduction (#tutorial-modal). A plain .modal-card with
+   three additions: a header row carrying the step count and the X, a body
+   whose paragraphs need their own spacing (the global reset zeroes every
+   margin, so without this they run together into a wall of text -- the same
+   thing that had to be fixed in the Pinyin & Tones tutorial), and a footer
+   that keeps "Don't show this again" and Back/Next on one line where there
+   is room and stacks them where there isn't. */
+.tutorial-card {
+    gap: 14px;
+}
+
+/* Sticky for the same reason .mode-tabs is: on a short screen the card is
+   the scroll region, and the X would otherwise scroll away -- on a tutorial
+   whose whole promise is that you can close it at any moment. `top: -24px`
+   and the opaque backing follow .mode-tabs exactly; see its comment for why
+   both numbers are what they are. */
+.tutorial-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    position: sticky;
+    top: -24px;
+    z-index: 1;
+    background-color: var(--surface-color);
+    padding-top: 24px;
+    margin-top: -24px;
+}
+
+.tutorial-step {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    /* Vertically centred against the 32px X beside it. */
+    padding-top: 8px;
+}
+
+/* Smaller than the 44px .gear-btn it is modelled on: this one sits inside a
+   card whose own padding gives it clear space on two sides, and a 44px
+   square in the corner of a 480px card reads as a second heading. 32px with
+   the card padding around it is still a comfortable target. */
+.tutorial-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tutorial-close:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-gold);
+}
+
+.tutorial-close:active { transform: scale(0.96); }
+
+.tutorial-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tutorial-body p {
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.tutorial-body strong { color: var(--text-primary); }
+
+.tutorial-demo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 12px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+/* Miniature of the real assembly line, at about two-thirds scale, so the
+   row of boxes on screen 2 is recognisably the row the learner is about to
+   see rather than a generic diagram. Deliberately static markup built in
+   app.js: it must not depend on a sentence being loaded, since the tutorial
+   can open over an empty account. */
+.tutorial-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 34px;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.tutorial-slot.is-empty { color: var(--text-secondary); }
+
+.tutorial-slot.is-active {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 0 2px rgba(243, 156, 18, 0.25);
+}
+
+/* The numbered hint steps on screen 3, and the named controls on screen 4. */
+.tutorial-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 5px 12px;
+}
+
+.tutorial-chip b {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.tutorial-avatar {
+    width: 72px;
+    height: 72px;
+}
+
+.tutorial-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 2px;
+}
+
+/* The checkbox row is a Settings component and sizes its label for that
+   panel; inside the footer it sits beside buttons and wants their type
+   scale. */
+.tutorial-suppress span { font-size: 0.82rem; color: var(--text-secondary); }
+
+.tutorial-footer .modal-actions {
+    margin-top: 0;
+    margin-left: auto;
+}
+
