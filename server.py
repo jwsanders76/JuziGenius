@@ -1341,7 +1341,10 @@ class JuziAPIHandler(http.server.SimpleHTTPRequestHandler):
                                            "address since this link was sent. Use the newest link.")
             elif outcome == "taken":
                 self._send_json_error(409, "That address is already confirmed on another "
-                                           "JuziGenius account.")
+                                           "JuziGenius account, and an address can be "
+                                           "confirmed on only one. Add a different address "
+                                           "in Settings, or email support@juzigenius.com "
+                                           "and we'll sort it out.")
             else:
                 self._send_json_error(400, "This link is invalid or has expired.")
         except Exception as e:
