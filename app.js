@@ -71,7 +71,13 @@ const state = {
     // envelope) so the answer follows the account to whatever device it
     // signs in on next, rather than being re-asked per browser.
     tutorialIndex: 0,
-    tutorialSeen: true
+    tutorialSeen: true,
+    // Points into the session currently under way, sessions finished today,
+    // and whether the bar is sitting on its "complete" state waiting for the
+    // next item to roll it over. See the Sessions block above.
+    sessionPoints: 0,
+    sessionsToday: 0,
+    sessionJustCompleted: false
 };
 
 const SUBMIT_LABELS = { paste: "Process & Unlock", hsk: "Get Sentences", suggest: "Add Selected", chars: "Unlock Selected" };
@@ -110,6 +116,44 @@ const HINT_WALKTHROUGH_SPEED = 4.5;
 // Number of hint tiers in the staircase (pinyin push / outline / walkthrough).
 const MAX_HINT_TIER = 3;
 
+/* ==========================================================================
+   Sessions
+   ==========================================================================
+   What a session is, and why it is measured in points rather than in items.
+
+   People arriving from other language apps expect a session to have a shape
+   -- a start, a finish line, and an answer to "how much is enough today?".
+   This app had none: practice simply continued until you stopped, which
+   several users reported as not knowing how long they were meant to use it.
+
+   A practice item is a poor unit on its own, because the three kinds are not
+   the same amount of work. The owner set the exchange rate directly:
+   **a session is ten characters, five words or three sentences.** Ten, five
+   and three have a least common multiple of 30, so a session is 30 points
+   and each kind is worth its share of one -- which means a mixed session
+   (the normal case, since all three study styles are on by default) lands on
+   the same finish line without any special handling.
+
+   Change SESSION_POINTS and these three together or the exchange rate breaks:
+   each ITEM_POINTS value must stay SESSION_POINTS divided by the number of
+   that kind the owner considers a session.
+   ========================================================================== */
+const SESSION_POINTS = 30;
+const ITEM_POINTS = { character: 3, word: 6, sentence: 10 };
+
+// What the app recommends in a day, and the only number here that is advice
+// rather than arithmetic. Two sessions is roughly a day's work at the
+// default intake of 15 new characters (DEFAULT_DAILY_NEW_LIMIT) plus the
+// reviews those characters have already earned.
+const SESSIONS_PER_DAY = 2;
+
+// Per device, like the writing grid and the voice: a session is a sitting at
+// one screen, and half a session carried to a phone is not a thing anyone
+// means. The day stamp is stored alongside so the count resets on its own at
+// midnight without anything having to run at midnight.
+const SESSION_POINTS_KEY = "juzi_session_points";
+const SESSIONS_TODAY_KEY = "juzi_sessions_today";
+const SESSION_DAY_KEY = "juzi_session_day";
 
 /* ==========================================================================
    Tutorial content
@@ -143,7 +187,8 @@ const TUTORIAL_SCREENS = [
         heading: "How a round goes",
         paragraphs: [
             "The English prompt sits at the top, and under it one box per character. The highlighted box is the one you are writing now; the rest fill in behind you as you go.",
-            "Write that character in the square below the boxes. Every stroke is checked as you draw it — the right shape in the right place, in the right order — and a stroke that isn't one of those simply won't take."
+            "Write that character in the square below the boxes. Every stroke is checked as you draw it — the right shape in the right place, in the right order — and a stroke that isn't one of those simply won't take.",
+            "The bar under the top row is your session: <strong>ten characters, five words or three sentences</strong>, or any mix of them. Skipping doesn't fill it, and two sessions is a good day."
         ],
         demo: "slots"
     },
@@ -260,6 +305,10 @@ const elements = {};
 document.addEventListener("DOMContentLoaded", () => {
     cacheDomElements();
     initEventListeners();
+    // Before fetchNewSession, so a session resumed from earlier today is
+    // already on the bar the first time it is drawn rather than flicking up
+    // from empty a moment later.
+    loadSessionProgress();
     watchLayoutSize();
     registerServiceWorker();
     fetchNewSession();
@@ -479,6 +528,10 @@ function cacheDomElements() {
     elements.tutorialBtnNext = document.getElementById("tutorial-btn-next");
     elements.tutorialBtnClose = document.getElementById("tutorial-btn-close");
     elements.settingsBtnTutorial = document.getElementById("settings-btn-tutorial");
+
+    elements.sessionBar = document.getElementById("session-bar");
+    elements.sessionBarLabel = document.getElementById("session-bar-label");
+    elements.sessionBarFill = document.getElementById("session-bar-fill");
 
     // Plans: the locked Paste Text panel, the upgrade screen, Settings' plan section.
     elements.pasteOpen = document.getElementById("paste-open");
@@ -859,6 +912,7 @@ async function fetchNewSession() {
         if (elements.onboardingModal) elements.onboardingModal.style.display = "none";
         updateCharacterCounter();
         updateDueCounter();
+        renderSessionBar();
 
         // After the tier picker, never instead of it: an account arriving
         // here has a pool and a practice card to read the tutorial against.
@@ -999,6 +1053,188 @@ async function chooseOnboardingTier(size) {
 }
 
 /* ==========================================================================
+   Session progress
+   ==========================================================================
+   The bar under the top row. See the Sessions constants block near the top
+   of this file for what a session is and why it counts points.
+   ========================================================================== */
+
+/** Today, as the plain date string the stored day stamp is compared against. */
+function todayStamp() {
+    // Local date, not toISOString(): a learner practising at 9pm in a
+    // UTC+ timezone would otherwise be rolled into tomorrow's count.
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+}
+
+/**
+ * Restores the session in progress, or starts a fresh day.
+ *
+ * Every read is guarded: localStorage throws rather than returning null in a
+ * Safari private window, and the session bar is not worth an exception on
+ * the path that boots the app.
+ */
+function loadSessionProgress() {
+    try {
+        if (localStorage.getItem(SESSION_DAY_KEY) !== todayStamp()) {
+            resetSessionProgress();
+            return;
+        }
+        state.sessionPoints = Math.max(0, parseInt(localStorage.getItem(SESSION_POINTS_KEY), 10) || 0);
+        state.sessionsToday = Math.max(0, parseInt(localStorage.getItem(SESSIONS_TODAY_KEY), 10) || 0);
+    } catch (err) {
+        state.sessionPoints = 0;
+        state.sessionsToday = 0;
+    }
+    state.sessionJustCompleted = false;
+    renderSessionBar();
+}
+
+function saveSessionProgress() {
+    try {
+        localStorage.setItem(SESSION_DAY_KEY, todayStamp());
+        localStorage.setItem(SESSION_POINTS_KEY, String(state.sessionPoints));
+        localStorage.setItem(SESSIONS_TODAY_KEY, String(state.sessionsToday));
+    } catch (err) {
+        // A device that refuses storage still gets a working bar for this
+        // sitting; it just starts empty next time.
+    }
+}
+
+/** Back to an untouched day. Used by a new day and by Start Over. */
+function resetSessionProgress() {
+    state.sessionPoints = 0;
+    state.sessionsToday = 0;
+    state.sessionJustCompleted = false;
+    saveSessionProgress();
+    renderSessionBar();
+}
+
+/**
+ * Credits one finished practice item to the session.
+ *
+ * Called only from triggerSentenceCompletion, which is the single path an
+ * item can be *finished* by -- Skip goes through nextSentence() and never
+ * reaches it, so a skipped item cannot move this bar. That is the whole
+ * point of the feature: it measures work done, not screens passed.
+ */
+function recordSessionRound(item) {
+    if (!item) return;
+    if (!itemWasWritten(item)) return;
+
+    // Roll over first: the bar holds its finished state until the next item
+    // is completed, so that the moment is visible rather than being wiped by
+    // whatever the learner does next.
+    if (state.sessionJustCompleted) {
+        state.sessionJustCompleted = false;
+        state.sessionPoints = 0;
+    }
+
+    state.sessionPoints += ITEM_POINTS[item.kind] || ITEM_POINTS.sentence;
+
+    if (state.sessionPoints >= SESSION_POINTS) {
+        // Clamped rather than carried over. A sentence finishing a session
+        // can overshoot by up to 9 points, and starting the next bar part
+        // filled raises "why is it not empty?" for a handful of points
+        // nobody counted in the first place.
+        state.sessionPoints = SESSION_POINTS;
+        state.sessionsToday += 1;
+        state.sessionJustCompleted = true;
+    }
+
+    saveSessionProgress();
+    renderSessionBar();
+}
+
+/**
+ * The line the victory card carries when this item just finished a session.
+ *
+ * It lives on the victory card rather than in the bar's own label because
+ * this is a congratulation and the card is already the congratulating
+ * surface -- and because the card is measured and re-fitted on every
+ * completion (see fitVictorySolution), so a line that is only sometimes
+ * there costs nothing on the rounds it isn't.
+ *
+ * The point of the "keep going" half is that SESSIONS_PER_DAY is a floor,
+ * not a curfew: the app should never imply that practice past the day's
+ * target is wasted, because it isn't -- reviews brought forward are still
+ * reviews done. "" on every other round.
+ */
+function sessionVictoryNote() {
+    if (!state.sessionJustCompleted) return "";
+
+    const done = state.sessionsToday;
+    let line;
+    if (done < SESSIONS_PER_DAY) {
+        line = `Session ${done} done \u2014 one more makes a full day.`;
+    } else if (done === SESSIONS_PER_DAY) {
+        line = "That\u2019s a full day\u2019s practice. Keep going if you like \u2014 "
+             + "everything from here is extra.";
+    } else {
+        line = `Session ${done} today. Well past a full day.`;
+    }
+    return `<div class="victory-session-note">${line}</div>`;
+}
+
+/**
+ * Whether the learner actually wrote any of this item.
+ *
+ * A character whose stroke data can't be loaded offers "Skip This Character"
+ * instead of a canvas (showStrokeDataError → skipCurrentCharacter), and an
+ * item where every character went that way reaches completion without a
+ * single stroke being drawn. Crediting it would make the bar advance on
+ * exactly the thing it promises not to advance on.
+ *
+ * This is a guard against a rare case, not a common one: every HSK-tagged
+ * character and the whole top 3,000 by frequency are vendored, and so is
+ * every traditional form (see the stroke-data coverage note in
+ * project_state.md). It is reachable through pasted text and the long tail
+ * of Suggest Characters, which is exactly where a silent miscount would be
+ * hardest to notice.
+ */
+function itemWasWritten(item) {
+    const writable = Array.from(item.chinese || "").filter(char => !isPunctuation(char));
+    if (!writable.length) return false;
+    return state.skippedIndices.size < writable.length;
+}
+
+function renderSessionBar() {
+    if (!elements.sessionBar) return;
+
+    // Nothing to be part-way through when there is nothing to practise --
+    // a brand new account at the tier picker, or an empty pool.
+    elements.sessionBar.hidden = !(state.sentences && state.sentences.length);
+
+    const percent = Math.min(100, Math.round((state.sessionPoints / SESSION_POINTS) * 100));
+    if (elements.sessionBarFill) elements.sessionBarFill.style.width = `${percent}%`;
+    elements.sessionBar.setAttribute("aria-valuenow", String(percent));
+    elements.sessionBar.classList.toggle("is-complete", state.sessionJustCompleted);
+
+    if (elements.sessionBarLabel) {
+        elements.sessionBarLabel.textContent = state.sessionJustCompleted
+            ? sessionCompleteLabel()
+            : `Session ${state.sessionsToday + 1}`;
+    }
+    // The long form goes in the tooltip, where there is room for it: the
+    // label itself has to survive a 320px phone.
+    elements.sessionBar.title = state.sessionJustCompleted
+        ? `${state.sessionsToday} session(s) done today. ${SESSIONS_PER_DAY} is a good day.`
+        : `Session ${state.sessionsToday + 1} of the day — ${SESSION_POINTS / ITEM_POINTS.character} characters, `
+          + `${SESSION_POINTS / ITEM_POINTS.word} words or ${SESSION_POINTS / ITEM_POINTS.sentence} sentences.`;
+}
+
+/**
+ * What the bar says when it fills. It names the day's target the first time
+ * it is reached and congratulates past it, so the answer to "how much is
+ * enough?" is delivered at the only moment anyone is asking it.
+ */
+function sessionCompleteLabel() {
+    if (state.sessionsToday < SESSIONS_PER_DAY) return "Session done";
+    if (state.sessionsToday === SESSIONS_PER_DAY) return "Day\u2019s target met";
+    return "Session done";
+}
+
+/* ==========================================================================
    Tutorial
    ==========================================================================
    Four screens explaining how practice works, offered once on a new account
@@ -1083,8 +1319,15 @@ function buildTutorialDemo(kind) {
     }
 
     if (kind === "slots") {
-        // A miniature of the assembly line: two characters written, the third
-        // active, the fourth still to come.
+        // A miniature of the assembly line -- two characters written, the
+        // third active, the fourth still to come -- with a part-filled
+        // session bar under it, since screen 2 now describes both.
+        const stack = document.createElement("div");
+        stack.style.display = "flex";
+        stack.style.flexDirection = "column";
+        stack.style.alignItems = "center";
+        stack.style.gap = "12px";
+
         const row = document.createElement("div");
         row.className = "tutorial-demo-row";
         row.style.display = "flex";
@@ -1100,7 +1343,30 @@ function buildTutorialDemo(kind) {
             slot.textContent = cell.text;
             row.appendChild(slot);
         });
-        return row;
+        stack.appendChild(row);
+
+        // The real .session-bar markup and classes, so what the paragraph
+        // points at looks like the thing it points at. Part-filled by hand
+        // rather than from state.sessionPoints -- the illustration should
+        // read the same whatever the learner's own bar happens to say.
+        const bar = document.createElement("div");
+        bar.className = "session-bar";
+        bar.style.marginBottom = "0";
+        bar.style.width = "220px";
+        const label = document.createElement("span");
+        label.className = "session-bar-label";
+        label.textContent = "Session 1";
+        const track = document.createElement("div");
+        track.className = "session-bar-track";
+        const fill = document.createElement("div");
+        fill.className = "session-bar-fill";
+        fill.style.width = "45%";
+        track.appendChild(fill);
+        bar.appendChild(label);
+        bar.appendChild(track);
+        stack.appendChild(bar);
+
+        return stack;
     }
 
     if (kind === "hints") {
@@ -1617,6 +1883,10 @@ function triggerSentenceCompletion() {
     const currentSentence = state.sentences[state.currentIndex];
     if (!currentSentence) return;
 
+    // Credit this item to the session bar. Before the network calls below,
+    // since it is local and must not depend on any of them succeeding.
+    recordSessionRound(currentSentence);
+
     // Tell the server this sentence is done, so future batches prefer
     // material the user hasn't written yet. Fire-and-forget: a failed
     // request must never interrupt the celebration.
@@ -1658,6 +1928,7 @@ function triggerSentenceCompletion() {
             <div class="victory-card">
                 <img src="/avatar-nobg.png" alt="Juzi Mascot" class="victory-mascot" />
                 <div class="victory-title">太棒了! Well Done!</div>
+                ${sessionVictoryNote()}
                 ${renderVictorySolution(currentSentence)}
                 <div class="victory-actions">
                     <button id="btn-repeat" class="btn-repeat">↺ Repeat</button>
@@ -3804,6 +4075,9 @@ async function performAccountReset() {
         state.charMistakes = 0;
         state.skippedIndices = new Set();
         state.isCompleted = false;
+        // The account is going back to empty, so the day's practice count
+        // should not survive it.
+        resetSessionProgress();
         updateHintButtonLabel();
         // Bump the token so any in-flight stroke animation or character-data
         // load from the old sentence is treated as superseded (see

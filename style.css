@@ -88,9 +88,13 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    /* Tightened from 14px/12px, and the 1px bottom border removed, when the
+       session bar moved in directly underneath: that row is now the divider
+       between the top controls and the practice card, and it would otherwise
+       have cost the canvas its own height on top of a rule it makes
+       redundant. See .session-bar. */
+    margin-bottom: 8px;
+    padding-bottom: 8px;
 }
 
 .top-btn {
@@ -607,6 +611,37 @@ body {
     font-weight: 800;
     color: #27ae60;
     margin-bottom: 6px;
+}
+
+/* Shown on the victory card only on the round that finishes a session (see
+   sessionVictoryNote in app.js). Green like the title, but small and
+   regular-weight: it is a note under the celebration, not a second
+   celebration. It sits above the sentence read-back, which is measured and
+   fitted after this is in the DOM, so the read-back gives up the few pixels
+   rather than this being squeezed -- fitVictorySolution reads the room
+   actually left and needs no telling about it. */
+.victory-session-note {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: #27ae60;
+    max-width: 92%;
+    margin-bottom: 6px;
+}
+
+/* Hidden outright on a cramped canvas, not merely shrunk. Measured at the
+   200px floor: the note wrapped to two lines, took 29px, and the sentence
+   read-back below it was squeezed to 36px and clipped (`scrollHeight >
+   clientHeight`). The read-back is the thing worth keeping — it is the
+   learner's own finished work — and this is an aside. Same reasoning, and
+   the same 260px, as the no-stroke-data card's note, which this block
+   already hides.
+
+   The floor is only reached in landscape, at 125% zoom, or in a short
+   window; a phone held normally has a 351px canvas at 375x812 and shows the
+   note with room to spare. The bar's own "Day's target met" label survives
+   at every size regardless, so the information is never actually lost. */
+@container (max-width: 260px) {
+    .victory-session-note { display: none; }
 }
 
 /* The sentence just written, character by character with its reading beneath
@@ -2502,3 +2537,68 @@ body {
     margin-left: auto;
 }
 
+/* --- Session progress bar -----------------------------------------------
+
+   One thin row under the top controls: a label naming which session of the
+   day this is, and a track that fills as practice items are completed. It
+   replaced #top-bar's bottom border rather than being added below it, so the
+   whole feature costs the writing canvas about 14px of height rather than
+   30 -- see #top-bar, and fitCanvasToViewportHeight in app.js for why every
+   row above the canvas is measured out of it. */
+.session-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.session-bar[hidden] { display: none; }
+
+.session-bar-label {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    /* Tabular figures so the label doesn't jiggle the track sideways as the
+       session number ticks over. */
+    font-variant-numeric: tabular-nums;
+}
+
+.session-bar-track {
+    flex: 1;
+    min-width: 0;
+    height: 5px;
+    border-radius: 999px;
+    /* --border-color rather than --card-bg, which is only a shade off the
+       card itself: an empty track has to be visible, because the empty part
+       IS the information -- it is what shows how much of the session is
+       left. A track you can only see once it has filled answers the
+       question too late to be worth asking. */
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.session-bar-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background-color: var(--accent-gold);
+    transition: width 0.35s ease, background-color 0.25s ease;
+}
+
+/* The moment the session fills. Green rather than gold, and the label says
+   so in words -- the bar alone hitting its end is easy to miss on a glance,
+   and this is the one piece of information the whole feature exists to
+   deliver. It holds until the next completed item starts the next session. */
+.session-bar.is-complete .session-bar-fill { background-color: var(--accent-green); }
+.session-bar.is-complete .session-bar-label { color: var(--accent-green); }
+
+/* The label is the first thing worth dropping on a narrow phone: the track
+   carries the actual information, and "SESSION 2" is the part a returning
+   user already knows. */
+@media (max-width: 380px) {
+    .session-bar-label { display: none; }
+}

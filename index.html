@@ -61,6 +61,28 @@
             <button type="button" id="btn-settings" class="gear-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         </header>
 
+        <!-- Session progress. The app's answer to "how long am I supposed to
+             keep going?", which people used to have no way to know: the bar
+             fills as practice items are finished and a session is a fixed
+             amount of work whatever kind of item that work arrives as (see
+             ITEM_POINTS / SESSION_POINTS in app.js). A skipped item adds
+             nothing to it, which is the point -- it measures work done, not
+             screens passed.
+
+             It sits directly under the top row and doubles as that row's
+             divider, which is why #top-bar has no border-bottom of its own:
+             the canvas is sized from whatever height everything else leaves
+             (see fitCanvasToViewportHeight), so a new row here is taken
+             straight out of the writing area and has to earn its pixels. -->
+        <div id="session-bar" class="session-bar" role="progressbar"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+             aria-label="Session progress">
+            <span id="session-bar-label" class="session-bar-label">Session 1</span>
+            <div class="session-bar-track">
+                <div id="session-bar-fill" class="session-bar-fill"></div>
+            </div>
+        </div>
+
         <!-- Shown only to a username/password account with no email on file,
              which currently has no way back in if the password is forgotten.
              See updateEmailNudge in app.js. -->
