@@ -813,7 +813,7 @@ function initEventListeners() {
     if (elements.tutorialBtnNext) {
         elements.tutorialBtnNext.addEventListener("click", () => {
             if (state.tutorialIndex >= TUTORIAL_SCREENS.length - 1) {
-                closeTutorial(true);
+                closeTutorial();
                 return;
             }
             state.tutorialIndex++;
@@ -1242,12 +1242,15 @@ function sessionCompleteLabel() {
    sees is still the choice it cannot avoid) and available from Settings
    afterwards.
 
-   Closing is always available -- the X, Escape, a click on the backdrop --
-   and closing on its own does not suppress it. "Don't show this again" is
-   what does, and reaching the end counts as the same answer: someone who
-   read all four screens should not be handed them again tomorrow. Both
-   write settings.tutorial_seen, so the answer is the account's and not this
-   browser's.
+   Closing is always available -- the X, Escape, a click on the backdrop,
+   or Start writing at the end -- and none of them suppresses it. **The
+   checkbox is the only thing that does**, which is what its label promises,
+   and the tutorial is offered again on every visit until it is ticked.
+   Finishing all four screens deliberately does NOT count as ticking it:
+   someone who read to the end and left the box alone has said they want it
+   again, and inferring the opposite would override the one control on the
+   card that exists to answer this. It writes settings.tutorial_seen, so the
+   answer is the account's and not this browser's.
    ========================================================================== */
 
 function openTutorial() {
@@ -1408,21 +1411,22 @@ function chipRow(pairs) {
 }
 
 /**
- * Closes the tutorial. `completed` is true only for "Start writing" on the
- * last screen; either that or a ticked "Don't show this again" is taken as
- * the account saying it is done with the tutorial.
+ * Closes the tutorial, by whichever of the four ways out was taken -- they
+ * are all the same to this. Only a ticked "Don't show this again" stops the
+ * tutorial being offered next visit.
  */
-function closeTutorial(completed = false) {
+function closeTutorial() {
     if (!elements.tutorialModal) return;
     elements.tutorialModal.style.display = "none";
-    const suppress = completed
-        || Boolean(elements.tutorialDontShow && elements.tutorialDontShow.checked);
-    if (suppress) markTutorialSeen();
+    if (elements.tutorialDontShow && elements.tutorialDontShow.checked) {
+        markTutorialSeen();
+    }
 }
 
 /**
  * Remembers, on the account, that the tutorial has been dealt with.
  *
+ * Only ever called from closeTutorial with the checkbox ticked.
  * Fire-and-forget: the local flag is set first so nothing re-opens the
  * tutorial in this session either way, and a failed save costs the user one
  * extra offer of a dismissible card next visit -- not worth an error banner
